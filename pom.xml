@@ -21,6 +21,8 @@
         <module>raiji-common</module>
         <module>raiji-security</module>
         <module>raiji-users</module>
+        <module>raiji-rides</module>
+        <module>raiji-deliveries</module>
         <module>raiji-app</module>
     </modules>
 
@@ -44,6 +46,16 @@
             <dependency>
                 <groupId>com.raiji</groupId>
                 <artifactId>raiji-users</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.raiji</groupId>
+                <artifactId>raiji-rides</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.raiji</groupId>
+                <artifactId>raiji-deliveries</artifactId>
                 <version>${project.version}</version>
             </dependency>
         </dependencies>

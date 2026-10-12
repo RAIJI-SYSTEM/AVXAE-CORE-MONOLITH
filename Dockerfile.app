@@ -1,16 +1,22 @@
 FROM maven:3.9-eclipse-temurin-21 AS build
 WORKDIR /build
 
+# 1) POMs (para cache de dependências)
 COPY pom.xml ./
 COPY raiji-common/pom.xml ./raiji-common/
 COPY raiji-security/pom.xml ./raiji-security/
 COPY raiji-users/pom.xml ./raiji-users/
+COPY raiji-rides/pom.xml ./raiji-rides/
+COPY raiji-deliveries/pom.xml ./raiji-deliveries/
 COPY raiji-app/pom.xml ./raiji-app/
 RUN mvn -B dependency:go-offline || true
 
+# 2) Fontes
 COPY raiji-common/src ./raiji-common/src
 COPY raiji-security/src ./raiji-security/src
 COPY raiji-users/src ./raiji-users/src
+COPY raiji-rides/src ./raiji-rides/src
+COPY raiji-deliveries/src ./raiji-deliveries/src
 COPY raiji-app/src ./raiji-app/src
 RUN mvn -B clean package -DskipTests
 
