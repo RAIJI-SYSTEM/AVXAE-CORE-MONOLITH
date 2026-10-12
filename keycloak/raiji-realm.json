@@ -1,0 +1,65 @@
+{
+  "realm": "raiji",
+  "enabled": true,
+  "registrationAllowed": true,
+  "resetPasswordAllowed": true,
+  "rememberMe": true,
+  "verifyEmail": false,
+  "loginWithEmailAllowed": true,
+  "roles": {
+    "realm": [
+      { "name": "DRIVER" },
+      { "name": "PASSENGER" },
+      { "name": "admin" }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "raiji-api",
+      "name": "Raiji API (frontend e apps)",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "redirectUris": ["http://localhost:3000/*", "http://localhost:5173/*", "http://localhost:8080/*"],
+      "webOrigins": ["+"],
+      "defaultClientScopes": ["web-origins", "acr", "profile", "roles", "email", "basic"],
+      "optionalClientScopes": ["address", "phone", "offline_access", "microprofile-jwt"]
+    },
+    {
+      "clientId": "raiji-admin",
+      "name": "Raiji Admin (service account do monolito)",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "raiji-admin-secret",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "defaultClientScopes": ["web-origins", "acr", "profile", "roles", "email"]
+    }
+  ],
+  "users": [
+    {
+      "username": "service-account-raiji-admin",
+      "enabled": true,
+      "serviceAccountClientId": "raiji-admin",
+      "clientRoles": {
+        "realm-management": ["manage-users", "view-users", "query-users","view-realm"]
+      }
+    },
+    {
+      "username": "teste",
+      "enabled": true,
+      "email": "teste@raiji.com",
+      "emailVerified": true,
+      "firstName": "Usuario",
+      "lastName": "Teste",
+      "credentials": [
+        { "type": "password", "value": "teste123", "temporary": false }
+      ]
+    }
+  ]
+}

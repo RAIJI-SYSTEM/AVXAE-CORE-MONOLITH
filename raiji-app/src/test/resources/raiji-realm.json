@@ -1,0 +1,65 @@
+{
+  "realm": "raiji",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": true,
+  "resetPasswordAllowed": true,
+  "verifyEmail": false,
+  "loginWithEmailAllowed": true,
+  "roles": {
+    "realm": [
+      { "name": "DRIVER" },
+      { "name": "PASSENGER" },
+      { "name": "admin" }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "raiji-api",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "redirectUris": ["http://localhost:*"],
+      "webOrigins": ["+"],
+      "defaultClientScopes": ["web-origins", "acr", "profile", "roles", "email", "basic"]
+    },
+    {
+      "clientId": "raiji-admin",
+      "enabled": true,
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "raiji-admin-secret",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "defaultClientScopes": ["web-origins", "acr", "profile", "roles", "email"]
+    }
+  ],
+  "users": [
+    {
+      "username": "service-account-raiji-admin",
+      "enabled": true,
+      "serviceAccountClientId": "raiji-admin",
+      "clientRoles": {
+        "realm-management": [
+          "manage-users",
+          "view-users",
+          "query-users",
+          "view-realm"
+        ]
+      }
+    },
+    {
+      "username": "teste",
+      "enabled": true,
+      "email": "teste@raiji.com",
+      "emailVerified": true,
+      "firstName": "Usuario",
+      "lastName": "Teste",
+      "credentials": [
+        { "type": "password", "value": "teste123", "temporary": false }
+      ]
+    }
+  ]
+}

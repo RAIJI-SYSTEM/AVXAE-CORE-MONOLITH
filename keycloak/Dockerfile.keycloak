@@ -1,0 +1,10 @@
+FROM quay.io/keycloak/keycloak:26.0.5
+
+# A imagem 26.0 é distroless (não tem apt-get/microdnf).
+# Apenas copiamos o realm e iniciamos o servidor.
+USER root
+COPY --chown=keycloak:keycloak raiji-realm.json /opt/keycloak/data/import/raiji-realm.json
+
+USER keycloak
+EXPOSE 8080
+CMD ["start-dev", "--import-realm"]

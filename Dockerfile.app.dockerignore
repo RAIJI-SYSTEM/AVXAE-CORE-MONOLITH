@@ -1,0 +1,14 @@
+.git
+.gitignore
+.idea
+.vscode
+*.iml
+**/target
+keycloak
+postgres
+docker-compose.yml
+Dockerfile.app
+Dockerfile.app.dockerignore
+data
+logs
+*.log
