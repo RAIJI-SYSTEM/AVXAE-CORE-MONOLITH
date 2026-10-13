@@ -8,5 +8,5 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface RidePassengerRepository extends JpaRepository<RidePassenger, UUID> {
     List<RidePassenger> findByRideId(UUID rideId);
-    List<RidePassenger> findByPassengerId(UUID passengerId);
+    List<RidePassenger> findByPassengerSub(String passengerSub);
 }

@@ -7,6 +7,6 @@ import com.raiji.users.domain.Vehicle;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface VehicleRepository extends JpaRepository<Vehicle, UUID> {
-    List<Vehicle> findByOwnerId(UUID ownerId);
+    List<Vehicle> findByOwnerSub(String ownerSub);
     boolean existsByPlate(String plate);
 }

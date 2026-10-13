@@ -20,7 +20,6 @@ import org.junit.jupiter.api.Test;
 @DisplayName("Documentação viva — catálogo de todas as requisições da API")
 class ApiCatalogIT extends RaijiTestSupport {
 
-    //private static final String SENHA_NOVOS_USUARIOS_NOVOS_USUARIOS = "Catalogo@Raiji123";
     private static final int LIMITE_CORPO = 280;
 
     private record Endpoint(String metodo, String rota, String autenticacao,
@@ -46,7 +45,7 @@ class ApiCatalogIT extends RaijiTestSupport {
 
             new Endpoint("GET", "/realms/raiji",
                 "pública",
-                "METADADOS DO REALM — emissor dos tokens; recursos habilitados (registro e recuperação de SENHA_NOVOS_USUARIOS — RF35)",
+                "METADADOS DO REALM — emissor dos tokens; recursos habilitados (registro e recuperação de senha — RF35)",
                 () -> given().when().get(kc("/realms/raiji"))),
 
             new Endpoint("GET", "/realms/raiji/protocol/openid-connect/certs",
@@ -61,19 +60,19 @@ class ApiCatalogIT extends RaijiTestSupport {
 
             new Endpoint("GET", "/api/me",
                 "Bearer token (JWT)",
-                "IDENTIDADE — sub, e-mail, nome e realmRoles do usuário autenticado, lidos do token",
+                "IDENTIDADE — sub, e-mail, nome, realmRoles e atributos (cnh_*) lidos do token",
                 () -> given().auth().oauth2(token).when().get(app("/api/me"))),
 
             new Endpoint("GET", "/api/users/me",
                 "Bearer token (JWT)",
-                "PERFIL DE NEGÓCIO — consulta e, no 1º acesso, provisiona o registro no banco (RN20)",
+                "PERFIL DE NEGÓCIO — lê o perfil atual do JWT (sem banco local; RN20)",
                 () -> given().auth().oauth2(token).when().get(app("/api/users/me"))),
 
             new Endpoint("POST", "/api/users/me/profile",
                 "Bearer token (JWT)",
-                "DEFINIR O PERFIL — DRIVER/PASSENGER; grava no banco e sincroniza a realm role no Keycloak (RN01/RF34)",
+                "DEFINIR O PERFIL — role DRIVER/PASSENGER + userType PF/PJ, sincroniza realm roles no Keycloak (RN01/RF34)",
                 () -> given().auth().oauth2(token).contentType(ContentType.JSON)
-                        .body("{\"role\":\"PASSENGER\"}")
+                        .body("{\"role\":\"PASSENGER\",\"userType\":\"PF\"}")
                         .when().post(app("/api/users/me/profile"))),
 
             new Endpoint("GET", "/api/admin/ping",

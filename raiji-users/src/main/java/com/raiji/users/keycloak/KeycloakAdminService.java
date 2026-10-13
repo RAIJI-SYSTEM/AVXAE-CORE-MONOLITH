@@ -1,5 +1,6 @@
 package com.raiji.users.keycloak;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -23,6 +24,10 @@ public class KeycloakAdminService {
         this.restClient = RestClient.create();
     }
 
+    // -----------------------------------------------------------------------
+    // Realm roles
+    // -----------------------------------------------------------------------
+
     public void assignRealmRole(String userId, String roleName) {
         String token = adminToken();
         Map<String, Object> role = fetchRealmRole(roleName, token);
@@ -40,8 +45,6 @@ public class KeycloakAdminService {
         String token = adminToken();
         Map<String, Object> role = fetchRealmRole(roleName, token);
 
-        // CORREÇÃO: O método delete() padrão não aceita body.
-        // Usamos method(HttpMethod.DELETE) para obter um RequestBodySpec que aceita corpo.
         restClient.method(HttpMethod.DELETE)
                 .uri(adminBaseUrl() + "/users/" + userId + "/role-mappings/realm")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
@@ -51,13 +54,68 @@ public class KeycloakAdminService {
                 .toBodilessEntity();
     }
 
+    /**
+     * Troca o tipo PF/PJ: remove as duas e adiciona a nova.
+     */
+    public void setUserType(String userId, String userType) {
+        if (userType == null) return;
+        removeRealmRoleQuietly(userId, "PF");
+        removeRealmRoleQuietly(userId, "PJ");
+        assignRealmRole(userId, userType);
+    }
+
+    /**
+     * Mescla (merge) atributos no usuário do Keycloak.
+     * Ex.: Map.of("cnh_number", List.of("123"), "cnh_category", List.of("AB"))
+     */
+    public void updateUserAttributes(String userId, Map<String, List<String>> attributes) {
+        if (attributes == null || attributes.isEmpty()) return;
+
+        String token = adminToken();
+
+        Map<String, Object> user = restClient.get()
+                .uri(adminBaseUrl() + "/users/" + userId)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .retrieve()
+                .body(new ParameterizedTypeReference<>() {});
+
+        if (user == null) return;
+
+        @SuppressWarnings("unchecked")
+        Map<String, List<String>> merged =
+                user.get("attributes") instanceof Map<?, ?> existing
+                        ? new HashMap<>((Map<String, List<String>>) existing)
+                        : new HashMap<>();
+        merged.putAll(attributes);
+        user.put("attributes", merged);
+
+        restClient.put()
+                .uri(adminBaseUrl() + "/users/" + userId)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(user)
+                .retrieve()
+                .toBodilessEntity();
+    }
+
+    // -----------------------------------------------------------------------
+    // Helpers
+    // -----------------------------------------------------------------------
+
+    private void removeRealmRoleQuietly(String userId, String roleName) {
+        try {
+            removeRealmRole(userId, roleName);
+        } catch (Exception ignored) {
+            // Role não existia ou já não estava atribuída — segue o jogo.
+        }
+    }
+
     private Map<String, Object> fetchRealmRole(String roleName, String adminToken) {
         return restClient.get()
                 .uri(adminBaseUrl() + "/roles/" + roleName)
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
                 .retrieve()
-                .body(new ParameterizedTypeReference<>() {
-                });
+                .body(new ParameterizedTypeReference<>() {});
     }
 
     private String adminToken() {
@@ -67,12 +125,12 @@ public class KeycloakAdminService {
         form.add("client_secret", properties.adminClientSecret());
 
         Map<String, Object> response = restClient.post()
-                .uri(properties.baseUrl() + "/realms/" + properties.realm() + "/protocol/openid-connect/token")
+                .uri(properties.baseUrl() + "/realms/" + properties.realm()
+                        + "/protocol/openid-connect/token")
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                 .body(form)
                 .retrieve()
-                .body(new ParameterizedTypeReference<>() {
-                });
+                .body(new ParameterizedTypeReference<>() {});
 
         return (String) response.get("access_token");
     }

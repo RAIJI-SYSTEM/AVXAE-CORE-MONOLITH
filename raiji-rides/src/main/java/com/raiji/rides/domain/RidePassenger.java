@@ -18,7 +18,7 @@ import jakarta.persistence.Table;
 @Entity
 @Table(name = "ride_passengers", indexes = {
         @Index(name = "idx_ride_pass_ride", columnList = "ride_id"),
-        @Index(name = "idx_ride_pass_passenger", columnList = "passenger_id")
+        @Index(name = "idx_ride_pass_passenger_sub", columnList = "passenger_sub")
 })
 public class RidePassenger extends AuditableEntity {
 
@@ -29,8 +29,9 @@ public class RidePassenger extends AuditableEntity {
     @Column(name = "ride_id", nullable = false)
     private UUID rideId;
 
-    @Column(name = "passenger_id", nullable = false)
-    private UUID passengerId;
+    /** Sub do passageiro no Keycloak. */
+    @Column(name = "passenger_sub", nullable = false, length = 64)
+    private String passengerSub;
 
     @Column(name = "passenger_name", length = 150)
     private String passengerName;
@@ -61,8 +62,8 @@ public class RidePassenger extends AuditableEntity {
     public UUID getId() { return id; }
     public UUID getRideId() { return rideId; }
     public void setRideId(UUID v) { this.rideId = v; }
-    public UUID getPassengerId() { return passengerId; }
-    public void setPassengerId(UUID v) { this.passengerId = v; }
+    public String getPassengerSub() { return passengerSub; }
+    public void setPassengerSub(String v) { this.passengerSub = v; }
     public String getPassengerName() { return passengerName; }
     public void setPassengerName(String v) { this.passengerName = v; }
     public RidePassengerStatus getStatus() { return status; }

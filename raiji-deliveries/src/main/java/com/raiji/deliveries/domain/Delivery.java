@@ -43,8 +43,9 @@ public class Delivery extends AuditableEntity {
     @Column(name = "ride_id")
     private UUID rideId;
 
-    @Column(name = "sender_id", nullable = false)
-    private UUID senderId;
+    /** Sub do remetente no Keycloak. */
+    @Column(name = "sender_sub", nullable = false, length = 64)
+    private String senderSub;
 
     @Column(name = "sender_name", length = 150)
     private String senderName;
@@ -96,8 +97,8 @@ public class Delivery extends AuditableEntity {
     public void setStatus(DeliveryStatus v) { this.status = v; }
     public UUID getRideId() { return rideId; }
     public void setRideId(UUID v) { this.rideId = v; }
-    public UUID getSenderId() { return senderId; }
-    public void setSenderId(UUID v) { this.senderId = v; }
+    public String getSenderSub() { return senderSub; }
+    public void setSenderSub(String v) { this.senderSub = v; }
     public String getSenderName() { return senderName; }
     public void setSenderName(String v) { this.senderName = v; }
     public String getRecipientName() { return recipientName; }

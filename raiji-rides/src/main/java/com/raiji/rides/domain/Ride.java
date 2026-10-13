@@ -23,18 +23,10 @@ import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 
-/**
- * Carona (ride).
- *
- * <p>Não possui associação JPA com {@link RidePassenger}: o design do monolito
- * modular usa referências por UUID (rideId / passengerId), o que facilita a
- * extração futura para microserviços sem refatoração de mapeamento.
- * Use {@code RidePassengerRepository.findByRideId(id)} para listar passageiros.
- */
 @Entity
 @Table(name = "rides", indexes = {
         @Index(name = "idx_rides_route_date", columnList = "origin_city, destination_city, departure_date"),
-        @Index(name = "idx_rides_driver_status", columnList = "driver_id, status")
+        @Index(name = "idx_rides_driver_sub_status", columnList = "driver_sub, status")
 })
 public class Ride extends AuditableEntity {
 
@@ -46,8 +38,9 @@ public class Ride extends AuditableEntity {
     @Column(name = "ride_type", nullable = false)
     private RideType type;
 
-    @Column(name = "driver_id", nullable = false)
-    private UUID driverId;
+    /** Sub do motorista no Keycloak. */
+    @Column(name = "driver_sub", nullable = false, length = 64)
+    private String driverSub;
 
     @Column(name = "driver_name", length = 150)
     private String driverName;
@@ -106,8 +99,8 @@ public class Ride extends AuditableEntity {
     public UUID getId() { return id; }
     public RideType getType() { return type; }
     public void setType(RideType v) { this.type = v; }
-    public UUID getDriverId() { return driverId; }
-    public void setDriverId(UUID v) { this.driverId = v; }
+    public String getDriverSub() { return driverSub; }
+    public void setDriverSub(String v) { this.driverSub = v; }
     public String getDriverName() { return driverName; }
     public void setDriverName(String v) { this.driverName = v; }
     public UUID getVehicleId() { return vehicleId; }

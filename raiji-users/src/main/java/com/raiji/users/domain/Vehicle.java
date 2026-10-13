@@ -14,7 +14,7 @@ import jakarta.persistence.Table;
 @Entity
 @Table(name = "vehicles", indexes = {
         @Index(name = "idx_vehicles_plate", columnList = "plate"),
-        @Index(name = "idx_vehicles_owner", columnList = "owner_id")
+        @Index(name = "idx_vehicles_owner_sub", columnList = "owner_sub")
 })
 public class Vehicle extends AuditableEntity {
 
@@ -22,8 +22,9 @@ public class Vehicle extends AuditableEntity {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @Column(name = "owner_id", nullable = false)
-    private UUID ownerId;
+    /** Sub (claim `sub`) do usuário no Keycloak — antes era FK para users.id. */
+    @Column(name = "owner_sub", nullable = false, length = 64)
+    private String ownerSub;
 
     @Column(name = "plate", unique = true, nullable = false, length = 7)
     private String plate;
@@ -50,8 +51,8 @@ public class Vehicle extends AuditableEntity {
     private boolean active = true;
 
     public UUID getId() { return id; }
-    public UUID getOwnerId() { return ownerId; }
-    public void setOwnerId(UUID v) { this.ownerId = v; }
+    public String getOwnerSub() { return ownerSub; }
+    public void setOwnerSub(String v) { this.ownerSub = v; }
     public String getPlate() { return plate; }
     public void setPlate(String v) { this.plate = v; }
     public String getType() { return type; }
