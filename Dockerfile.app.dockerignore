@@ -6,6 +6,7 @@
 **/target
 keycloak
 postgres
+kong
 docker-compose.yml
 Dockerfile.app
 Dockerfile.app.dockerignore
