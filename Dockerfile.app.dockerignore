@@ -12,3 +12,6 @@ Dockerfile.app.dockerignore
 data
 logs
 *.log
+scripts/
+*.bak
+*.java.bak

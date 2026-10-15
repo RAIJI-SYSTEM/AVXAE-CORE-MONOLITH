@@ -30,23 +30,25 @@ class JornadaCompletaE2EIT extends RaijiTestSupport {
                 .body("sub", notNullValue())
                 .body("email", equalTo(usuario + "@raiji.com"));
 
-        passo(4, "GET /api/users/me → 1º acesso provisiona o perfil (RN20)");
+        passo(4, "GET /api/users/me → 1º acesso, perfil ainda não configurado (RN20)");
         given().auth().oauth2(token).when().get(app("/api/users/me"))
                 .then().statusCode(200)
                 .body("profileConfigured", is(false));
 
-        passo(5, "POST /api/users/me/profile → define PASSENGER (RN01/RF34)");
+        passo(5, "POST /api/users/me/profile → PASSENGER + PF (RN01/RF34)");
         given().auth().oauth2(token).contentType(ContentType.JSON)
-                .body("{\"role\":\"PASSENGER\"}")
+                .body("{\"role\":\"PASSENGER\",\"userType\":\"PF\"}")
                 .when().post(app("/api/users/me/profile"))
                 .then().statusCode(200)
-                .body("profileType", equalTo("PASSENGER"));
+                .body("role", equalTo("PASSENGER"))
+                .body("userType", equalTo("PF"));
 
-        passo(6, "novo login → token contém a role sincronizada (RF34)");
+        passo(6, "novo login → token contém as roles sincronizadas (RF34)");
         String novoToken = obterToken(usuario, SENHA_NOVOS_USUARIOS);
         given().auth().oauth2(novoToken).when().get(app("/api/me"))
                 .then().statusCode(200)
-                .body("realmRoles", hasItem("PASSENGER"));
+                .body("realmRoles", hasItem("PASSENGER"))
+                .body("realmRoles", hasItem("PF"));
     }
 
     private static void passo(int n, String descricao) {

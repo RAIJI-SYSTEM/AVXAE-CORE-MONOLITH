@@ -1,14 +1,17 @@
 package com.raiji.users.dto;
 
-import java.util.UUID;
+import java.util.List;
 
-import com.raiji.users.domain.UserProfileType;
-
+/**
+ * Projeção do usuário, montada a partir do JWT + (opcional) leitura
+ * do Keycloak. Não existe mais tabela local.
+ */
 public record UserProfileResponse(
-        UUID id,
-        String keycloakSub,
+        String sub,
         String email,
         String fullName,
-        UserProfileType profileType,
+        String userType,
+        String role,
+        List<String> realmRoles,
         boolean profileConfigured) {
 }

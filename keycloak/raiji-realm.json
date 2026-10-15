@@ -8,6 +8,8 @@
   "loginWithEmailAllowed": true,
   "roles": {
     "realm": [
+      { "name": "PF" },
+      { "name": "PJ" },
       { "name": "DRIVER" },
       { "name": "PASSENGER" },
       { "name": "admin" }
@@ -25,7 +27,65 @@
       "redirectUris": ["http://localhost:3000/*", "http://localhost:5173/*", "http://localhost:8080/*"],
       "webOrigins": ["+"],
       "defaultClientScopes": ["web-origins", "acr", "profile", "roles", "email", "basic"],
-      "optionalClientScopes": ["address", "phone", "offline_access", "microprofile-jwt"]
+      "optionalClientScopes": ["address", "phone", "offline_access", "microprofile-jwt"],
+      "protocolMappers": [
+        {
+          "name": "cnh_number",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "cnh_number",
+            "claim.name": "cnh_number",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        },
+        {
+          "name": "cnh_category",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "cnh_category",
+            "claim.name": "cnh_category",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        },
+        {
+          "name": "cnh_validity",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "cnh_validity",
+            "claim.name": "cnh_validity",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        },
+        {
+          "name": "driver_verified",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "driver_verified",
+            "claim.name": "driver_verified",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        }
+      ]
     },
     {
       "clientId": "raiji-admin",
@@ -47,7 +107,7 @@
       "enabled": true,
       "serviceAccountClientId": "raiji-admin",
       "clientRoles": {
-        "realm-management": ["manage-users", "view-users", "query-users","view-realm"]
+        "realm-management": ["manage-users", "view-users", "query-users", "view-realm"]
       }
     },
     {

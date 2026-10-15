@@ -1,7 +1,6 @@
 package com.raiji.web;
 
-import java.util.HashMap;   // ← ADICIONAR
-
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -22,11 +21,17 @@ public class MeController {
 
         Map<String, Object> resposta = new HashMap<>();
         resposta.put("sub", jwt.getSubject());
-        resposta.put("email", jwt.getClaimAsString("email"));   // pode ser null
-        resposta.put("name", jwt.getClaimAsString("name"));     // pode ser null
+        resposta.put("email", jwt.getClaimAsString("email"));
+        resposta.put("name", jwt.getClaimAsString("name"));
         resposta.put("realmRoles", realmAccess == null
                 ? List.of()
                 : realmAccess.getOrDefault("roles", List.of()));
+
+        // Atributos dos protocol mappers do Keycloak (podem ser null).
+        resposta.put("cnhNumber",      jwt.getClaimAsString("cnh_number"));
+        resposta.put("cnhCategory",    jwt.getClaimAsString("cnh_category"));
+        resposta.put("cnhValidity",    jwt.getClaimAsString("cnh_validity"));
+        resposta.put("driverVerified", jwt.getClaimAsString("driver_verified"));
 
         return resposta;
     }

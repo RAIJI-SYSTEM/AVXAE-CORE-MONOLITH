@@ -1,7 +1,19 @@
 package com.raiji.users.dto;
 
-import com.raiji.users.domain.UserProfileType;
-import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 
-public record SetProfileRequest(@NotNull UserProfileType role) {
+/**
+ * Requisição para definir o perfil. role = DRIVER/PASSENGER, userType = PF/PJ.
+ * Ambos são realm roles no Keycloak.
+ */
+public record SetProfileRequest(
+        @NotBlank
+        @Pattern(regexp = "DRIVER|PASSENGER", message = "role deve ser DRIVER ou PASSENGER")
+        String role,
+
+        @NotBlank
+        @Pattern(regexp = "PF|PJ", message = "userType deve ser PF ou PJ")
+        String userType
+) {
 }
