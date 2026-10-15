@@ -1,0 +1,49 @@
+_format_version: "3.0"
+
+# ============================================================================
+# Kong — configuração declarativa (DB-less) do Raiji
+# Toda a entrada pública do sistema passa pelo proxy em :8000
+# ============================================================================
+
+services:
+  # -------------------------------------------------------------------------
+  # Backend Spring Boot
+  # -------------------------------------------------------------------------
+  - name: raiji-app
+    url: http://app:8080
+    connect_timeout: 60000
+    write_timeout: 60000
+    read_timeout: 60000
+    routes:
+      - name: raiji-app-api
+        paths:
+          - /api
+        strip_path: false
+        preserve_host: true
+      - name: raiji-app-actuator
+        paths:
+          - /actuator
+        strip_path: false
+        preserve_host: true
+
+  # -------------------------------------------------------------------------
+  # Keycloak — endpoints OIDC usados pelo frontend / apps
+  # -------------------------------------------------------------------------
+  - name: raiji-keycloak
+    url: http://keycloak:8080
+    connect_timeout: 60000
+    write_timeout: 60000
+    read_timeout: 60000
+    routes:
+      - name: raiji-keycloak-realms
+        paths: ["/realms"]
+        strip_path: false
+      - name: raiji-keycloak-admin
+        paths: ["/admin"]
+        strip_path: false
+      - name: raiji-keycloak-resources
+        paths: ["/resources"]
+        strip_path: false
+      - name: raiji-keycloak-js
+        paths: ["/js"]
+        strip_path: false
