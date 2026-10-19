@@ -1,3 +1,4 @@
+
 package com.raiji.users.web;
 
 import java.util.List;
@@ -6,7 +7,9 @@ import java.util.UUID;
 import com.raiji.users.dto.VehicleRequest;
 import com.raiji.users.dto.VehicleResponse;
 import com.raiji.users.service.VehicleService;
+
 import jakarta.validation.Valid;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -21,15 +24,14 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-
 @RestController
 @RequestMapping("/api/vehicles")
-@PreAuthorize("hasRole('DRIVER'")
+@PreAuthorize("hasRole('DRIVER')")
 public class VehicleController {
 
     private final VehicleService vehicleService;
 
-    public VehicleController(VehicleService vehicleService){
+    public VehicleController(VehicleService vehicleService) {
         this.vehicleService = vehicleService;
     }
 
@@ -38,12 +40,12 @@ public class VehicleController {
             @AuthenticationPrincipal Jwt jwt,
             @Valid @RequestBody VehicleRequest request) {
 
-        VehicleResponse response = vehicleService.create(
-                request,
-                jwt.getSubject()
-        );
+        VehicleResponse response =
+                vehicleService.create(request, jwt.getSubject());
 
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        return ResponseEntity
+                .status(HttpStatus.CREATED)
+                .body(response);
     }
 
     @GetMapping
@@ -51,14 +53,14 @@ public class VehicleController {
             @AuthenticationPrincipal Jwt jwt) {
 
         return ResponseEntity.ok(
-                vehicleService.listByOwner((jwt.getSubject()))
+                vehicleService.listByOwner(jwt.getSubject())
         );
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<VehicleResponse> findById(
             @PathVariable UUID id,
-            @AuthenticationPrincipal Jwt jwt){
+            @AuthenticationPrincipal Jwt jwt) {
 
         return ResponseEntity.ok(
                 vehicleService.findById(id, jwt.getSubject())
