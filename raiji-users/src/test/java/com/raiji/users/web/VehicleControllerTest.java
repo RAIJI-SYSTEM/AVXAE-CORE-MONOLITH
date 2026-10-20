@@ -32,8 +32,10 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -165,6 +167,65 @@ class VehicleControllerTest {
                 .andExpect(jsonPath("$[0].active").value(true));
 
         verify(vehicleService).listByOwner("driver-123");
+    }
+
+    @Test
+    void shouldReturnVehicleById() throws Exception {
+        when(vehicleService.findById(vehicleId, "driver-123"))
+                .thenReturn(vehicleResponse());
+
+        mockMvc.perform(get("/api/vehicles/" + vehicleId)
+                        .with(jwt()
+                                .jwt(token -> token.subject("driver-123"))
+                                .authorities(
+                                        new SimpleGrantedAuthority("ROLE_DRIVER")
+                                )))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(vehicleId.toString()))
+                .andExpect(jsonPath("$.plate").value("ABC1D23"))
+                .andExpect(jsonPath("$.ownerSub").value("driver-123"));
+
+        verify(vehicleService).findById(vehicleId, "driver-123");
+    }
+
+    @Test
+    void shouldUpdateVehicle() throws Exception {
+        when(vehicleService.update(
+                eq(vehicleId),
+                eq("driver-123"),
+                any(VehicleRequest.class)
+        )).thenReturn(vehicleResponse());
+
+        mockMvc.perform(put("/api/vehicles/" + vehicleId)
+                        .with(jwt()
+                                .jwt(token -> token.subject("driver-123"))
+                                .authorities(
+                                        new SimpleGrantedAuthority("ROLE_DRIVER")
+                                ))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(validRequest())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.plate").value("ABC1D23"))
+                .andExpect(jsonPath("$.ownerSub").value("driver-123"));
+
+        verify(vehicleService).update(
+                eq(vehicleId),
+                eq("driver-123"),
+                any(VehicleRequest.class)
+        );
+    }
+
+    @Test
+    void shouldDeleteVehicle() throws Exception {
+        mockMvc.perform(delete("/api/vehicles/" + vehicleId)
+                        .with(jwt()
+                                .jwt(token -> token.subject("driver-123"))
+                                .authorities(
+                                        new SimpleGrantedAuthority("ROLE_DRIVER")
+                                )))
+                .andExpect(status().isNoContent());
+
+        verify(vehicleService).deactivate(vehicleId, "driver-123");
     }
 
     @TestConfiguration
