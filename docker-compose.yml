@@ -1,105 +1,109 @@
-services:
-  postgres:
-    build:
-      context: ./postgres
-      dockerfile: Dockerfile.postgres
-    container_name: raiji-postgres
-    environment:
-      POSTGRES_USER: raiji
-      POSTGRES_PASSWORD: raiji123
-      POSTGRES_DB: raiji_keycloak
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U raiji -d raiji_keycloak"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-  # ---------------------------------------------------------------------------
-  # 2) KEYCLOAK
-  # ---------------------------------------------------------------------------
-  keycloak:
-    build:
-      context: ./keycloak
-      dockerfile: Dockerfile.keycloak
-    container_name: raiji-keycloak
-    environment:
-      KC_BOOTSTRAP_ADMIN_USERNAME: admin
-      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
-      KC_DB: postgres
-      KC_DB_URL: jdbc:postgresql://postgres:5432/raiji_keycloak
-      KC_DB_USERNAME: raiji
-      KC_DB_PASSWORD: raiji123
-    ports:
-      - "8180:8080"
-    depends_on:
-      postgres:
-        condition: service_healthy
-    # Healthcheck removido: a imagem 26.0 é distroless e não tem ferramentas para testar HTTP
+  services:
+    # ---------------------------------------------------------------------------
+    # 1) POSTGRES
+    # ---------------------------------------------------------------------------
+    postgres:
+      build:
+        context: ./postgres
+        dockerfile: Dockerfile.postgres
+      container_name: raiji-postgres
+      environment:
+        POSTGRES_USER: raiji
+        POSTGRES_PASSWORD: raiji123
+        POSTGRES_DB: raiji_keycloak
+      ports:
+        - "5432:5432"
+      volumes:
+        - postgres-data:/var/lib/postgresql/data
+      healthcheck:
+        test: ["CMD-SHELL", "pg_isready -U raiji -d raiji_keycloak"]
+        interval: 5s
+        timeout: 5s
+        retries: 10
 
-  # ---------------------------------------------------------------------------
-  # 3) APP
-  # ---------------------------------------------------------------------------
-  app:
-    build:
-      context: .
-      dockerfile: Dockerfile.app
-    container_name: raiji-app
-    environment:
-      SPRING_PROFILES_ACTIVE: docker
-    ports:
-      - "8080:8080"
-    depends_on:
-      postgres:
-        condition: service_healthy
-      keycloak:
-        condition: service_started # Mudou de service_healthy para service_started
-    # O container da app TEM curl (instalado no Dockerfile.app).
-    # Este entrypoint espera o Keycloak responder antes de iniciar o Java.
-    entrypoint: >
-      /bin/sh -c "
-      while ! curl -s http://keycloak:8080/realms/raiji > /dev/null; do
-        echo 'Aguardando Keycloak iniciar...';
-        sleep 5;
-      done;
-      echo 'Keycloak pronto! Iniciando aplicação...';
-      exec java -jar app.jar"
-    healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/actuator/health || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 15
-      start_period: 60s
+    # ---------------------------------------------------------------------------
+    # 2) KEYCLOAK
+    # ---------------------------------------------------------------------------
+    keycloak:
+      build:
+        context: ./keycloak
+        dockerfile: Dockerfile.keycloak
+      container_name: raiji-keycloak
+      environment:
+        KC_BOOTSTRAP_ADMIN_USERNAME: admin
+        KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+        KC_DB: postgres
+        KC_DB_URL: jdbc:postgresql://postgres:5432/raiji_keycloak
+        KC_DB_USERNAME: raiji
+        KC_DB_PASSWORD: raiji123
+      ports:
+        - "8180:8080"
+      depends_on:
+        postgres:
+          condition: service_healthy
+      # Healthcheck removido: imagem 26.0 é distroless.
 
+    # ---------------------------------------------------------------------------
+    # 3) APP
+    # ---------------------------------------------------------------------------
+    app:
+      build:
+        context: .
+        dockerfile: Dockerfile.app
+      container_name: raiji-app
+      environment:
+        SPRING_PROFILES_ACTIVE: docker
+        SPRING_DATASOURCE_USERNAME: raiji
+        SPRING_DATASOURCE_PASSWORD: raiji123
+      ports:
+        - "8080:8080"
+      depends_on:
+        postgres:
+          condition: service_healthy
+        keycloak:
+          condition: service_started
+      # Aguarda o Keycloak responder antes de iniciar o Java.
+      entrypoint: >
+        /bin/sh -c "
+        while ! curl -s http://keycloak:8080/realms/raiji > /dev/null; do
+          echo 'Aguardando Keycloak iniciar...';
+          sleep 5;
+        done;
+        echo 'Keycloak pronto! Iniciando aplicação...';
+        exec java -jar app.jar"
+      healthcheck:
+        test: ["CMD-SHELL", "curl -fsS http://localhost:8080/actuator/health || exit 1"]
+        interval: 10s
+        timeout: 5s
+        retries: 15
+        start_period: 60s
 
-  # ---------------------------------------------------------------------------
-  # 4) KONG — API Gateway (todas as requisições entram por :8000)
-  # ---------------------------------------------------------------------------
-  kong:
-    image: kong:3.7
-    container_name: raiji-kong
-    environment:
-      KONG_DATABASE: "off"
-      KONG_DECLARATIVE_CONFIG: /kong/declarative/kong.yml
-      KONG_PROXY_LISTEN: "0.0.0.0:8000"
-      KONG_ADMIN_LISTEN: "0.0.0.0:8001"
-      KONG_PROXY_ACCESS_LOG: /dev/stdout
-      KONG_ADMIN_ACCESS_LOG: /dev/stdout
-      KONG_PROXY_ERROR_LOG: /dev/stderr
-      KONG_ADMIN_ERROR_LOG: /dev/stderr
-      KONG_LOG_LEVEL: info
-    ports:
-      - "8000:8000"   # entrada única dos clientes
-      - "8001:8001"   # Admin API do Kong (debug local)
-    volumes:
-      - ./kong/kong.yml:/kong/declarative/kong.yml:ro
-    depends_on:
-      app:
-        condition: service_healthy
-      keycloak:
-        condition: service_started
+    # ---------------------------------------------------------------------------
+    # 4) KONG — API Gateway
+    # ---------------------------------------------------------------------------
+    kong:
+      image: kong:3.7
+      container_name: raiji-kong
+      environment:
+        KONG_DATABASE: "off"
+        KONG_DECLARATIVE_CONFIG: /kong/declarative/kong.yml
+        KONG_PROXY_LISTEN: "0.0.0.0:8000"
+        KONG_ADMIN_LISTEN: "0.0.0.0:8001"
+        KONG_PROXY_ACCESS_LOG: /dev/stdout
+        KONG_ADMIN_ACCESS_LOG: /dev/stdout
+        KONG_PROXY_ERROR_LOG: /dev/stderr
+        KONG_ADMIN_ERROR_LOG: /dev/stderr
+        KONG_LOG_LEVEL: info
+      ports:
+        - "8000:8000"
+        - "8001:8001"
+      volumes:
+        - ./kong/kong.yml:/kong/declarative/kong.yml:ro
+      depends_on:
+        app:
+          condition: service_healthy
+        keycloak:
+          condition: service_started
 
-volumes:
-  postgres-data:
+  volumes:
+    postgres-data:
