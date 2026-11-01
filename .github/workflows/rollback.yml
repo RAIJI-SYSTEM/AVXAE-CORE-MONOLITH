@@ -1,0 +1,76 @@
+# =============================================================================
+# Rollback MANUAL — Actions -> "Rollback (manual)" -> Run workflow -> ambiente.
+# Faz: retag <env>-previous -> <env>-current no ECR + redeploy na EC2 + smoke.
+# Região/portas lidas de infra/aws/aws-config.env (fonte única).
+# Se NÃO existir versão anterior: para o app (não serve versão quebrada) e
+# falha com mensagem clara.
+# =============================================================================
+name: Rollback (manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Ambiente para rollback"
+        required: true
+        type: choice
+        options: [dev, homolog]
+
+permissions:
+  contents: read
+
+jobs:
+  rollback:
+    name: Rollback ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    concurrency:
+      group: deploy-${{ inputs.environment }}
+      cancel-in-progress: false
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Ler configuração AWS (infra/aws/aws-config.env)
+        env:
+          AMBIENTE: ${{ inputs.environment }}
+        run: |
+          set -a; . infra/aws/aws-config.env; set +a
+          SUFFIX="$(echo "$AMBIENTE" | tr '[:lower:]' '[:upper:]')"
+          bp_var="BASE_PORT_$SUFFIX"
+          BASE_PORT_VALUE="${!bp_var:?BASE_PORT_$SUFFIX não definido em infra/aws/aws-config.env}"
+          {
+            echo "ENVIRONMENT=$AMBIENTE"
+            echo "AWS_REGION_NAME=${AWS_REGION:-us-east-1}"
+            echo "BASE_PORT=$BASE_PORT_VALUE"
+          } >> "$GITHUB_ENV"
+
+      - name: Definir host do ambiente
+        env:
+          AMBIENTE: ${{ inputs.environment }}
+        run: |
+          if [[ "$AMBIENTE" == "dev" ]]; then
+            HOST="${{ vars.AWS_EC2_HOST_DEV }}"
+          else
+            HOST="${{ vars.AWS_EC2_HOST_HOMOLOG }}"
+          fi
+          [[ -n "$HOST" ]] || { echo "::error::variável AWS_EC2_HOST_$AMBIENTE não configurada"; exit 1; }
+          {
+            echo "EC2_HOST=$HOST"
+            echo "BASE_URL=http://$HOST:$BASE_PORT"
+          } >> "$GITHUB_ENV"
+
+      - name: Credenciais AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION_NAME }}
+
+      - name: Rollback (retag da imagem anterior + redeploy + smoke)
+        env:
+          EC2_USER: ubuntu
+          SSH_PRIVATE_KEY: ${{ inputs.environment == 'dev' && secrets.AWS_SSH_KEY_DEV || secrets.AWS_SSH_KEY_HOMOLOG }}
+          SMOKE_USERNAME: ${{ inputs.environment == 'dev' && secrets.SMOKE_USERNAME_DEV || secrets.SMOKE_USERNAME_HOMOLOG }}
+          SMOKE_PASSWORD: ${{ inputs.environment == 'dev' && secrets.SMOKE_PASSWORD_DEV || secrets.SMOKE_PASSWORD_HOMOLOG }}
+        run: ./scripts/aws/rollback.sh

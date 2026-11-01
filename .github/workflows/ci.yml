@@ -1,0 +1,149 @@
+# =============================================================================
+# CI — roda em TODO Pull Request e em push na main/develop.
+# Trilhas paralelas (fail-fast: false -> uma não cancela a outra):
+#   1. unit-tests    -> matriz DINÂMICA por módulo (módulos novos entram sozinhos)
+#   2. verify        -> pipeline da issue: checkout -> JDK 21 -> cache Maven ->
+#                       mvn clean verify (unitários + integração + cobertura) ->
+#                       upload do relatório JaCoCo
+#   3. docker-image  -> garante que a imagem do deploy continua buildando
+# =============================================================================
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main, develop]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  MAVEN_ARGS: "-B -ntp -T 1C"
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Detecta os módulos lendo o pom.xml raiz -> a matriz cresce automaticamente
+  # quando um módulo novo for criado (testes futuros rodam em paralelo sem
+  # precisar editar este workflow).
+  # ---------------------------------------------------------------------------
+  detect-modules:
+    name: Detectar módulos (matriz dinâmica)
+    runs-on: ubuntu-latest
+    outputs:
+      modules: ${{ steps.list.outputs.modules }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Listar módulos do pom.xml
+        id: list
+        run: |
+          MODULES="$(sed -n 's:.*<module>\(.*\)</module>.*:\1:p' pom.xml | jq -R . | jq -sc .)"
+          echo "modules=$MODULES" >> "$GITHUB_OUTPUT"
+          echo "Módulos detectados: $MODULES"
+
+  # ---------------------------------------------------------------------------
+  # Testes unitários em PARALELO (um job por módulo) — feedback rápido.
+  # ---------------------------------------------------------------------------
+  unit-tests:
+    name: Unitários · ${{ matrix.module }}
+    needs: detect-modules
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        module: ${{ fromJSON(needs.detect-modules.outputs.modules) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup JDK 21 + cache Maven
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Compilar dependências do módulo (sem testes)
+        run: mvn ${{ env.MAVEN_ARGS }} -pl ${{ matrix.module }} -am install -DskipTests -Djacoco.skip=true
+
+      - name: Testes unitários do módulo (${{ matrix.module }})
+        run: mvn ${{ env.MAVEN_ARGS }} -pl ${{ matrix.module }} surefire:test -Djacoco.skip=true
+
+      - name: Upload relatórios surefire (${{ matrix.module }})
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: surefire-${{ matrix.module }}
+          path: ${{ matrix.module }}/target/surefire-reports/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # Pipeline exigido pela issue: build + testes + cobertura (gate do PR).
+  # ---------------------------------------------------------------------------
+  verify:
+    name: Build + testes + cobertura (mvn clean verify)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup JDK 21 + cache Maven
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: mvn clean verify (unitários + integração + JaCoCo >= 80%)
+        run: mvn ${{ env.MAVEN_ARGS }} clean verify
+
+      - name: Upload relatório JaCoCo
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-report
+          path: |
+            **/target/site/jacoco/
+            **/target/site/jacoco-aggregate/
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload relatórios de teste (surefire + failsafe)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: |
+            **/target/surefire-reports/*.xml
+            **/target/failsafe-reports/*.xml
+          if-no-files-found: ignore
+          retention-days: 14
+
+  # ---------------------------------------------------------------------------
+  # Build da imagem Docker (paralelo) — o que o CD publica no ECR.
+  # ---------------------------------------------------------------------------
+  docker-image:
+    name: Imagem Docker (build de verificação)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Dockerfile.app (sem push)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.app
+          push: false
+          cache-from: type=gha,scope=ci
+          cache-to: type=gha,mode=max,scope=ci

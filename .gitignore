@@ -11,3 +11,11 @@ logs/
 *.log
 data/
 .env
+
+# --- CI/CD (S1-03) ---
+*.pem
+.deploy-state
+.deploy-state.previous
+.tools/
+__pycache__/
+*.pyc

@@ -1,0 +1,172 @@
+# =============================================================================
+# Guardian — smoke contínuo pós-deploy ("erros inesperados fora do deploy").
+# A cada execução (cron */10 + manual), para CADA ambiente em paralelo:
+#   1) smoke completo (4 checagens em paralelo)
+#   2) falhou? reconfirma após GUARDIAN_RECHECK_DELAY (evita falso positivo)
+#   3) falha confirmada + existe <env>-previous -> ROLLBACK AUTOMÁTICO
+#   4) sem histórico ou rollback falhou -> abre ISSUE de alerta no repositório
+# Cada ambiente usa o MESMO concurrency group do deploy (deploy-dev /
+# deploy-homolog): o Guardian nunca concorre com um deploy em andamento.
+# =============================================================================
+name: Guardian (smoke contínuo + rollback automático)
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Ambiente a inspecionar"
+        required: false
+        default: "all"
+        type: choice
+        options: [all, dev, homolog]
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  guard-dev:
+    name: Guardian · dev
+    if: >-
+      (github.event_name == 'schedule' || inputs.environment == 'all' || inputs.environment == 'dev')
+      && vars.AWS_EC2_HOST_DEV != ''
+    runs-on: ubuntu-latest
+    environment: dev
+    concurrency:
+      group: deploy-dev
+      cancel-in-progress: false
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Ler configuração AWS (infra/aws/aws-config.env)
+        run: |
+          set -a; . infra/aws/aws-config.env; set +a
+          {
+            echo "ENVIRONMENT=dev"
+            echo "AWS_REGION_NAME=${AWS_REGION:-us-east-1}"
+            echo "BASE_PORT=${BASE_PORT_DEV}"
+            echo "BASE_URL=http://${{ vars.AWS_EC2_HOST_DEV }}:${BASE_PORT_DEV}"
+          } >> "$GITHUB_ENV"
+
+      - name: Credenciais AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION_NAME }}
+
+      - name: Smoke contínuo + rollback automático (guardian.sh)
+        env:
+          EC2_HOST: ${{ vars.AWS_EC2_HOST_DEV }}
+          EC2_USER: ubuntu
+          SSH_PRIVATE_KEY: ${{ secrets.AWS_SSH_KEY_DEV }}
+          SMOKE_USERNAME: ${{ secrets.SMOKE_USERNAME_DEV || 'teste' }}
+          SMOKE_PASSWORD: ${{ secrets.SMOKE_PASSWORD_DEV || 'teste123' }}
+        run: ./scripts/aws/guardian.sh
+
+      - name: Alerta — Issue se irrecuperável
+        if: failure()
+        uses: actions/github-script@v7
+        env:
+          AMBIENTE: dev
+        with:
+          script: |
+            const ambiente = process.env.AMBIENTE;
+            const title = "[Guardian] Ambiente " + ambiente + " indisponível";
+            const q = "repo:" + context.repo.owner + "/" + context.repo.repo +
+                      " is:issue is:open in:title " + JSON.stringify(title);
+            const found = await github.rest.search.issuesAndPullRequests({ q });
+            if (found.data.total_count === 0) {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: title,
+                body: [
+                  "Os smoke tests periódicos do **Guardian** falharam para o ambiente `" + ambiente + "`",
+                  "e a recuperação automática (rollback) não teve sucesso — ou não existe versão anterior.",
+                  "",
+                  "- URL testada: " + (process.env.BASE_URL || "n/d"),
+                  "- Execução: " + context.serverUrl + "/" + context.repo.owner + "/" + context.repo.repo + "/actions/runs/" + context.runId,
+                  "",
+                  "Verifique os logs, corrija e faça novo deploy (ou rode o workflow *Rollback (manual)* se houver versão anterior)."
+                ].join("\n")
+              });
+              core.info("Issue de alerta criada.");
+            } else {
+              core.info("Já existe Issue aberta para este ambiente — nada a criar.");
+            }
+
+  guard-homolog:
+    name: Guardian · homolog
+    if: >-
+      (github.event_name == 'schedule' || inputs.environment == 'all' || inputs.environment == 'homolog')
+      && vars.AWS_EC2_HOST_HOMOLOG != ''
+    runs-on: ubuntu-latest
+    environment: homolog
+    concurrency:
+      group: deploy-homolog
+      cancel-in-progress: false
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Ler configuração AWS (infra/aws/aws-config.env)
+        run: |
+          set -a; . infra/aws/aws-config.env; set +a
+          {
+            echo "ENVIRONMENT=homolog"
+            echo "AWS_REGION_NAME=${AWS_REGION:-us-east-1}"
+            echo "BASE_PORT=${BASE_PORT_HOMOLOG}"
+            echo "BASE_URL=http://${{ vars.AWS_EC2_HOST_HOMOLOG }}:${BASE_PORT_HOMOLOG}"
+          } >> "$GITHUB_ENV"
+
+      - name: Credenciais AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION_NAME }}
+
+      - name: Smoke contínuo + rollback automático (guardian.sh)
+        env:
+          EC2_HOST: ${{ vars.AWS_EC2_HOST_HOMOLOG }}
+          EC2_USER: ubuntu
+          SSH_PRIVATE_KEY: ${{ secrets.AWS_SSH_KEY_HOMOLOG }}
+          SMOKE_USERNAME: ${{ secrets.SMOKE_USERNAME_HOMOLOG || 'teste' }}
+          SMOKE_PASSWORD: ${{ secrets.SMOKE_PASSWORD_HOMOLOG || 'teste123' }}
+        run: ./scripts/aws/guardian.sh
+
+      - name: Alerta — Issue se irrecuperável
+        if: failure()
+        uses: actions/github-script@v7
+        env:
+          AMBIENTE: homolog
+        with:
+          script: |
+            const ambiente = process.env.AMBIENTE;
+            const title = "[Guardian] Ambiente " + ambiente + " indisponível";
+            const q = "repo:" + context.repo.owner + "/" + context.repo.repo +
+                      " is:issue is:open in:title " + JSON.stringify(title);
+            const found = await github.rest.search.issuesAndPullRequests({ q });
+            if (found.data.total_count === 0) {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: title,
+                body: [
+                  "Os smoke tests periódicos do **Guardian** falharam para o ambiente `" + ambiente + "`",
+                  "e a recuperação automática (rollback) não teve sucesso — ou não existe versão anterior.",
+                  "",
+                  "- URL testada: " + (process.env.BASE_URL || "n/d"),
+                  "- Execução: " + context.serverUrl + "/" + context.repo.owner + "/" + context.repo.repo + "/actions/runs/" + context.runId,
+                  "",
+                  "Verifique os logs, corrija e faça novo deploy (ou rode o workflow *Rollback (manual)* se houver versão anterior)."
+                ].join("\n")
+              });
+              core.info("Issue de alerta criada.");
+            } else {
+              core.info("Já existe Issue aberta para este ambiente — nada a criar.");
+            }

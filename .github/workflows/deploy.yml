@@ -1,0 +1,290 @@
+# =============================================================================
+# Deploy reutilizável — AWS (ECR + EC2 + docker compose).
+# Chamado por deploy-dev.yml (develop) e deploy-homolog.yml (main).
+#
+# CONFIGURAÇÃO FÁCIL: região e portas vêm de infra/aws/aws-config.env
+# (job `config`). Para mudar o TIPO DE MÁQUINA, edite INSTANCE_TYPE_* no
+# mesmo arquivo e rerode scripts/aws/bootstrap-aws.sh (resize automático).
+#
+# Fluxo (proteção de release — versão quebrada nunca fica no ar):
+#   config -> tests (unitários)
+#     -> build-push (ECR: <env>-<sha> + <env>-current; preserva <env>-previous)
+#     -> deploy (SSH + deploy-remote.sh: health-gate + self-rollback;
+#                SEM versão anterior -> app é PARADO, nada quebrado é servido)
+#     -> smoke (MATRIZ PARALELA health/realm/token/me — falha BLOQUEIA release)
+#     -> release (gate final + URL pública)
+#     -> rollback (automático: retag <env>-previous + redeploy + smoke)
+# =============================================================================
+name: Deploy (reutilizável · AWS)
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: "Ambiente alvo: dev | homolog"
+        required: true
+        type: string
+      ec2-host:
+        description: "Host/IP público da EC2 do ambiente (variável, não segredo)"
+        required: true
+        type: string
+      ec2-user:
+        description: "Usuário SSH da EC2"
+        required: false
+        type: string
+        default: ubuntu
+    secrets:
+      AWS_ACCESS_KEY_ID:
+        required: true
+      AWS_SECRET_ACCESS_KEY:
+        required: true
+      SSH_PRIVATE_KEY:
+        required: true
+      DB_PASSWORD:
+        required: true
+      KEYCLOAK_ADMIN_CLIENT_SECRET:
+        required: true
+      SMOKE_USERNAME:
+        required: false
+      SMOKE_PASSWORD:
+        required: false
+
+concurrency:
+  group: deploy-${{ inputs.environment }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  ECR_REPOSITORY: raiji-app
+  IMAGE_TAG: ${{ inputs.environment }}-${{ github.sha }}
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Lê infra/aws/aws-config.env — fonte única da configuração AWS (região,
+  # portas). Trocou o arquivo, trocou o deploy: nenhum valor fica hardcoded.
+  # ---------------------------------------------------------------------------
+  config:
+    name: Config AWS (aws-config.env)
+    runs-on: ubuntu-latest
+    outputs:
+      aws-region: ${{ steps.cfg.outputs.aws-region }}
+      base-port: ${{ steps.cfg.outputs.base-port }}
+      kc-port: ${{ steps.cfg.outputs.kc-port }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Ler infra/aws/aws-config.env
+        id: cfg
+        env:
+          ENVIRONMENT: ${{ inputs.environment }}
+        run: |
+          [[ -f infra/aws/aws-config.env ]] || { echo "::error::infra/aws/aws-config.env não encontrado"; exit 1; }
+          set -a; . infra/aws/aws-config.env; set +a
+          SUFFIX="$(echo "$ENVIRONMENT" | tr '[:lower:]' '[:upper:]')"
+          bp_var="BASE_PORT_$SUFFIX"; kp_var="KC_PORT_$SUFFIX"
+          BASE_PORT_VALUE="${!bp_var:?BASE_PORT_$SUFFIX não definido em infra/aws/aws-config.env}"
+          KC_PORT_VALUE="${!kp_var:-$((BASE_PORT_VALUE + 180))}"
+          {
+            echo "aws-region=${AWS_REGION:-us-east-1}"
+            echo "base-port=$BASE_PORT_VALUE"
+            echo "kc-port=$KC_PORT_VALUE"
+          } >> "$GITHUB_OUTPUT"
+
+  # ---------------------------------------------------------------------------
+  # Porta de entrada: testes unitários rápidos (integração/cobertura ficam no CI).
+  # ---------------------------------------------------------------------------
+  tests:
+    name: Testes rápidos (unitários)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup JDK 21 + cache Maven
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: mvn test (paralelo por threads do Maven)
+        run: mvn -B -ntp -T 1C test -Djacoco.skip=true
+
+  # ---------------------------------------------------------------------------
+  # Build + push da imagem no ECR. Antes de sobrescrever a tag <env>-current,
+  # a imagem em produção é preservada como <env>-previous (base do rollback).
+  # ---------------------------------------------------------------------------
+  build-push:
+    name: Build & push ECR (${{ inputs.environment }})
+    needs: [config, tests]
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    outputs:
+      registry: ${{ steps.ecr.outputs.registry }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Credenciais AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ needs.config.outputs.aws-region }}
+
+      - name: Login no ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Preservar imagem atual como '<env>-previous' (rollback)
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+          AWS_REGION_NAME: ${{ needs.config.outputs.aws-region }}
+          ENVIRONMENT: ${{ inputs.environment }}
+        run: |
+          ./scripts/aws/ecr-retag.sh \
+            "$REGISTRY/$ECR_REPOSITORY" "${ENVIRONMENT}-current" "${ENVIRONMENT}-previous" \
+            --region "$AWS_REGION_NAME" --if-missing=skip
+
+      - name: Setup Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build & push (tags <env>-<sha> e <env>-current)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.app
+          push: true
+          tags: |
+            ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}
+            ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ inputs.environment }}-current
+          cache-from: type=gha,scope=app-${{ inputs.environment }}
+          cache-to: type=gha,mode=max,scope=app-${{ inputs.environment }}
+
+  # ---------------------------------------------------------------------------
+  # Deploy na EC2: sincroniza arquivos, grava .env (variáveis do provedor) e
+  # recria o stack. O script remoto faz health-gate + self-rollback local;
+  # sem versão anterior, PARA o app (não serve versão quebrada).
+  # ---------------------------------------------------------------------------
+  deploy:
+    name: Deploy EC2 (${{ inputs.environment }})
+    needs: [build-push, config]
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Credenciais AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ needs.config.outputs.aws-region }}
+
+      - name: Deploy via SSH (scripts/aws/deploy.sh)
+        env:
+          ENVIRONMENT: ${{ inputs.environment }}
+          EC2_HOST: ${{ inputs.ec2-host }}
+          EC2_USER: ${{ inputs.ec2-user }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          AWS_REGION_NAME: ${{ needs.config.outputs.aws-region }}
+          BASE_PORT: ${{ needs.config.outputs.base-port }}
+          KC_PORT: ${{ needs.config.outputs.kc-port }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          KEYCLOAK_ADMIN_CLIENT_SECRET: ${{ secrets.KEYCLOAK_ADMIN_CLIENT_SECRET }}
+        run: ./scripts/aws/deploy.sh
+
+  # ---------------------------------------------------------------------------
+  # Smoke tests da issue — MATRIZ PARALELA (4 jobs simultâneos, fail-fast:false):
+  #   health -> GET  /actuator/health  == {"status":"UP"}
+  #   realm  -> GET  /realms/raiji     == 200
+  #   token  -> POST /realms/raiji/protocol/openid-connect/token == 200
+  #   me     -> GET  /api/me com token == 200
+  # Qualquer falha BLOQUEIA o release (job `release` exige smoke verde) e
+  # dispara o rollback automático.
+  # ---------------------------------------------------------------------------
+  smoke:
+    name: Smoke · ${{ matrix.check }}
+    needs: [deploy, config]
+    runs-on: ubuntu-latest
+    env:
+      BASE_URL: http://${{ inputs.ec2-host }}:${{ needs.config.outputs.base-port }}
+    strategy:
+      fail-fast: false
+      matrix:
+        check: [health, realm, token, me]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Smoke check '${{ matrix.check }}' em ${{ env.BASE_URL }}
+        env:
+          BASE_URL: ${{ env.BASE_URL }}
+          SMOKE_USERNAME: ${{ secrets.SMOKE_USERNAME || 'teste' }}
+          SMOKE_PASSWORD: ${{ secrets.SMOKE_PASSWORD || 'teste123' }}
+        run: ./scripts/smoke-test.sh --check "${{ matrix.check }}" --retries 18 --retry-delay 10
+
+  # ---------------------------------------------------------------------------
+  # Release gate: só roda com TUDO verde; publica a URL acessível no sumário.
+  # ---------------------------------------------------------------------------
+  release:
+    name: Release (${{ inputs.environment }}) ✅
+    needs: [build-push, deploy, smoke, config]
+    if: success()
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - name: Publicar URL do ambiente
+        run: |
+          {
+            echo "## ✅ Release ${{ inputs.environment }} publicado"
+            echo ""
+            echo "| Item | Valor |"
+            echo "|---|---|"
+            echo "| URL (Kong) | http://${{ inputs.ec2-host }}:${{ needs.config.outputs.base-port }} |"
+            echo "| Health | http://${{ inputs.ec2-host }}:${{ needs.config.outputs.base-port }}/actuator/health |"
+            echo "| Imagem | ${IMAGE_TAG} |"
+            echo "| Smoke tests | health ✔ realm ✔ token ✔ me ✔ (paralelos) |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ---------------------------------------------------------------------------
+  # Rollback AUTOMÁTICO: se o deploy/smoke falharem e EXISTIR versão anterior,
+  # retaga <env>-previous -> <env>-current e refaz o deploy. Sem anterior
+  # (1º deploy), o rollback.sh para o app e o ambiente fica offline até uma
+  # versão correta ser publicada.
+  # ---------------------------------------------------------------------------
+  rollback:
+    name: Rollback automático (${{ inputs.environment }})
+    needs: [deploy, smoke, release, config]
+    if: failure() && needs.deploy.result != 'skipped'
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    env:
+      BASE_URL: http://${{ inputs.ec2-host }}:${{ needs.config.outputs.base-port }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Credenciais AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ needs.config.outputs.aws-region }}
+
+      - name: Rollback (retag da imagem anterior + redeploy + smoke)
+        env:
+          ENVIRONMENT: ${{ inputs.environment }}
+          EC2_HOST: ${{ inputs.ec2-host }}
+          EC2_USER: ${{ inputs.ec2-user }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          AWS_REGION_NAME: ${{ needs.config.outputs.aws-region }}
+          BASE_PORT: ${{ needs.config.outputs.base-port }}
+          BASE_URL: ${{ env.BASE_URL }}
+          SMOKE_USERNAME: ${{ secrets.SMOKE_USERNAME || 'teste' }}
+          SMOKE_PASSWORD: ${{ secrets.SMOKE_PASSWORD || 'teste123' }}
+        run: ./scripts/aws/rollback.sh --auto

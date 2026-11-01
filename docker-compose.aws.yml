@@ -1,0 +1,52 @@
+# =============================================================================
+# Override de deploy na AWS (EC2). Uso (na instância):
+#   docker compose -p raiji-<env> -f docker-compose.yml -f docker-compose.aws.yml up -d
+#
+# Variáveis (arquivo .env gerado pelo scripts/aws/deploy.sh — NUNCA commitar):
+#   ECR_REGISTRY, ECR_REPOSITORY, IMAGE_TAG, BASE_PORT, KC_PORT,
+#   DB_URL, DB_USER, DB_PASSWORD, JWK_SET_URI, KEYCLOAK_ADMIN_CLIENT_SECRET,
+#   SPRING_PROFILES_ACTIVE, POSTGRES_DB
+#
+# Requer Docker Compose >= 2.24 (tags !override/!reset).
+# =============================================================================
+services:
+  postgres:
+    container_name: ${COMPOSE_PROJECT_NAME:-raiji}-postgres
+    environment:
+      POSTGRES_USER: ${DB_USER:-raiji}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD obrigatório}
+      POSTGRES_DB: ${POSTGRES_DB:-raiji_keycloak}
+    ports: !override []          # banco nunca exposto publicamente
+
+  keycloak:
+    container_name: ${COMPOSE_PROJECT_NAME:-raiji}-keycloak
+    environment:
+      KC_DB_USERNAME: ${DB_USER:-raiji}
+      KC_DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD obrigatório}
+    ports: !override
+      - "${KC_PORT:-8180}:8080"
+
+  app:
+    container_name: ${COMPOSE_PROJECT_NAME:-raiji}-app
+    image: ${ECR_REGISTRY:?ECR_REGISTRY obrigatório}/${ECR_REPOSITORY:-raiji-app}:${IMAGE_TAG:?IMAGE_TAG obrigatório}
+    pull_policy: always
+    environment:
+      # --- variáveis exigidas pela issue S1-03 -------------------------------
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-docker}
+      KEYCLOAK_ADMIN_CLIENT_SECRET: ${KEYCLOAK_ADMIN_CLIENT_SECRET:?KEYCLOAK_ADMIN_CLIENT_SECRET obrigatório}
+      DB_URL: ${DB_URL:-jdbc:postgresql://postgres:5432/raiji_app}
+      DB_USER: ${DB_USER:-raiji}
+      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD obrigatório}
+      JWK_SET_URI: ${JWK_SET_URI:-http://keycloak:8080/realms/raiji/protocol/openid-connect/certs}
+      # --- mapeamento para as propriedades Spring ----------------------------
+      SPRING_DATASOURCE_URL: ${DB_URL:-jdbc:postgresql://postgres:5432/raiji_app}
+      SPRING_DATASOURCE_USERNAME: ${DB_USER:-raiji}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD obrigatório}
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: ${JWK_SET_URI:-http://keycloak:8080/realms/raiji/protocol/openid-connect/certs}
+      RAIJI_KEYCLOAK_ADMIN_CLIENT_SECRET: ${KEYCLOAK_ADMIN_CLIENT_SECRET:?KEYCLOAK_ADMIN_CLIENT_SECRET obrigatório}
+    ports: !override []          # app acessível apenas via Kong
+
+  kong:
+    container_name: ${COMPOSE_PROJECT_NAME:-raiji}-kong
+    ports: !override
+      - "${BASE_PORT:-8000}:8000"   # única entrada pública do ambiente

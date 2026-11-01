@@ -1,0 +1,31 @@
+# =============================================================================
+# CD SISTEMA — push na branch `main` atualiza o ambiente de HOMOLOGAÇÃO/SISTEMA
+# (homolog) na AWS. Região/portas definidos em infra/aws/aws-config.env.
+# Dica: configure "Required reviewers" no Environment `homolog` para exigir
+# aprovação manual antes do deploy do sistema (docs/DEPLOY.md).
+# =============================================================================
+name: Deploy HOMOLOG (main -> AWS sistema)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-homolog:
+    name: homolog
+    uses: ./.github/workflows/deploy.yml
+    with:
+      environment: homolog
+      ec2-host: ${{ vars.AWS_EC2_HOST_HOMOLOG }}
+    secrets:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      SSH_PRIVATE_KEY: ${{ secrets.AWS_SSH_KEY_HOMOLOG }}
+      DB_PASSWORD: ${{ secrets.DB_PASSWORD_HOMOLOG }}
+      KEYCLOAK_ADMIN_CLIENT_SECRET: ${{ secrets.KEYCLOAK_ADMIN_CLIENT_SECRET_HOMOLOG }}
+      SMOKE_USERNAME: ${{ secrets.SMOKE_USERNAME_HOMOLOG }}
+      SMOKE_PASSWORD: ${{ secrets.SMOKE_PASSWORD_HOMOLOG }}
