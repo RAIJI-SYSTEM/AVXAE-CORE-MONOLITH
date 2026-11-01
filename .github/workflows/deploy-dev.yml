@@ -1,0 +1,30 @@
+# =============================================================================
+# CD DEV — push na branch `develop` atualiza o ambiente de DESENVOLVIMENTO (dev)
+# na AWS. Região/portas definidos em infra/aws/aws-config.env.
+# Segredos/variáveis: ver docs/DEPLOY.md (Settings -> Environments -> dev).
+# =============================================================================
+name: Deploy DEV (develop -> AWS dev)
+
+on:
+  push:
+    branches: [develop]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-dev:
+    name: dev
+    uses: ./.github/workflows/deploy.yml
+    with:
+      environment: dev
+      ec2-host: ${{ vars.AWS_EC2_HOST_DEV }}
+    secrets:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      SSH_PRIVATE_KEY: ${{ secrets.AWS_SSH_KEY_DEV }}
+      DB_PASSWORD: ${{ secrets.DB_PASSWORD_DEV }}
+      KEYCLOAK_ADMIN_CLIENT_SECRET: ${{ secrets.KEYCLOAK_ADMIN_CLIENT_SECRET_DEV }}
+      SMOKE_USERNAME: ${{ secrets.SMOKE_USERNAME_DEV }}
+      SMOKE_PASSWORD: ${{ secrets.SMOKE_PASSWORD_DEV }}

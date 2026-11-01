@@ -1,0 +1,66 @@
+#!/usr/bin/env python3
+"""Shim de `curl` para testes: implementa o subconjunto usado pelo smoke-test.sh
+(-sS -o FILE -w '%{http_code}' --max-time N -X METHOD -H K:V --data BODY URL)
+usando urllib. Permite exercitar o ramo 'curl' do script em máquinas sem curl.
+"""
+import sys
+import urllib.error
+import urllib.request
+
+args = sys.argv[1:]
+out = None
+write_out = None
+method = "GET"
+data = None
+headers = {}
+url = None
+timeout = 10
+
+i = 0
+while i < len(args):
+    a = args[i]
+    if a == "-sS":
+        pass
+    elif a == "-o":
+        i += 1
+        out = args[i]
+    elif a == "-w":
+        i += 1
+        write_out = args[i]
+    elif a == "--max-time":
+        i += 1
+        timeout = float(args[i])
+    elif a == "-X":
+        i += 1
+        method = args[i]
+    elif a == "-H":
+        i += 1
+        k, _, v = args[i].partition(":")
+        headers[k] = v.strip()
+    elif a == "--data":
+        i += 1
+        data = args[i].encode()
+    elif not a.startswith("-"):
+        url = a
+    i += 1
+
+code = 0
+body = b""
+try:
+    req = urllib.request.Request(url, method=method, data=data)
+    for k, v in headers.items():
+        req.add_header(k, v)
+    r = urllib.request.urlopen(req, timeout=timeout)
+    code, body = r.status, r.read()
+except urllib.error.HTTPError as e:
+    code, body = e.code, (e.read() if e.fp else b"")
+except Exception as e:
+    code, body = 0, str(e).encode()
+
+if out:
+    with open(out, "wb") as f:
+        f.write(body)
+else:
+    sys.stdout.buffer.write(body)
+if write_out:
+    sys.stdout.write(write_out.replace("%{http_code}", "%03d" % code))
