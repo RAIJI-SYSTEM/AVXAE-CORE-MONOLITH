@@ -1,5 +1,7 @@
 package com.raiji.rides.dto;
 
+import java.math.BigDecimal;
+
 import com.raiji.rides.domain.Baggage;
 import com.raiji.rides.domain.BaggageType;
 
@@ -13,6 +15,7 @@ public record BaggageItemResponse(
         Integer lengthCm,
         Integer widthCm,
         Integer heightCm,
+        BigDecimal weightKg,
         String description
 ) {
 
@@ -23,6 +26,7 @@ public record BaggageItemResponse(
                 baggage.getLengthCm(),
                 baggage.getWidthCm(),
                 baggage.getHeightCm(),
+                baggage.getWeightKg(),
                 baggage.getDescription()
         );
     }

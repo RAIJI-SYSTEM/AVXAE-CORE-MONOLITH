@@ -77,11 +77,12 @@ A partir da S2-01 (RF18) o payload EXIGE a declaracao de bagagem
 | baggage[].lengthCm | int | sim | > 0 |
 | baggage[].widthCm | int | sim | > 0 |
 | baggage[].heightCm | int | sim | > 0 |
+| baggage[].weightKg | decimal | nao | > 0 quando informado; ate 2 casas decimais (S2-03) |
 | baggage[].description | string | nao | <= 500 caracteres |
 
 Erros:
 
-- `400` baggage ausente/vazio, quantity <= 0, dimensao <= 0, type fora do enum, nome invalido
+- `400` baggage ausente/vazio, quantity <= 0, dimensao <= 0, type fora do enum, nome invalido, weightKg <= 0 ou com mais de 2 casas
 - `401` sem token · `403` sem role PASSENGER
 - `404` carona inexistente
 - `409` solicitacao duplicada, sem vagas, carona nao PLANNED ou partida passada
@@ -114,7 +115,9 @@ ANTES de aceitar/recusar:
 Observacoes:
 
 - `type` e aceito em qualquer caixa na entrada e sempre devolvido em minusculas.
-- A soma de peso/volume contra a capacidade da carona sera validada na S2-03.
+- Desde a S2-03 a soma de peso/volume das bagagens CONFIRMED e travada no
+  aceite (PATCH abaixo); limites declarados em `cargoDetails.maxWeightKg`
+  (carona) e `cargoVolumeLiters` (veiculo).
 
 ---
 
@@ -155,12 +158,15 @@ No REJECT: `{ "id": "…", "status": "CANCELLED", "confirmedAt": null }`.
 
 Erros:
 
-- `400` decision ausente/fora do enum; REJECT sem reason; reason > 500
+- `400` decision ausente/fora do enum; REJECT sem reason; reason > 500; peso/volume acima da capacidade (S2-03)
 - `401` sem token · `403` sem role DRIVER ou motorista nao dono da carona
 - `404` carona ou solicitacao inexistente (ou de outra carona)
 - `409` solicitacao ja decidida (status != PENDING); ACCEPT sem vagas
 
 Observacoes:
 
-- Aceite/recusa considera apenas vaga de passageiro; a validacao de
-  peso/volume da bagagem contra o veiculo fica para a S2-03.
+- S2-03 (RN03/RN12): o ACCEPT tambem trava capacidade — `409` quando nao
+  ha vaga (decisoes simultaneas sao serializadas por lock pessimista na
+  carona) e `400` quando a soma de peso das bagagens CONFIRMED excede
+  `cargoDetails.maxWeightKg` ou o volume total (L x A x C x quantidade)
+  excede o `cargoVolumeLiters` do veiculo. Detalhes em docs/ARQUITETURA.md.

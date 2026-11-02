@@ -208,8 +208,8 @@ class TestNotificationService(unittest.TestCase):
 class TestSemMigrationNova(unittest.TestCase):
     def test_nao_cria_v9(self):
         versoes = sorted(p.name.split("__")[0] for p in MIG.glob("V*.sql"))
-        self.assertEqual(["V2", "V7", "V8"], versoes,
-                         "S2-02 não pode criar migration nova (CANCELLED reutilizado)")
+        self.assertEqual(["V2", "V7", "V8", "V9"], versoes,
+                         "S2-02 não cria migration (CANCELLED reutilizado); V9 pertence à S2-03")
 
     def test_enum_status_inalterado(self):
         status_file = next(

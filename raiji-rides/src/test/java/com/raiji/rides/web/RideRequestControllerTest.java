@@ -64,7 +64,7 @@ class RideRequestControllerTest {
                 RidePassengerStatus.PENDING,
                 Instant.parse("2026-11-01T12:00:00Z"),
                 List.of(new BaggageItemResponse(
-                        BaggageType.MALA, 1, 60, 40, 30, "Mala de bordo"))
+                        BaggageType.MALA, 1, 60, 40, 30, null, "Mala de bordo"))
         );
     }
 

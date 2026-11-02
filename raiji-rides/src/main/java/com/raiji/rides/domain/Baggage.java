@@ -1,5 +1,6 @@
 package com.raiji.rides.domain;
 
+import java.math.BigDecimal;
 import java.util.UUID;
 
 import com.raiji.common.base.AuditableEntity;
@@ -21,8 +22,9 @@ import jakarta.persistence.Table;
  * S2-01 / RF18 — Item de bagagem declarado na solicitação de vaga.
  *
  * <p>Tabela única com coluna {@code type} VARCHAR (sem tabela separada por
- * tipo). A soma de peso/volume para validação contra a capacidade da carona
- * será implementada em S2-03.
+ * tipo). Desde a S2-03 (RN12) o item pode declarar {@code weightKg}
+ * (opcional); a soma de peso/volume das bagagens CONFIRMED é travada no
+ * aceite da solicitação.
  */
 @Entity
 @Table(name = "baggage", indexes = {
@@ -57,6 +59,10 @@ public class Baggage extends AuditableEntity {
     @Column(name = "description", columnDefinition = "TEXT")
     private String description;
 
+    /** S2-03 / RN12 — peso unitário declarado em kg (opcional; > 0 quando presente). */
+    @Column(name = "weight_kg", precision = 10, scale = 2)
+    private BigDecimal weightKg;
+
     public UUID getId() { return id; }
 
     public RidePassenger getRidePassenger() { return ridePassenger; }
@@ -79,4 +85,7 @@ public class Baggage extends AuditableEntity {
 
     public String getDescription() { return description; }
     public void setDescription(String v) { this.description = v; }
+
+    public BigDecimal getWeightKg() { return weightKg; }
+    public void setWeightKg(BigDecimal v) { this.weightKg = v; }
 }

@@ -80,7 +80,8 @@ class TestDtos(unittest.TestCase):
         self.assertIn("record BaggageItemRequest", src)
         self.assertIn("@NotNull", src)
         self.assertIn("@Min(value = 1", src)
-        self.assertEqual(src.count("@Positive"), 3, "3 dimensões > 0")
+        self.assertIn(src.count("@Positive"), (3, 4),
+                      "3 dimensões > 0 (+weightKg opcional desde a S2-03)")
 
     def test_response_com_from(self):
         src = read(RIDES_MAIN / "dto/BaggageItemResponse.java")
