@@ -1,5 +1,6 @@
 package com.raiji.rides.service;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -8,9 +9,12 @@ import com.raiji.common.enums.RidePassengerStatus;
 import com.raiji.common.enums.RideStatus;
 import com.raiji.rides.domain.Baggage;
 import com.raiji.rides.domain.Ride;
+import com.raiji.rides.domain.RideDecision;
 import com.raiji.rides.domain.RidePassenger;
 import com.raiji.rides.dto.BaggageItemRequest;
+import com.raiji.rides.dto.RideDecisionResponse;
 import com.raiji.rides.dto.RidePassengerResponse;
+import com.raiji.rides.event.RideDecisionEvent;
 import com.raiji.rides.event.RideRequestCreatedEvent;
 import com.raiji.rides.repository.RidePassengerRepository;
 import com.raiji.rides.repository.RideRepository;
@@ -173,5 +177,102 @@ public class RidePassengerService {
                 .stream()
                 .map(RidePassengerResponse::from)
                 .toList();
+    }
+
+    /**
+     * S2-02 / RF08: o motorista aceita (ACCEPT) ou recusa (REJECT) a
+     * solicitação após visualizar a bagagem declarada (S2-01).
+     *
+     * <p>ACCEPT => CONFIRMED + confirmedAt + decremento de availableSeats.
+     * REJECT => CANCELLED + cancellationReason (vagas permanecem intactas).
+     * Nos dois casos o passageiro é notificado via RideDecisionEvent (RF19).
+     */
+    @Transactional
+    public RideDecisionResponse decide(
+            UUID rideId,
+            UUID requestId,
+            String driverSub,
+            RideDecision decision,
+            String reason
+    ) {
+        if (decision == null) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "A decisão é obrigatória (ACCEPT ou REJECT)."
+            );
+        }
+
+        if (decision == RideDecision.REJECT
+                && (reason == null || reason.isBlank())) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "O motivo (reason) é obrigatório ao recusar (REJECT)."
+            );
+        }
+
+        Ride ride = rideRepository.findById(rideId)
+                .filter(r -> r.getDeletedAt() == null)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Carona não encontrada."
+                ));
+
+        if (!ride.getDriverSub().equals(driverSub)) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "Você não tem permissão para decidir solicitações desta carona."
+            );
+        }
+
+        RidePassenger passenger = ridePassengerRepository.findById(requestId)
+                .filter(p -> p.getDeletedAt() == null)
+                .filter(p -> rideId.equals(p.getRideId()))
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Solicitação não encontrada."
+                ));
+
+        if (passenger.getStatus() != RidePassengerStatus.PENDING) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Esta solicitação já foi decidida."
+            );
+        }
+
+        Instant decidedAt;
+        if (decision == RideDecision.ACCEPT) {
+            if (ride.getAvailableSeats() == null
+                    || ride.getAvailableSeats() <= 0) {
+                throw new ResponseStatusException(
+                        HttpStatus.CONFLICT,
+                        "Não há vagas disponíveis nesta carona."
+                );
+            }
+            ride.setAvailableSeats(ride.getAvailableSeats() - 1);
+            passenger.confirm();
+            decidedAt = passenger.getConfirmedAt();
+        } else {
+            passenger.cancel(reason.trim());
+            decidedAt = Instant.now();
+        }
+
+        rideRepository.save(ride);
+        RidePassenger saved = ridePassengerRepository.save(passenger);
+
+        eventPublisher.publishEvent(
+                new RideDecisionEvent(
+                        ride.getId(),
+                        saved.getId(),
+                        ride.getDriverSub(),
+                        ride.getDriverName(),
+                        saved.getPassengerSub(),
+                        saved.getPassengerName(),
+                        decision,
+                        decision == RideDecision.REJECT ? reason.trim() : null,
+                        decidedAt
+                )
+        );
+
+        return RideDecisionResponse.from(saved);
     }
 }

@@ -115,3 +115,52 @@ Observacoes:
 
 - `type` e aceito em qualquer caixa na entrada e sempre devolvido em minusculas.
 - A soma de peso/volume contra a capacidade da carona sera validada na S2-03.
+
+---
+
+## Decisao do motorista (S2-02)
+
+### PATCH /api/rides/{rideId}/requests/{requestId}
+
+Autenticacao: Bearer token com role `DRIVER` (dono da carona).
+
+O motorista decide apos ver a bagagem declarada (GET da S1-06/S2-01).
+`ACCEPT` confirma o passageiro e decrementa `availableSeats`; `REJECT`
+cancela a solicitacao com status `CANCELLED` (reutilizado — sem novo valor
+de enum nem migration) e EXIGE `reason`. O passageiro e notificado nos
+dois casos (NotificationService, S1-06).
+
+Body (JSON):
+
+```json
+{ "decision": "ACCEPT" }
+```
+
+```json
+{ "decision": "REJECT", "reason": "A bagagem excede a capacidade do veiculo." }
+```
+
+| Campo | Tipo | Obrigatorio | Regras |
+|---|---|---:|---|
+| decision | string | sim | `ACCEPT` \| `REJECT` (qualquer caixa na entrada) |
+| reason | string | REJECT | 1..500 caracteres; obrigatorio quando REJECT |
+
+Resposta `200`:
+
+```json
+{ "id": "…", "status": "CONFIRMED", "confirmedAt": "…" }
+```
+
+No REJECT: `{ "id": "…", "status": "CANCELLED", "confirmedAt": null }`.
+
+Erros:
+
+- `400` decision ausente/fora do enum; REJECT sem reason; reason > 500
+- `401` sem token · `403` sem role DRIVER ou motorista nao dono da carona
+- `404` carona ou solicitacao inexistente (ou de outra carona)
+- `409` solicitacao ja decidida (status != PENDING); ACCEPT sem vagas
+
+Observacoes:
+
+- Aceite/recusa considera apenas vaga de passageiro; a validacao de
+  peso/volume da bagagem contra o veiculo fica para a S2-03.

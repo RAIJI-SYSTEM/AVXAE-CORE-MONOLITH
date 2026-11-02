@@ -508,6 +508,9 @@ public record RidePassengerResponse(
 # =============================================================================
 # 8) RidePassengerService — persiste a bagagem na MESMA transação
 # =============================================================================
+if grep -q "public RideDecisionResponse decide(" "$RIDES_MAIN/service/RidePassengerService.java" 2>/dev/null; then
+  log "preservado: RidePassengerService.java (decide() da S2-02 presente — não regredir)"
+else
 write_file "$RIDES_MAIN/service/RidePassengerService.java" <<'@@SERVICE@@'
 package com.raiji.rides.service;
 
@@ -687,6 +690,7 @@ public class RidePassengerService {
     }
 }
 @@SERVICE@@
+fi
 
 # =============================================================================
 # 9) RideRequestController — repassa a bagagem
