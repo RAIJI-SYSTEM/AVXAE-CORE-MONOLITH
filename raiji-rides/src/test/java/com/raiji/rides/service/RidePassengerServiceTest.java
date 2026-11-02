@@ -5,9 +5,12 @@ import com.raiji.common.enums.RidePassengerStatus;
 import com.raiji.common.enums.RideStatus;
 import com.raiji.rides.domain.BaggageType;
 import com.raiji.rides.domain.Ride;
+import com.raiji.rides.domain.RideDecision;
 import com.raiji.rides.domain.RidePassenger;
 import com.raiji.rides.dto.BaggageItemRequest;
+import com.raiji.rides.dto.RideDecisionResponse;
 import com.raiji.rides.dto.RidePassengerResponse;
+import com.raiji.rides.event.RideDecisionEvent;
 import com.raiji.rides.event.RideRequestCreatedEvent;
 import com.raiji.rides.repository.RidePassengerRepository;
 import com.raiji.rides.repository.RideRepository;
@@ -258,5 +261,137 @@ class RidePassengerServiceTest {
 
         assertEquals(1, responses.size());
         assertEquals("João", responses.get(0).passengerName());
+    }
+
+    // =========================================================================
+    // S2-02 / RF08 — decide(): aceite/recusa do motorista
+    // =========================================================================
+
+    private RidePassenger solicitacaoPendente() {
+        RidePassenger passenger = new RidePassenger();
+        ReflectionTestUtils.setField(passenger, "id", UUID.randomUUID());
+        passenger.setRideId(rideId);
+        passenger.setPassengerSub(PASSENGER_SUB);
+        passenger.setPassengerName("João");
+
+        when(passengerRepository.findById(passenger.getId()))
+                .thenReturn(Optional.of(passenger));
+
+        return passenger;
+    }
+
+    @Test
+    void deveConfirmarSolicitacaoNoAccept() {
+        RidePassenger pendente = solicitacaoPendente();
+
+        RideDecisionResponse response = service.decide(
+                rideId, pendente.getId(), DRIVER_SUB, RideDecision.ACCEPT, null);
+
+        assertEquals(pendente.getId(), response.id());
+        assertEquals(RidePassengerStatus.CONFIRMED, response.status());
+        assertNotNull(response.confirmedAt());
+
+        ArgumentCaptor<RidePassenger> captor =
+                ArgumentCaptor.forClass(RidePassenger.class);
+        verify(passengerRepository).save(captor.capture());
+        assertEquals(RidePassengerStatus.CONFIRMED, captor.getValue().getStatus());
+        assertNotNull(captor.getValue().getConfirmedAt());
+
+        // vagas decrementadas: fixture começa com availableSeats = 4
+        assertEquals(3, ride.getAvailableSeats());
+        verify(rideRepository).save(ride);
+        verify(eventPublisher).publishEvent(any(RideDecisionEvent.class));
+    }
+
+    @Test
+    void deveCancelarComMotivoNoReject() {
+        RidePassenger pendente = solicitacaoPendente();
+
+        RideDecisionResponse response = service.decide(
+                rideId, pendente.getId(), DRIVER_SUB,
+                RideDecision.REJECT, "Bagagem excede o porta-malas.");
+
+        assertEquals(RidePassengerStatus.CANCELLED, response.status());
+        assertNull(response.confirmedAt());
+
+        ArgumentCaptor<RidePassenger> captor =
+                ArgumentCaptor.forClass(RidePassenger.class);
+        verify(passengerRepository).save(captor.capture());
+        assertEquals(RidePassengerStatus.CANCELLED, captor.getValue().getStatus());
+        assertEquals(
+                "Bagagem excede o porta-malas.",
+                captor.getValue().getCancellationReason());
+
+        // vagas permanecem intactas no REJECT
+        assertEquals(4, ride.getAvailableSeats());
+        verify(eventPublisher).publishEvent(any(RideDecisionEvent.class));
+    }
+
+    @Test
+    void deveRejeitarRejectSemMotivo() {
+        ResponseStatusException ex = assertThrows(
+                ResponseStatusException.class,
+                () -> service.decide(rideId, UUID.randomUUID(), DRIVER_SUB,
+                        RideDecision.REJECT, "   ")
+        );
+
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+        verify(passengerRepository, never()).save(any());
+    }
+
+    @Test
+    void deveRejeitarDecisaoPorOutroMotorista() {
+        RidePassenger pendente = solicitacaoPendente();
+
+        ResponseStatusException ex = assertThrows(
+                ResponseStatusException.class,
+                () -> service.decide(rideId, pendente.getId(), "outro-driver",
+                        RideDecision.ACCEPT, null)
+        );
+
+        assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
+        verify(passengerRepository, never()).save(any());
+    }
+
+    @Test
+    void deveRejeitarSolicitacaoJaDecidida() {
+        RidePassenger pendente = solicitacaoPendente();
+        pendente.confirm();
+
+        ResponseStatusException ex = assertThrows(
+                ResponseStatusException.class,
+                () -> service.decide(rideId, pendente.getId(), DRIVER_SUB,
+                        RideDecision.REJECT, "Qualquer motivo")
+        );
+
+        assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
+        verify(passengerRepository, never()).save(any());
+    }
+
+    @Test
+    void deveRejeitarAcceptSemVagaDisponivel() {
+        RidePassenger pendente = solicitacaoPendente();
+        ride.setAvailableSeats(0);
+
+        ResponseStatusException ex = assertThrows(
+                ResponseStatusException.class,
+                () -> service.decide(rideId, pendente.getId(), DRIVER_SUB,
+                        RideDecision.ACCEPT, null)
+        );
+
+        assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
+        verify(passengerRepository, never()).save(any());
+    }
+
+    @Test
+    void deveRejeitarSolicitacaoInexistenteNaDecisao() {
+        ResponseStatusException ex = assertThrows(
+                ResponseStatusException.class,
+                () -> service.decide(rideId, UUID.randomUUID(), DRIVER_SUB,
+                        RideDecision.ACCEPT, null)
+        );
+
+        assertEquals(HttpStatus.NOT_FOUND, ex.getStatusCode());
+        verify(passengerRepository, never()).save(any());
     }
 }
