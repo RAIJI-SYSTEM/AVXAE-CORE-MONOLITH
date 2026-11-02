@@ -1231,6 +1231,9 @@ class RideDecisionApiIT extends RaijiTestSupport {
 # =============================================================================
 # 8) tests/s2-02 — suíte de verificação (estrutural + maven opcional)
 # =============================================================================
+if grep -qF "V9" tests/s2-02/test_s2_02.py 2>/dev/null; then
+  log "preservado: tests/s2-02/test_s2_02.py (compat S2-03 presente — não regredir)"
+else
 write_file "tests/s2-02/test_s2_02.py" <<'@@TESTPY@@'
 #!/usr/bin/env python3
 """Verificação estrutural da S2-02 (RF08/RF19) — aceite/recusa com bagagem.
@@ -1543,6 +1546,7 @@ class TestDocumentacao(unittest.TestCase):
 if __name__ == "__main__":
     unittest.main(verbosity=2)
 @@TESTPY@@
+fi
 
 write_file "tests/s2-02/run-maven.sh" <<'@@RUNMV@@'
 #!/usr/bin/env bash

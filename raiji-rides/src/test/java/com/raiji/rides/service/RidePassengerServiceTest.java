@@ -1,8 +1,10 @@
 
 package com.raiji.rides.service;
 
+import com.raiji.common.embeddable.CargoDetails;
 import com.raiji.common.enums.RidePassengerStatus;
 import com.raiji.common.enums.RideStatus;
+import com.raiji.rides.domain.Baggage;
 import com.raiji.rides.domain.BaggageType;
 import com.raiji.rides.domain.Ride;
 import com.raiji.rides.domain.RideDecision;
@@ -14,6 +16,8 @@ import com.raiji.rides.event.RideDecisionEvent;
 import com.raiji.rides.event.RideRequestCreatedEvent;
 import com.raiji.rides.repository.RidePassengerRepository;
 import com.raiji.rides.repository.RideRepository;
+import com.raiji.users.domain.Vehicle;
+import com.raiji.users.repository.VehicleRepository;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.mockito.ArgumentCaptor;
@@ -23,6 +27,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -41,21 +46,25 @@ class RidePassengerServiceTest {
     private RideRepository rideRepository;
     private RidePassengerRepository passengerRepository;
     private ApplicationEventPublisher eventPublisher;
+    private VehicleRepository vehicleRepository;
     private RidePassengerService service;
 
     private UUID rideId;
     private Ride ride;
+    private Vehicle vehicle;
 
     @BeforeEach
     void setUp() {
         rideRepository = mock(RideRepository.class);
         passengerRepository = mock(RidePassengerRepository.class);
         eventPublisher = mock(ApplicationEventPublisher.class);
+        vehicleRepository = mock(VehicleRepository.class);
 
         service = new RidePassengerService(
                 rideRepository,
                 passengerRepository,
-                eventPublisher
+                eventPublisher,
+                vehicleRepository
         );
 
         rideId = UUID.randomUUID();
@@ -68,9 +77,20 @@ class RidePassengerServiceTest {
         ride.setDepartureDate(LocalDateTime.now().plusDays(1));
         ride.setTotalSeats(4);
         ride.setAvailableSeats(4);
+        ride.setVehicleId(UUID.randomUUID());
 
         when(rideRepository.findById(rideId))
                 .thenReturn(Optional.of(ride));
+
+        when(rideRepository.findByIdForUpdate(rideId))
+                .thenReturn(Optional.of(ride));
+
+        vehicle = new Vehicle();
+        vehicle.setOwnerSub(DRIVER_SUB);
+        vehicle.setCargoVolumeLiters(400);
+        when(vehicleRepository
+                .findByIdAndOwnerSubAndDeletedAtIsNull(any(), any()))
+                .thenReturn(Optional.of(vehicle));
 
         when(passengerRepository
                 .existsByRideIdAndPassengerSubAndStatusInAndDeletedAtIsNull(
@@ -231,7 +251,7 @@ class RidePassengerServiceTest {
 
     private static List<BaggageItemRequest> bagagemValida() {
         return List.of(new BaggageItemRequest(
-                BaggageType.MALA, 1, 60, 40, 30, "Mala de bordo"));
+                BaggageType.MALA, 1, 60, 40, 30, null, "Mala de bordo"));
     }
 
     @Test
@@ -393,5 +413,153 @@ class RidePassengerServiceTest {
 
         assertEquals(HttpStatus.NOT_FOUND, ex.getStatusCode());
         verify(passengerRepository, never()).save(any());
+    }
+
+    // =========================================================================
+    // S2-03 / RN03+RN12 — trava de capacidade (lock pessimista, peso, volume)
+    // =========================================================================
+
+    private static Baggage bagagem(String pesoKg, int quantidade,
+                                   int lengthCm, int widthCm, int heightCm) {
+        Baggage b = new Baggage();
+        b.setType(BaggageType.MALA);
+        b.setQuantity(quantidade);
+        b.setLengthCm(lengthCm);
+        b.setWidthCm(widthCm);
+        b.setHeightCm(heightCm);
+        if (pesoKg != null) {
+            b.setWeightKg(new BigDecimal(pesoKg));
+        }
+        return b;
+    }
+
+    private RidePassenger solicitacaoPendenteComBagagem(Baggage... itens) {
+        RidePassenger passenger = solicitacaoPendente();
+        for (Baggage b : itens) {
+            passenger.addBaggage(b);
+        }
+        // em produção o candidato consta na listagem da carona (mesma
+        // transação); no teste unitário garantimos o mesmo comportamento
+        when(passengerRepository.findByRideIdAndDeletedAtIsNull(rideId))
+                .thenReturn(List.of(passenger));
+        return passenger;
+    }
+
+    private RidePassenger confirmadoComBagagem(Baggage... itens) {
+        RidePassenger passenger = new RidePassenger();
+        ReflectionTestUtils.setField(passenger, "id", UUID.randomUUID());
+        passenger.setRideId(rideId);
+        passenger.setPassengerSub("confirmado-" + UUID.randomUUID());
+        passenger.setPassengerName("Passageiro Confirmado");
+        passenger.confirm();
+        for (Baggage b : itens) {
+            passenger.addBaggage(b);
+        }
+        return passenger;
+    }
+
+    private void comCargoDetails(String maxWeightKg) {
+        CargoDetails cargo = new CargoDetails();
+        cargo.setMaxWeightKg(new BigDecimal(maxWeightKg));
+        ride.setCargoDetails(cargo);
+    }
+
+    @Test
+    void deveUsarLockPessimistaAoDecidir() {
+        RidePassenger pendente = solicitacaoPendente();
+
+        service.decide(rideId, pendente.getId(), DRIVER_SUB,
+                RideDecision.ACCEPT, null);
+
+        verify(rideRepository).findByIdForUpdate(rideId);
+    }
+
+    @Test
+    void deveAceitarPesoExatamenteNoLimite() {
+        comCargoDetails("20");
+        RidePassenger pendente = solicitacaoPendenteComBagagem(
+                bagagem("10", 2, 40, 30, 20)); // 10 kg × 2 = 20 kg == limite
+
+        RideDecisionResponse response = service.decide(
+                rideId, pendente.getId(), DRIVER_SUB, RideDecision.ACCEPT, null);
+
+        assertEquals(RidePassengerStatus.CONFIRMED, response.status());
+        verify(passengerRepository).save(any(RidePassenger.class));
+    }
+
+    @Test
+    void deveRejeitarPesoUmAcimaDoLimite() {
+        comCargoDetails("20");
+        RidePassenger pendente = solicitacaoPendenteComBagagem(
+                bagagem("20.5", 1, 40, 30, 20)); // 20.5 kg > 20 kg
+
+        ResponseStatusException ex = assertThrows(
+                ResponseStatusException.class,
+                () -> service.decide(rideId, pendente.getId(), DRIVER_SUB,
+                        RideDecision.ACCEPT, null)
+        );
+
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+        verify(passengerRepository, never()).save(any());
+    }
+
+    @Test
+    void deveSomarBagagensConfirmadasAoDecidir() {
+        comCargoDetails("30");
+        RidePassenger pendente = solicitacaoPendenteComBagagem(
+                bagagem("16", 1, 40, 30, 20));
+        RidePassenger confirmado = confirmadoComBagagem(
+                bagagem("15", 1, 40, 30, 20));
+        when(passengerRepository.findByRideIdAndDeletedAtIsNull(rideId))
+                .thenReturn(List.of(confirmado, pendente)); // 15 + 16 = 31 kg > 30 kg
+
+        ResponseStatusException ex = assertThrows(
+                ResponseStatusException.class,
+                () -> service.decide(rideId, pendente.getId(), DRIVER_SUB,
+                        RideDecision.ACCEPT, null)
+        );
+
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+        verify(passengerRepository, never()).save(any());
+    }
+
+    @Test
+    void deveAceitarVolumeExatamenteNoLimite() {
+        vehicle.setCargoVolumeLiters(100);
+        RidePassenger pendente = solicitacaoPendenteComBagagem(
+                bagagem(null, 2, 50, 40, 25)); // 50 L × 2 = 100 L == limite
+
+        RideDecisionResponse response = service.decide(
+                rideId, pendente.getId(), DRIVER_SUB, RideDecision.ACCEPT, null);
+
+        assertEquals(RidePassengerStatus.CONFIRMED, response.status());
+    }
+
+    @Test
+    void deveRejeitarVolumeAcimaDaCapacidade() {
+        vehicle.setCargoVolumeLiters(100);
+        RidePassenger pendente = solicitacaoPendenteComBagagem(
+                bagagem(null, 2, 50, 40, 26)); // 52 L × 2 = 104 L > 100 L
+
+        ResponseStatusException ex = assertThrows(
+                ResponseStatusException.class,
+                () -> service.decide(rideId, pendente.getId(), DRIVER_SUB,
+                        RideDecision.ACCEPT, null)
+        );
+
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+        verify(passengerRepository, never()).save(any());
+    }
+
+    @Test
+    void deveIgnorarTravaDeCargaSemCapacidadeDefinida() {
+        vehicle.setCargoVolumeLiters(null); // veículo sem capacidade declarada
+        RidePassenger pendente = solicitacaoPendenteComBagagem(
+                bagagem("9999", 9, 999, 999, 999)); // carona sem cargoDetails
+
+        RideDecisionResponse response = service.decide(
+                rideId, pendente.getId(), DRIVER_SUB, RideDecision.ACCEPT, null);
+
+        assertEquals(RidePassengerStatus.CONFIRMED, response.status());
     }
 }

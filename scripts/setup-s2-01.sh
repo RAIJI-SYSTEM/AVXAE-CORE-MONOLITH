@@ -121,6 +121,9 @@ public enum BaggageType {
 # =============================================================================
 # 2) Baggage — entidade (tabela única com coluna type VARCHAR; sem tabela por tipo)
 # =============================================================================
+if grep -q "weightKg" "$RIDES_MAIN/domain/Baggage.java" 2>/dev/null; then
+  log "preservado: Baggage.java (weightKg da S2-03 presente — não regredir)"
+else
 write_file "$RIDES_MAIN/domain/Baggage.java" <<'@@BAGGAGE_ENTITY@@'
 package com.raiji.rides.domain;
 
@@ -205,10 +208,14 @@ public class Baggage extends AuditableEntity {
     public void setDescription(String v) { this.description = v; }
 }
 @@BAGGAGE_ENTITY@@
+fi
 
 # =============================================================================
 # 3) BaggageItemRequest / BaggageItemResponse (records)
 # =============================================================================
+if grep -q "weightKg" "$RIDES_MAIN/dto/BaggageItemRequest.java" 2>/dev/null; then
+  log "preservado: BaggageItemRequest.java (weightKg da S2-03 presente — não regredir)"
+else
 write_file "$RIDES_MAIN/dto/BaggageItemRequest.java" <<'@@BAGGAGE_ITEM_REQUEST@@'
 package com.raiji.rides.dto;
 
@@ -253,7 +260,11 @@ public record BaggageItemRequest(
 
 ) {}
 @@BAGGAGE_ITEM_REQUEST@@
+fi
 
+if grep -q "weightKg" "$RIDES_MAIN/dto/BaggageItemResponse.java" 2>/dev/null; then
+  log "preservado: BaggageItemResponse.java (weightKg da S2-03 presente — não regredir)"
+else
 write_file "$RIDES_MAIN/dto/BaggageItemResponse.java" <<'@@BAGGAGE_ITEM_RESPONSE@@'
 package com.raiji.rides.dto;
 
@@ -285,6 +296,7 @@ public record BaggageItemResponse(
     }
 }
 @@BAGGAGE_ITEM_RESPONSE@@
+fi
 
 # =============================================================================
 # 4) Migração V8__create_baggage.sql
@@ -1523,6 +1535,9 @@ print("patches aplicados com sucesso.")
 # =============================================================================
 # 12) tests/s2-01 — suíte de verificação da implementação
 # =============================================================================
+if grep -qF "weightKg opcional desde a S2-03" tests/s2-01/test_s2_01.py 2>/dev/null; then
+  log "preservado: tests/s2-01/test_s2_01.py (compat S2-03 presente — não regredir)"
+else
 write_file "tests/s2-01/test_s2_01.py" <<'@@PYTEST@@'
 #!/usr/bin/env python3
 """Verificação estrutural da S2-01 (RF18) — declaração de bagagem.
@@ -1756,6 +1771,7 @@ class TestDocumentacao(unittest.TestCase):
 if __name__ == "__main__":
     unittest.main(verbosity=2)
 @@PYTEST@@
+fi
 
 write_file "tests/s2-01/run-maven.sh" <<'@@RUNMVN@@'
 #!/usr/bin/env bash
