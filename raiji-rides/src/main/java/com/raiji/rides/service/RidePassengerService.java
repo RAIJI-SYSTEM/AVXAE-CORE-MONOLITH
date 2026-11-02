@@ -6,8 +6,10 @@ import java.util.UUID;
 
 import com.raiji.common.enums.RidePassengerStatus;
 import com.raiji.common.enums.RideStatus;
+import com.raiji.rides.domain.Baggage;
 import com.raiji.rides.domain.Ride;
 import com.raiji.rides.domain.RidePassenger;
+import com.raiji.rides.dto.BaggageItemRequest;
 import com.raiji.rides.dto.RidePassengerResponse;
 import com.raiji.rides.event.RideRequestCreatedEvent;
 import com.raiji.rides.repository.RidePassengerRepository;
@@ -42,12 +44,25 @@ public class RidePassengerService {
         this.eventPublisher = eventPublisher;
     }
 
+    /**
+     * S2-01 / RF18: a solicitação de vaga exige a declaração de bagagem.
+     * Solicitação + bagagem são persistidas na MESMA transação
+     * (cascade ALL em RidePassenger.baggage).
+     */
     @Transactional
     public RidePassengerResponse request(
             UUID rideId,
             String passengerSub,
-            String passengerName
+            String passengerName,
+            List<BaggageItemRequest> baggage
     ) {
+        if (baggage == null || baggage.isEmpty()) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "A declaração de bagagem é obrigatória (mínimo 1 item)."
+            );
+        }
+
         Ride ride = rideRepository.findById(rideId)
                 .filter(r -> r.getDeletedAt() == null)
                 .orElseThrow(() -> new ResponseStatusException(
@@ -106,6 +121,18 @@ public class RidePassengerService {
         passenger.setPassengerSub(passengerSub);
         passenger.setPassengerName(passengerName.trim());
 
+        for (BaggageItemRequest item : baggage) {
+            Baggage baggageEntity = new Baggage();
+            baggageEntity.setType(item.type());
+            baggageEntity.setQuantity(item.quantity());
+            baggageEntity.setLengthCm(item.lengthCm());
+            baggageEntity.setWidthCm(item.widthCm());
+            baggageEntity.setHeightCm(item.heightCm());
+            baggageEntity.setDescription(item.description());
+            passenger.addBaggage(baggageEntity);
+        }
+
+        // cascade ALL: solicitação + bagagem persistidas juntas (mesma transação)
         RidePassenger saved = ridePassengerRepository.save(passenger);
 
         eventPublisher.publishEvent(

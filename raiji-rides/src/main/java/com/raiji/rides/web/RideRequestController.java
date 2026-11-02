@@ -27,6 +27,7 @@ public class RideRequestController {
         this.ridePassengerService = ridePassengerService;
     }
 
+    /** S2-01: payload exige passengerName + baggage (>= 1 item). */
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize("hasRole('PASSENGER')")
@@ -38,10 +39,12 @@ public class RideRequestController {
         return ridePassengerService.request(
                 rideId,
                 jwt.getSubject(),
-                request.passengerName()
+                request.passengerName(),
+                request.baggage()
         );
     }
 
+    /** S2-01: visão do motorista — inclui a bagagem antes de aceitar/recusar. */
     @GetMapping
     @PreAuthorize("hasRole('DRIVER')")
     public List<RidePassengerResponse> listRequests(

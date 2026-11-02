@@ -9,6 +9,7 @@ import static org.hamcrest.Matchers.hasSize;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
@@ -111,9 +112,27 @@ class RideRequestApiIT extends RaijiTestSupport {
         given()
                 .auth().oauth2(token)
                 .contentType(ContentType.JSON)
-                .body(Map.of("passengerName", nome))
+                .body(payloadSolicitacao(nome))
                 .when().post(app("/api/rides/" + rideId + "/requests"))
                 .then().statusCode(201);
+    }
+
+    private static Map<String, Object> itemBagagem() {
+        Map<String, Object> item = new HashMap<>();
+        item.put("type", "mala");
+        item.put("quantity", 1);
+        item.put("lengthCm", 60);
+        item.put("widthCm", 40);
+        item.put("heightCm", 30);
+        item.put("description", "Mala de bordo");
+        return item;
+    }
+
+    private static Map<String, Object> payloadSolicitacao(String nome) {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("passengerName", nome);
+        payload.put("baggage", List.of(itemBagagem()));
+        return payload;
     }
 
     @Test
@@ -126,7 +145,7 @@ class RideRequestApiIT extends RaijiTestSupport {
         given()
                 .auth().oauth2(passenger.token())
                 .contentType(ContentType.JSON)
-                .body(Map.of("passengerName", "Maria Silva"))
+                .body(payloadSolicitacao("Maria Silva"))
                 .when().post(app("/api/rides/" + rideId + "/requests"))
                 .then().statusCode(201)
                 .body("id", notNullValue())
@@ -155,7 +174,7 @@ class RideRequestApiIT extends RaijiTestSupport {
         given()
                 .auth().oauth2(passenger.token())
                 .contentType(ContentType.JSON)
-                .body(Map.of("passengerName", "Maria Silva"))
+                .body(payloadSolicitacao("Maria Silva"))
                 .when().post(app("/api/rides/" + UUID.randomUUID() + "/requests"))
                 .then().statusCode(404);
     }
@@ -172,7 +191,7 @@ class RideRequestApiIT extends RaijiTestSupport {
         given()
                 .auth().oauth2(passenger.token())
                 .contentType(ContentType.JSON)
-                .body(Map.of("passengerName", "Maria Silva"))
+                .body(payloadSolicitacao("Maria Silva"))
                 .when().post(app("/api/rides/" + rideId + "/requests"))
                 .then().statusCode(409);
     }
@@ -192,7 +211,7 @@ class RideRequestApiIT extends RaijiTestSupport {
         given()
                 .auth().oauth2(passenger.token())
                 .contentType(ContentType.JSON)
-                .body(Map.of("passengerName", "Maria Silva"))
+                .body(payloadSolicitacao("Maria Silva"))
                 .when().post(app("/api/rides/" + rideId + "/requests"))
                 .then().statusCode(409);
     }
@@ -212,7 +231,9 @@ class RideRequestApiIT extends RaijiTestSupport {
                 .then().statusCode(200)
                 .body("$", hasSize(1))
                 .body("[0].passengerName", equalTo("Maria Silva"))
-                .body("[0].status", equalTo("PENDING"));
+                .body("[0].status", equalTo("PENDING"))
+                .body("[0].baggage", hasSize(1))
+                .body("[0].baggage[0].type", equalTo("mala"));
     }
 
     @Test
@@ -239,7 +260,7 @@ class RideRequestApiIT extends RaijiTestSupport {
         given()
                 .auth().oauth2(user.token())
                 .contentType(ContentType.JSON)
-                .body(Map.of("passengerName", "Maria Silva"))
+                .body(payloadSolicitacao("Maria Silva"))
                 .when().post(app("/api/rides/" + rideId + "/requests"))
                 .then().statusCode(403);
     }
@@ -254,7 +275,7 @@ class RideRequestApiIT extends RaijiTestSupport {
         given()
                 .auth().oauth2(passenger.token())
                 .contentType(ContentType.JSON)
-                .body(Map.of("passengerName", " "))
+                .body(payloadSolicitacao(" "))
                 .when().post(app("/api/rides/" + rideId + "/requests"))
                 .then().statusCode(400);
     }
@@ -264,7 +285,7 @@ class RideRequestApiIT extends RaijiTestSupport {
     void semTokenRetorna401() {
         given()
                 .contentType(ContentType.JSON)
-                .body(Map.of("passengerName", "Maria Silva"))
+                .body(payloadSolicitacao("Maria Silva"))
                 .when().post(app("/api/rides/" + UUID.randomUUID() + "/requests"))
                 .then().statusCode(401);
     }

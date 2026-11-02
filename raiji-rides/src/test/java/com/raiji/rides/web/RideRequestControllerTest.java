@@ -2,6 +2,8 @@
 package com.raiji.rides.web;
 
 import com.raiji.common.enums.RidePassengerStatus;
+import com.raiji.rides.domain.BaggageType;
+import com.raiji.rides.dto.BaggageItemResponse;
 import com.raiji.rides.dto.RidePassengerResponse;
 import com.raiji.rides.service.RidePassengerService;
 
@@ -27,6 +29,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
@@ -59,7 +62,9 @@ class RideRequestControllerTest {
                 "passenger-123",
                 "João Silva",
                 RidePassengerStatus.PENDING,
-                Instant.parse("2026-11-01T12:00:00Z")
+                Instant.parse("2026-11-01T12:00:00Z"),
+                List.of(new BaggageItemResponse(
+                        BaggageType.MALA, 1, 60, 40, 30, "Mala de bordo"))
         );
     }
 
@@ -69,7 +74,8 @@ class RideRequestControllerTest {
         when(ridePassengerService.request(
                 eq(rideId),
                 eq("passenger-123"),
-                eq("João Silva")
+                eq("João Silva"),
+                any()
         )).thenReturn(response());
 
         mockMvc.perform(post("/api/rides/{rideId}/requests", rideId)
@@ -79,7 +85,17 @@ class RideRequestControllerTest {
                         .contentType("application/json")
                         .content("""
                                 {
-                                    "passengerName": "João Silva"
+                                    "passengerName": "João Silva",
+                                    "baggage": [
+                                        {
+                                            "type": "mala",
+                                            "quantity": 1,
+                                            "lengthCm": 60,
+                                            "widthCm": 40,
+                                            "heightCm": 30,
+                                            "description": "Mala de bordo"
+                                        }
+                                    ]
                                 }
                                 """))
                 .andExpect(status().isCreated())
@@ -87,7 +103,9 @@ class RideRequestControllerTest {
                 .andExpect(jsonPath("$.rideId").value(rideId.toString()))
                 .andExpect(jsonPath("$.passengerSub").value("passenger-123"))
                 .andExpect(jsonPath("$.passengerName").value("João Silva"))
-                .andExpect(jsonPath("$.status").value("PENDING"));
+                .andExpect(jsonPath("$.status").value("PENDING"))
+                .andExpect(jsonPath("$.baggage[0].type").value("mala"))
+                .andExpect(jsonPath("$.baggage[0].quantity").value(1));
     }
 
     @Test
@@ -100,7 +118,17 @@ class RideRequestControllerTest {
                         .contentType("application/json")
                         .content("""
                                 {
-                                    "passengerName": "João Silva"
+                                    "passengerName": "João Silva",
+                                    "baggage": [
+                                        {
+                                            "type": "mala",
+                                            "quantity": 1,
+                                            "lengthCm": 60,
+                                            "widthCm": 40,
+                                            "heightCm": 30,
+                                            "description": "Mala de bordo"
+                                        }
+                                    ]
                                 }
                                 """))
                 .andExpect(status().isForbidden());
@@ -116,7 +144,16 @@ class RideRequestControllerTest {
                         .contentType("application/json")
                         .content("""
                                 {
-                                    "passengerName": ""
+                                    "passengerName": "",
+                                    "baggage": [
+                                        {
+                                            "type": "mala",
+                                            "quantity": 1,
+                                            "lengthCm": 60,
+                                            "widthCm": 40,
+                                            "heightCm": 30
+                                        }
+                                    ]
                                 }
                                 """))
                 .andExpect(status().isBadRequest());
@@ -135,7 +172,8 @@ class RideRequestControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].id").value(requestId.toString()))
                 .andExpect(jsonPath("$[0].passengerName").value("João Silva"))
-                .andExpect(jsonPath("$[0].status").value("PENDING"));
+                .andExpect(jsonPath("$[0].status").value("PENDING"))
+                .andExpect(jsonPath("$[0].baggage[0].type").value("mala"));
     }
 
     @Test
@@ -146,6 +184,39 @@ class RideRequestControllerTest {
                                 .jwt(token -> token.subject("passenger-123"))
                                 .authorities(new SimpleGrantedAuthority("ROLE_PASSENGER"))))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void baggageAusenteRetorna400() throws Exception {
+
+        mockMvc.perform(post("/api/rides/{rideId}/requests", rideId)
+                        .with(jwt()
+                                .jwt(token -> token.subject("passenger-123"))
+                                .authorities(new SimpleGrantedAuthority("ROLE_PASSENGER")))
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                    "passengerName": "João Silva"
+                                }
+                                """))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void baggageVazioRetorna400() throws Exception {
+
+        mockMvc.perform(post("/api/rides/{rideId}/requests", rideId)
+                        .with(jwt()
+                                .jwt(token -> token.subject("passenger-123"))
+                                .authorities(new SimpleGrantedAuthority("ROLE_PASSENGER")))
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                    "passengerName": "João Silva",
+                                    "baggage": []
+                                }
+                                """))
+                .andExpect(status().isBadRequest());
     }
 
     @TestConfiguration

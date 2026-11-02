@@ -3,14 +3,17 @@ package com.raiji.rides.service;
 
 import com.raiji.common.enums.RidePassengerStatus;
 import com.raiji.common.enums.RideStatus;
+import com.raiji.rides.domain.BaggageType;
 import com.raiji.rides.domain.Ride;
 import com.raiji.rides.domain.RidePassenger;
+import com.raiji.rides.dto.BaggageItemRequest;
 import com.raiji.rides.dto.RidePassengerResponse;
 import com.raiji.rides.event.RideRequestCreatedEvent;
 import com.raiji.rides.repository.RidePassengerRepository;
 import com.raiji.rides.repository.RideRepository;
 
 import org.junit.jupiter.api.BeforeEach;
+import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
@@ -87,7 +90,7 @@ class RidePassengerServiceTest {
     @Test
     void deveCriarSolicitacaoPendente() {
         RidePassengerResponse response = service.request(
-                rideId, PASSENGER_SUB, "João Silva");
+                rideId, PASSENGER_SUB, "João Silva", bagagemValida());
 
         assertNotNull(response.id());
         assertEquals(rideId, response.rideId());
@@ -108,7 +111,7 @@ class RidePassengerServiceTest {
 
         ResponseStatusException ex = assertThrows(
                 ResponseStatusException.class,
-                () -> service.request(rideId, PASSENGER_SUB, "João")
+                () -> service.request(rideId, PASSENGER_SUB, "João", bagagemValida())
         );
 
         assertEquals(HttpStatus.NOT_FOUND, ex.getStatusCode());
@@ -121,7 +124,7 @@ class RidePassengerServiceTest {
 
         ResponseStatusException ex = assertThrows(
                 ResponseStatusException.class,
-                () -> service.request(rideId, PASSENGER_SUB, "João")
+                () -> service.request(rideId, PASSENGER_SUB, "João", bagagemValida())
         );
 
         assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
@@ -134,7 +137,7 @@ class RidePassengerServiceTest {
 
         ResponseStatusException ex = assertThrows(
                 ResponseStatusException.class,
-                () -> service.request(rideId, PASSENGER_SUB, "João")
+                () -> service.request(rideId, PASSENGER_SUB, "João", bagagemValida())
         );
 
         assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
@@ -147,7 +150,7 @@ class RidePassengerServiceTest {
 
         ResponseStatusException ex = assertThrows(
                 ResponseStatusException.class,
-                () -> service.request(rideId, PASSENGER_SUB, "João")
+                () -> service.request(rideId, PASSENGER_SUB, "João", bagagemValida())
         );
 
         assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
@@ -163,7 +166,7 @@ class RidePassengerServiceTest {
 
         ResponseStatusException ex = assertThrows(
                 ResponseStatusException.class,
-                () -> service.request(rideId, PASSENGER_SUB, "João")
+                () -> service.request(rideId, PASSENGER_SUB, "João", bagagemValida())
         );
 
         assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
@@ -178,11 +181,54 @@ class RidePassengerServiceTest {
 
         ResponseStatusException ex = assertThrows(
                 ResponseStatusException.class,
-                () -> service.request(rideId, PASSENGER_SUB, "João")
+                () -> service.request(rideId, PASSENGER_SUB, "João", bagagemValida())
         );
 
         assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
         verify(passengerRepository, never()).save(any());
+    }
+
+    @Test
+    void devePersistirBagagemNaMesmaTransacao() {
+        RidePassengerResponse response = service.request(
+                rideId, PASSENGER_SUB, "João Silva", bagagemValida());
+
+        ArgumentCaptor<RidePassenger> captor =
+                ArgumentCaptor.forClass(RidePassenger.class);
+        verify(passengerRepository).save(captor.capture());
+
+        RidePassenger salvo = captor.getValue();
+        assertEquals(1, salvo.getBaggage().size());
+        assertEquals(BaggageType.MALA, salvo.getBaggage().get(0).getType());
+        assertEquals(1, salvo.getBaggage().get(0).getQuantity());
+        assertEquals(60, salvo.getBaggage().get(0).getLengthCm());
+        assertSame(salvo, salvo.getBaggage().get(0).getRidePassenger());
+
+        assertEquals(1, response.baggage().size());
+        assertEquals(BaggageType.MALA, response.baggage().get(0).type());
+        assertEquals("Mala de bordo", response.baggage().get(0).description());
+    }
+
+    @Test
+    void deveRejeitarBagagemAusenteOuVazia() {
+        ResponseStatusException semBagagem = assertThrows(
+                ResponseStatusException.class,
+                () -> service.request(rideId, PASSENGER_SUB, "João", null)
+        );
+        assertEquals(HttpStatus.BAD_REQUEST, semBagagem.getStatusCode());
+
+        ResponseStatusException bagagemVazia = assertThrows(
+                ResponseStatusException.class,
+                () -> service.request(rideId, PASSENGER_SUB, "João", List.of())
+        );
+        assertEquals(HttpStatus.BAD_REQUEST, bagagemVazia.getStatusCode());
+
+        verify(passengerRepository, never()).save(any());
+    }
+
+    private static List<BaggageItemRequest> bagagemValida() {
+        return List.of(new BaggageItemRequest(
+                BaggageType.MALA, 1, 60, 40, 30, "Mala de bordo"));
     }
 
     @Test

@@ -1,18 +1,23 @@
 package com.raiji.rides.domain;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 import com.raiji.common.base.AuditableEntity;
 import com.raiji.common.enums.RidePassengerStatus;
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Index;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 
 @Entity
@@ -49,6 +54,18 @@ public class RidePassenger extends AuditableEntity {
     @Column(name = "cancellation_reason", columnDefinition = "TEXT")
     private String cancellationReason;
 
+    /**
+     * S2-01 / RF18 — bagagem declarada na solicitação.
+     * Cascade ALL: persistida junto com a solicitação na MESMA transação.
+     */
+    @OneToMany(
+            mappedBy = "ridePassenger",
+            cascade = CascadeType.ALL,
+            orphanRemoval = true,
+            fetch = FetchType.LAZY
+    )
+    private List<Baggage> baggage = new ArrayList<>();
+
     public void confirm() {
         this.status = RidePassengerStatus.CONFIRMED;
         this.confirmedAt = Instant.now();
@@ -57,6 +74,12 @@ public class RidePassenger extends AuditableEntity {
     public void cancel(String reason) {
         this.status = RidePassengerStatus.CANCELLED;
         this.cancellationReason = reason;
+    }
+
+    /** Adiciona um item de bagagem mantendo os dois lados do relacionamento. */
+    public void addBaggage(Baggage item) {
+        item.setRidePassenger(this);
+        this.baggage.add(item);
     }
 
     public UUID getId() { return id; }
@@ -70,4 +93,5 @@ public class RidePassenger extends AuditableEntity {
     public Instant getJoinedAt() { return joinedAt; }
     public Instant getConfirmedAt() { return confirmedAt; }
     public String getCancellationReason() { return cancellationReason; }
+    public List<Baggage> getBaggage() { return baggage; }
 }

@@ -17,10 +17,10 @@ class TratamentoErrosApiIT extends RaijiTestSupport {
     }
 
     @Test
-    @DisplayName("CT-022: método não suportado (PATCH /api/users/me) → 405")
+    @DisplayName("CT-022: método não suportado (DELETE /api/users/me) → 405")
     void ct022_metodoNaoPermitido() {
         given().auth().oauth2(obterToken(USUARIO_TESTE, SENHA_TESTE))
-                .when().patch(app("/api/users/me"))
+                .when().delete(app("/api/users/me"))
                 .then().statusCode(405);
     }
 }
