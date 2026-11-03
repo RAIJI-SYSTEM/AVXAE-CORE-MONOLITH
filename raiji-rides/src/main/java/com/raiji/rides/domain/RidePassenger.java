@@ -59,6 +59,13 @@ public class RidePassenger extends AuditableEntity {
     private Instant cancelledAt;
 
     /**
+     * S2-05 / RN04 — PaymentIntent do Stripe associado à reserva paga.
+     * Preenchido no aceite (ACCEPT) e usado para o estorno no cancelamento.
+     */
+    @Column(name = "payment_intent_id", length = 100)
+    private String paymentIntentId;
+
+    /**
      * S2-01 / RF18 — bagagem declarada na solicitação.
      * Cascade ALL: persistida junto com a solicitação na MESMA transação.
      */
@@ -105,5 +112,7 @@ public class RidePassenger extends AuditableEntity {
     public Instant getConfirmedAt() { return confirmedAt; }
     public Instant getCancelledAt() { return cancelledAt; }
     public String getCancellationReason() { return cancellationReason; }
+    public String getPaymentIntentId() { return paymentIntentId; }
+    public void setPaymentIntentId(String v) { this.paymentIntentId = v; }
     public List<Baggage> getBaggage() { return baggage; }
 }

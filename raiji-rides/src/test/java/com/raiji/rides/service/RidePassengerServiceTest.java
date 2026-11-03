@@ -49,6 +49,7 @@ class RidePassengerServiceTest {
     private RidePassengerRepository passengerRepository;
     private ApplicationEventPublisher eventPublisher;
     private VehicleRepository vehicleRepository;
+    private RideRefundService rideRefundService;
     private RidePassengerService service;
 
     private UUID rideId;
@@ -61,12 +62,14 @@ class RidePassengerServiceTest {
         passengerRepository = mock(RidePassengerRepository.class);
         eventPublisher = mock(ApplicationEventPublisher.class);
         vehicleRepository = mock(VehicleRepository.class);
+        rideRefundService = mock(RideRefundService.class);
 
         service = new RidePassengerService(
                 rideRepository,
                 passengerRepository,
                 eventPublisher,
-                vehicleRepository
+                vehicleRepository,
+                rideRefundService
         );
 
         rideId = UUID.randomUUID();
@@ -689,5 +692,50 @@ class RidePassengerServiceTest {
 
         assertEquals(HttpStatus.NOT_FOUND, ex.getStatusCode());
         verify(passengerRepository, never()).save(any());
+    }
+
+    // =========================================================================
+    // S2-05 / RN04 — paymentIntentId no aceite + estorno no cancelamento
+    // =========================================================================
+
+    @Test
+    void deveGravarPaymentIntentIdNoAccept() {
+        RidePassenger pendente = solicitacaoPendente();
+
+        service.decide(rideId, pendente.getId(), DRIVER_SUB,
+                RideDecision.ACCEPT, null, "pi_TEST_123");
+
+        ArgumentCaptor<RidePassenger> captor =
+                ArgumentCaptor.forClass(RidePassenger.class);
+        verify(passengerRepository).save(captor.capture());
+        assertEquals("pi_TEST_123", captor.getValue().getPaymentIntentId());
+        assertEquals(RidePassengerStatus.CONFIRMED, captor.getValue().getStatus());
+    }
+
+    @Test
+    void naoDeveGravarPaymentIntentIdNoReject() {
+        RidePassenger pendente = solicitacaoPendente();
+
+        service.decide(rideId, pendente.getId(), DRIVER_SUB,
+                RideDecision.REJECT, "Sem vaga", "pi_TEST_123");
+
+        ArgumentCaptor<RidePassenger> captor =
+                ArgumentCaptor.forClass(RidePassenger.class);
+        verify(passengerRepository).save(captor.capture());
+        assertNull(captor.getValue().getPaymentIntentId(),
+                "REJECT não vincula pagamento");
+        assertEquals(RidePassengerStatus.CANCELLED, captor.getValue().getStatus());
+    }
+
+    @Test
+    void deveAcionarEstornoAoCancelarReserva() {
+        ride.setPricePerPassenger(new BigDecimal("50.00"));
+        RidePassenger confirmada = solicitacaoConfirmada();
+        confirmada.setPaymentIntentId("pi_TEST_999");
+
+        service.cancel(rideId, confirmada.getId(), PASSENGER_SUB, "Imprevisto");
+
+        verify(rideRefundService)
+                .refundIfApplicable(eq(ride), eq(confirmada), eq(PASSENGER_SUB));
     }
 }

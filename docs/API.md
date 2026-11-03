@@ -217,3 +217,40 @@ Erros:
   (viagem ja iniciada — RN06)
 
 > O estorno automatico de caronas pagas canceladas e tratado na **S2-05**.
+
+---
+
+## Estorno automatico de caronas pagas (S2-05 · RN04)
+
+O estorno e disparado automaticamente no **cancelamento** (DELETE da S2-04)
+de uma reserva de carona **paga** (`pricePerPassenger != null`) que possua
+`paymentIntentId` vinculado.
+
+### Vinculando o pagamento no aceite
+
+O `PATCH /api/rides/{rideId}/requests/{requestId}` (S2-02) aceita, de forma
+**opcional**, o `paymentIntentId` no ACCEPT. Ele e gravado na reserva para
+permitir o estorno futuro (a integracao de pagamento completa fica para
+sprint futura):
+
+```json
+{ "decision": "ACCEPT", "paymentIntentId": "pi_1abc...DEF" }
+```
+
+### Comportamento no cancelamento
+
+| Situacao                                   | Stripe        | Auditoria (`audit_log`)          |
+|--------------------------------------------|---------------|----------------------------------|
+| Carona paga + `paymentIntentId` + sucesso  | `refund(...)` | `ESTORNO_SUCESSO` (com refundId) |
+| Carona paga + `paymentIntentId` + falha    | tenta         | `ESTORNO_FALHOU` (com o erro)    |
+| Carona **gratuita** (`price == null`)      | **nao chama** | nenhum registro de estorno        |
+| Carona paga **sem** `paymentIntentId`      | **nao chama** | nenhum registro de estorno        |
+
+- **Falha no Stripe nao impede o cancelamento**: a reserva vai para
+  `CANCELLED` e a vaga e liberada normalmente; o problema fica registrado como
+  `ESTORNO_FALHOU`.
+- Configuracao via `raiji.stripe.api-key` / `raiji.stripe.webhook-secret`
+  (variaveis de ambiente `STRIPE_API_KEY` / `STRIPE_WEBHOOK_SECRET`). Sem
+  chave, o Stripe e considerado "nao configurado" e nenhuma chamada real e
+  feita (o estorno falha de forma controlada). **Nunca commitar chaves.**
+- Valor estornado = `pricePerPassenger` convertido para centavos.

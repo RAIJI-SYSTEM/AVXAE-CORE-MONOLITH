@@ -48,7 +48,8 @@ public class RidePassengerController {
                 requestId,
                 jwt.getSubject(),
                 request.decision(),
-                request.reason()
+                request.reason(),
+                request.paymentIntentId()
         );
     }
 
