@@ -170,3 +170,50 @@ Observacoes:
   carona) e `400` quando a soma de peso das bagagens CONFIRMED excede
   `cargoDetails.maxWeightKg` ou o volume total (L x A x C x quantidade)
   excede o `cargoVolumeLiters` do veiculo. Detalhes em docs/ARQUITETURA.md.
+
+---
+
+## Cancelamento de reserva (S2-04 · RF09 / RN06)
+
+### DELETE /api/rides/{rideId}/requests/{requestId}
+
+Autenticacao: Bearer token com role `PASSENGER` (dono da reserva) **ou**
+`DRIVER` (dono da carona). O corpo e **opcional**:
+
+```json
+{ "reason": "Imprevisto pessoal" }
+```
+
+| Campo  | Tipo   | Obrigatorio | Regras                    |
+|--------|--------|-------------|---------------------------|
+| reason | string | nao         | ate 500 caracteres         |
+
+Cancela a reserva ANTES da viagem e libera a vaga imediatamente:
+
+- reserva **CONFIRMED** -> `availableSeats++` na hora (`seatReleased: true`);
+- reserva **PENDING**   -> vagas permanecem intactas (`seatReleased: false`);
+- a reserva vai para `CANCELLED` com `cancellationReason` e `cancelledAt`;
+- o **motorista e notificado** (NotificationService).
+
+Resposta `200`:
+
+```json
+{
+  "id": "…",
+  "rideId": "…",
+  "status": "CANCELLED",
+  "cancelledAt": "…",
+  "cancellationReason": "Imprevisto pessoal",
+  "seatReleased": true
+}
+```
+
+Erros:
+
+- `401` sem token
+- `403` ator nao e o passageiro da reserva nem o motorista da carona
+- `404` carona ou reserva inexistente (ou reserva de outra carona)
+- `409` reserva ja `CANCELLED`/`COMPLETED` **ou** carona nao esta `PLANNED`
+  (viagem ja iniciada — RN06)
+
+> O estorno automatico de caronas pagas canceladas e tratado na **S2-05**.

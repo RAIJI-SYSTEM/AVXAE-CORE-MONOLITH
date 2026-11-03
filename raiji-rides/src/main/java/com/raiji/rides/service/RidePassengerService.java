@@ -15,8 +15,10 @@ import com.raiji.rides.domain.Ride;
 import com.raiji.rides.domain.RideDecision;
 import com.raiji.rides.domain.RidePassenger;
 import com.raiji.rides.dto.BaggageItemRequest;
+import com.raiji.rides.dto.RideCancelResponse;
 import com.raiji.rides.dto.RideDecisionResponse;
 import com.raiji.rides.dto.RidePassengerResponse;
+import com.raiji.rides.event.RideCancelledEvent;
 import com.raiji.rides.event.RideDecisionEvent;
 import com.raiji.rides.event.RideRequestCreatedEvent;
 import com.raiji.rides.repository.RidePassengerRepository;
@@ -288,6 +290,114 @@ public class RidePassengerService {
         );
 
         return RideDecisionResponse.from(saved);
+    }
+
+    /**
+     * S2-04 / RF09 + RN06 — cancelamento de reserva ANTES da viagem.
+     *
+     * <p>Pode ser invocado pelo passageiro dono da reserva OU pelo motorista
+     * dono da carona. Regras (critérios de aceite da issue #11):
+     * <ul>
+     *   <li><b>403</b> — o ator não é o passageiro da reserva nem o motorista
+     *       da carona ("passageiro tentando cancelar reserva de outro").</li>
+     *   <li><b>409</b> — reserva já CANCELLED ("reserva já cancelada").</li>
+     *   <li><b>409</b> — reserva COMPLETED (não é PENDING/CONFIRMED).</li>
+     *   <li><b>409</b> — carona não está PLANNED ("após início da viagem").</li>
+     *   <li>CONFIRMED =&gt; {@code availableSeats++} na hora (libera a vaga);
+     *       PENDING =&gt; vagas permanecem intactas.</li>
+     * </ul>
+     *
+     * <p>Assim como o {@link #decide}, usa lock pessimista na carona
+     * ({@code findByIdForUpdate}) para que a devolução da vaga seja
+     * consistente sob concorrência (S2-03 / RN03). Publica
+     * {@link RideCancelledEvent} para notificar o motorista.
+     */
+    @Transactional
+    public RideCancelResponse cancel(
+            UUID rideId,
+            UUID requestId,
+            String actorSub,
+            String reason
+    ) {
+        Ride ride = rideRepository.findByIdForUpdate(rideId)
+                .filter(r -> r.getDeletedAt() == null)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Carona não encontrada."
+                ));
+
+        RidePassenger passenger = ridePassengerRepository.findById(requestId)
+                .filter(p -> p.getDeletedAt() == null)
+                .filter(p -> rideId.equals(p.getRideId()))
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Solicitação não encontrada."
+                ));
+
+        boolean donoDaReserva = passenger.getPassengerSub().equals(actorSub);
+        boolean motoristaDaCarona = ride.getDriverSub().equals(actorSub);
+        if (!donoDaReserva && !motoristaDaCarona) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "Você não tem permissão para cancelar esta reserva."
+            );
+        }
+
+        if (passenger.getStatus() == RidePassengerStatus.CANCELLED) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Esta reserva já está cancelada."
+            );
+        }
+
+        if (passenger.getStatus() != RidePassengerStatus.PENDING
+                && passenger.getStatus() != RidePassengerStatus.CONFIRMED) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Esta reserva não pode ser cancelada no status "
+                            + passenger.getStatus() + "."
+            );
+        }
+
+        if (ride.getStatus() != RideStatus.PLANNED) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Não é possível cancelar a reserva após o início da viagem."
+            );
+        }
+
+        boolean seatReleased =
+                passenger.getStatus() == RidePassengerStatus.CONFIRMED;
+
+        passenger.cancel(reason == null ? null : reason.trim());
+
+        if (seatReleased) {
+            int atuais = ride.getAvailableSeats() == null
+                    ? 0 : ride.getAvailableSeats();
+            int total = ride.getTotalSeats() == null
+                    ? atuais + 1 : ride.getTotalSeats();
+            // nunca ultrapassa total_seats (CHECK chk_seats_consistency)
+            ride.setAvailableSeats(Math.min(atuais + 1, total));
+        }
+
+        rideRepository.save(ride);
+        RidePassenger saved = ridePassengerRepository.save(passenger);
+
+        eventPublisher.publishEvent(
+                new RideCancelledEvent(
+                        ride.getId(),
+                        saved.getId(),
+                        ride.getDriverSub(),
+                        ride.getDriverName(),
+                        saved.getPassengerSub(),
+                        saved.getPassengerName(),
+                        saved.getCancellationReason(),
+                        saved.getCancelledAt(),
+                        seatReleased
+                )
+        );
+
+        return RideCancelResponse.from(saved, seatReleased);
     }
 
     /**

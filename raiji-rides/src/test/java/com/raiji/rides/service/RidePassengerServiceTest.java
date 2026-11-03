@@ -10,8 +10,10 @@ import com.raiji.rides.domain.Ride;
 import com.raiji.rides.domain.RideDecision;
 import com.raiji.rides.domain.RidePassenger;
 import com.raiji.rides.dto.BaggageItemRequest;
+import com.raiji.rides.dto.RideCancelResponse;
 import com.raiji.rides.dto.RideDecisionResponse;
 import com.raiji.rides.dto.RidePassengerResponse;
+import com.raiji.rides.event.RideCancelledEvent;
 import com.raiji.rides.event.RideDecisionEvent;
 import com.raiji.rides.event.RideRequestCreatedEvent;
 import com.raiji.rides.repository.RidePassengerRepository;
@@ -561,5 +563,131 @@ class RidePassengerServiceTest {
                 rideId, pendente.getId(), DRIVER_SUB, RideDecision.ACCEPT, null);
 
         assertEquals(RidePassengerStatus.CONFIRMED, response.status());
+    }
+
+    // =========================================================================
+    // S2-04 / RF09+RN06 — cancel() pelo passageiro (ou motorista dono)
+    // =========================================================================
+
+    /** Reserva CONFIRMED (vaga já ocupada) pronta para cancelamento. */
+    private RidePassenger solicitacaoConfirmada() {
+        RidePassenger passenger = new RidePassenger();
+        ReflectionTestUtils.setField(passenger, "id", UUID.randomUUID());
+        passenger.setRideId(rideId);
+        passenger.setPassengerSub(PASSENGER_SUB);
+        passenger.setPassengerName("João");
+        passenger.confirm();
+
+        when(passengerRepository.findById(passenger.getId()))
+                .thenReturn(Optional.of(passenger));
+
+        return passenger;
+    }
+
+    @Test
+    void deveCancelarReservaConfirmadaLiberandoVaga() {
+        ride.setTotalSeats(4);
+        ride.setAvailableSeats(2);
+        RidePassenger confirmada = solicitacaoConfirmada();
+
+        RideCancelResponse response = service.cancel(
+                rideId, confirmada.getId(), PASSENGER_SUB, "Imprevisto pessoal");
+
+        assertEquals(RidePassengerStatus.CANCELLED, response.status());
+        assertEquals("Imprevisto pessoal", response.cancellationReason());
+        assertNotNull(response.cancelledAt(), "critério de aceite: CANCELLED com data");
+        assertTrue(response.seatReleased());
+
+        // vaga liberada na hora: availableSeats++
+        assertEquals(3, ride.getAvailableSeats());
+        verify(rideRepository).save(ride);
+        verify(passengerRepository).save(any(RidePassenger.class));
+        verify(eventPublisher).publishEvent(any(RideCancelledEvent.class));
+    }
+
+    @Test
+    void deveCancelarReservaPendenteSemAlterarVagas() {
+        ride.setTotalSeats(4);
+        ride.setAvailableSeats(4);
+        RidePassenger pendente = solicitacaoPendente();
+
+        RideCancelResponse response = service.cancel(
+                rideId, pendente.getId(), PASSENGER_SUB, null);
+
+        assertEquals(RidePassengerStatus.CANCELLED, response.status());
+        assertFalse(response.seatReleased());
+        assertEquals(4, ride.getAvailableSeats(), "PENDING não altera availableSeats");
+        verify(eventPublisher).publishEvent(any(RideCancelledEvent.class));
+    }
+
+    @Test
+    void devePermitirMotoristaDonoCancelarReserva() {
+        ride.setTotalSeats(4);
+        ride.setAvailableSeats(2);
+        RidePassenger confirmada = solicitacaoConfirmada();
+
+        RideCancelResponse response = service.cancel(
+                rideId, confirmada.getId(), DRIVER_SUB, "Veículo em manutenção");
+
+        assertEquals(RidePassengerStatus.CANCELLED, response.status());
+        assertTrue(response.seatReleased());
+        assertEquals(3, ride.getAvailableSeats());
+    }
+
+    @Test
+    void deveRejeitarCancelamentoPorOutroPassageiro() {
+        RidePassenger confirmada = solicitacaoConfirmada();
+
+        ResponseStatusException ex = assertThrows(
+                ResponseStatusException.class,
+                () -> service.cancel(rideId, confirmada.getId(),
+                        "outro-passageiro", "motivo")
+        );
+
+        assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
+        verify(passengerRepository, never()).save(any());
+        verify(rideRepository, never()).save(any());
+    }
+
+    @Test
+    void deveRejeitarCancelamentoAposInicioDaViagem() {
+        ride.setStatus(RideStatus.IN_PROGRESS);
+        RidePassenger confirmada = solicitacaoConfirmada();
+
+        ResponseStatusException ex = assertThrows(
+                ResponseStatusException.class,
+                () -> service.cancel(rideId, confirmada.getId(),
+                        PASSENGER_SUB, "motivo")
+        );
+
+        assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
+        verify(passengerRepository, never()).save(any());
+    }
+
+    @Test
+    void deveRejeitarReservaJaCancelada() {
+        RidePassenger confirmada = solicitacaoConfirmada();
+        confirmada.cancel("cancelamento anterior");
+
+        ResponseStatusException ex = assertThrows(
+                ResponseStatusException.class,
+                () -> service.cancel(rideId, confirmada.getId(),
+                        PASSENGER_SUB, "de novo")
+        );
+
+        assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
+        verify(passengerRepository, never()).save(any());
+    }
+
+    @Test
+    void deveRejeitarCancelamentoDeReservaInexistente() {
+        ResponseStatusException ex = assertThrows(
+                ResponseStatusException.class,
+                () -> service.cancel(rideId, UUID.randomUUID(),
+                        PASSENGER_SUB, "motivo")
+        );
+
+        assertEquals(HttpStatus.NOT_FOUND, ex.getStatusCode());
+        verify(passengerRepository, never()).save(any());
     }
 }
