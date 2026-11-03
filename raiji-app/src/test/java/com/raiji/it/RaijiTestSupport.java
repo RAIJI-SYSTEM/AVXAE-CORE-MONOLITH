@@ -64,6 +64,12 @@ public abstract class RaijiTestSupport {
         registro.add("raiji.keycloak.admin-client-id", () -> "raiji-admin");
         registro.add("raiji.keycloak.admin-client-secret", () -> "raiji-admin-secret");
         registro.add("raiji.keycloak.realm", () -> REALM);
+
+        // S2-06: evita que o @Scheduled do RideStatusScheduler dispare sozinho
+        // durante os testes (intervalo de 1h). RideStatusSchedulerIT chama
+        // promoteDueRides() manualmente, de forma determinística.
+        registro.add("raiji.scheduler.initial-delay", () -> "3600000");
+        registro.add("raiji.scheduler.fixed-delay", () -> "3600000");
     }
 
     protected String app(String caminho) { return "http://localhost:" + porta + caminho; }

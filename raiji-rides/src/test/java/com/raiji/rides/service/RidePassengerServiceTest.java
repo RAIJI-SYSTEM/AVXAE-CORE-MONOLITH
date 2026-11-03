@@ -69,7 +69,8 @@ class RidePassengerServiceTest {
                 passengerRepository,
                 eventPublisher,
                 vehicleRepository,
-                rideRefundService
+                rideRefundService,
+                java.time.Clock.systemDefaultZone()
         );
 
         rideId = UUID.randomUUID();
@@ -737,5 +738,39 @@ class RidePassengerServiceTest {
 
         verify(rideRefundService)
                 .refundIfApplicable(eq(ride), eq(confirmada), eq(PASSENGER_SUB));
+    }
+
+    // =========================================================================
+    // S2-06 / RF10+RN05 — bloqueio no horário de saída
+    // =========================================================================
+
+    @Test
+    void deveRejeitarDecisaoQuandoCaronaNaoEstaPlanned() {
+        ride.setStatus(RideStatus.IN_PROGRESS);
+        RidePassenger pendente = solicitacaoPendente();
+
+        ResponseStatusException ex = assertThrows(
+                ResponseStatusException.class,
+                () -> service.decide(rideId, pendente.getId(), DRIVER_SUB,
+                        RideDecision.ACCEPT, null)
+        );
+
+        assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
+        verify(passengerRepository, never()).save(any());
+    }
+
+    @Test
+    void deveBloquearSolicitacaoNoLimiteDaPartida() {
+        // departureDate == now => NÃO é "after" => bloqueado (409). Cobre o
+        // limite exato pedido na issue #13.
+        ride.setDepartureDate(LocalDateTime.now());
+
+        ResponseStatusException ex = assertThrows(
+                ResponseStatusException.class,
+                () -> service.request(rideId, PASSENGER_SUB, "João", bagagemValida())
+        );
+
+        assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
+        verify(passengerRepository, never()).save(any());
     }
 }
