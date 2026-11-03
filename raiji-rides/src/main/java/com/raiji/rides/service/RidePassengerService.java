@@ -31,9 +31,14 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Service
 public class RidePassengerService {
+
+    private static final Logger log =
+            LoggerFactory.getLogger(RidePassengerService.class);
 
     private static final List<RidePassengerStatus> ACTIVE_STATUSES =
             List.of(
@@ -45,17 +50,20 @@ public class RidePassengerService {
     private final RidePassengerRepository ridePassengerRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final VehicleRepository vehicleRepository;
+    private final RideRefundService rideRefundService;
 
     public RidePassengerService(
             RideRepository rideRepository,
             RidePassengerRepository ridePassengerRepository,
             ApplicationEventPublisher eventPublisher,
-            VehicleRepository vehicleRepository
+            VehicleRepository vehicleRepository,
+            RideRefundService rideRefundService
     ) {
         this.rideRepository = rideRepository;
         this.ridePassengerRepository = ridePassengerRepository;
         this.eventPublisher = eventPublisher;
         this.vehicleRepository = vehicleRepository;
+        this.rideRefundService = rideRefundService;
     }
 
     /**
@@ -206,6 +214,23 @@ public class RidePassengerService {
             RideDecision decision,
             String reason
     ) {
+        return decide(rideId, requestId, driverSub, decision, reason, null);
+    }
+
+    /**
+     * S2-02 / RF08 (+ S2-05 / RN04): variante que também recebe o
+     * {@code paymentIntentId} da carona paga. No ACCEPT, o id é gravado na
+     * reserva para viabilizar o estorno automático no cancelamento.
+     */
+    @Transactional
+    public RideDecisionResponse decide(
+            UUID rideId,
+            UUID requestId,
+            String driverSub,
+            RideDecision decision,
+            String reason,
+            String paymentIntentId
+    ) {
         if (decision == null) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
@@ -263,6 +288,12 @@ public class RidePassengerService {
             }
             // S2-03 / RN12: trava de capacidade de carga (peso + volume)
             validarCapacidadeCarga(ride, passenger);
+
+            // S2-05 / RN04: vincula o PaymentIntent (carona paga) à reserva
+            // para permitir o estorno automático num cancelamento futuro.
+            if (paymentIntentId != null && !paymentIntentId.isBlank()) {
+                passenger.setPaymentIntentId(paymentIntentId.trim());
+            }
 
             ride.setAvailableSeats(ride.getAvailableSeats() - 1);
             passenger.confirm();
@@ -382,6 +413,16 @@ public class RidePassengerService {
 
         rideRepository.save(ride);
         RidePassenger saved = ridePassengerRepository.save(passenger);
+
+        // S2-05 / RN04: estorno automático de carona paga (nunca impede o
+        // cancelamento — falhas viram registro ESTORNO_FALHOU na auditoria).
+        try {
+            rideRefundService.refundIfApplicable(ride, saved, actorSub);
+        } catch (RuntimeException ex) {
+            log.warn(
+                    "Estorno não processado para a reserva {}: {}",
+                    saved.getId(), ex.getMessage());
+        }
 
         eventPublisher.publishEvent(
                 new RideCancelledEvent(

@@ -19,7 +19,16 @@ public record RideDecisionRequest(
         RideDecision decision,
 
         @Size(max = 500, message = "O motivo deve ter no máximo 500 caracteres.")
-        String reason
+        String reason,
+
+        /**
+         * S2-05 / RN04 — PaymentIntent do Stripe da carona paga. Opcional;
+         * quando presente no ACCEPT, é gravado na reserva para permitir o
+         * estorno automático no cancelamento. (A integração de pagamento
+         * completa fica para sprint futura — por ora aceitamos no payload.)
+         */
+        @Size(max = 100, message = "paymentIntentId deve ter no máximo 100 caracteres.")
+        String paymentIntentId
 ) {
 
     @AssertTrue(message = "O motivo (reason) é obrigatório ao recusar (REJECT).")

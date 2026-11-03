@@ -39,3 +39,9 @@ raiji:
     realm: raiji
     admin-client-id: raiji-admin
     admin-client-secret: ${KEYCLOAK_ADMIN_CLIENT_SECRET:raiji-admin-secret}
+  # S2-05 / RN04 — estorno automático via Stripe (modo sandbox/testes).
+  # A chave NUNCA é commitada: vem de variável de ambiente (sk_test_*).
+  # Vazia => StripeService considera "não configurado" e não chama a API.
+  stripe:
+    api-key: ${STRIPE_API_KEY:}
+    webhook-secret: ${STRIPE_WEBHOOK_SECRET:}
