@@ -69,3 +69,48 @@ reserva fica em estado inconsistente e `available_seats` nunca fica negativo.
   (400), além da soma acumulada entre passageiros CONFIRMED.
 - Unitários (`RidePassengerServiceTest`): mesmas fronteiras com mocks +
   verificação do uso de `findByIdForUpdate`.
+
+---
+
+## S2-06 · Bloqueio no horário de saída e status automático (RF10 / RN05)
+
+### Problema
+
+Ao atingir o `departureDate`, a carona deve deixar de aceitar solicitações e
+aceites, e o status deve mudar de `PLANNED` para `IN_PROGRESS`
+automaticamente — sem depender de uma ação do motorista.
+
+### Decisão — scheduler idempotente + `Clock` injetável
+
+- `RideStatusScheduler` (`@Component`) roda a cada 60 s
+  (`@Scheduled(fixedDelayString = "${raiji.scheduler.fixed-delay:60000}")`,
+  com `initial-delay` de 5 s). A cada execução:
+  `findByStatusAndDepartureDateLessThanEqualAndDeletedAtIsNull(PLANNED, now)`
+  → promove para `IN_PROGRESS`.
+- **Idempotente por construção**: a consulta filtra `status = PLANNED`; uma
+  carona já promovida nunca é reprocessada (a 2ª execução retorna 0).
+- **`Clock` injetável** (`TimeConfig#clock` = `systemDefaultZone` em produção):
+  permite fixar o relógio nos testes unitários e validar o limite exato
+  `departureDate == now()` (a consulta usa `<=`).
+
+### Bloqueios no serviço (defesa em profundidade)
+
+Mesmo antes do scheduler rodar, `RidePassengerService` bloqueia no limite:
+
+| Operação | Regra | Falha |
+|---|---|---|
+| `request()` (POST) | `departureDate <= now(clock)` **ou** carona não `PLANNED` | 409 |
+| `decide()` (PATCH) | carona não `PLANNED` | 409 |
+| `cancel()` (DELETE, S2-04) | carona não `PLANNED` | 409 |
+
+Assim o estado é eventual-consistente via scheduler, mas as operações de
+escrita já respeitam o horário de saída imediatamente.
+
+### Testes
+
+- `RideStatusSchedulerTest` (unitário, `Clock` fixo + repo mockado): promoção,
+  limite `== now()`, caronas futuras intactas, idempotência.
+- `RideStatusSchedulerIT` (integração): "avança o relógio" movendo
+  `departure_date` para o passado e disparando `promoteDueRides()`
+  manualmente (o job fica com intervalo enorme nos testes para não
+  interferir) → verifica `IN_PROGRESS`, POST 409, PATCH 409 e idempotência.

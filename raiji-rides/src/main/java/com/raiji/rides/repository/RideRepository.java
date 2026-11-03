@@ -1,8 +1,11 @@
 package com.raiji.rides.repository;
 
+import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import com.raiji.common.enums.RideStatus;
 import com.raiji.rides.domain.Ride;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -24,4 +27,13 @@ public interface RideRepository extends JpaRepository<Ride, UUID>, JpaSpecificat
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select r from Ride r where r.id = :id")
     Optional<Ride> findByIdForUpdate(@Param("id") UUID id);
+
+    /**
+     * S2-06 / RF10 + RN05 — caronas PLANNED cujo {@code departureDate} já foi
+     * atingido ({@code <= cutoff}). Usada pelo {@code RideStatusScheduler} para
+     * promover a {@code IN_PROGRESS}. O filtro por {@code PLANNED} torna a
+     * execução idempotente (uma carona já promovida não aparece de novo).
+     */
+    List<Ride> findByStatusAndDepartureDateLessThanEqualAndDeletedAtIsNull(
+            RideStatus status, LocalDateTime cutoff);
 }

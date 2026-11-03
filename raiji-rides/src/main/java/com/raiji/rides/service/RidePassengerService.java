@@ -2,6 +2,7 @@ package com.raiji.rides.service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -51,19 +52,22 @@ public class RidePassengerService {
     private final ApplicationEventPublisher eventPublisher;
     private final VehicleRepository vehicleRepository;
     private final RideRefundService rideRefundService;
+    private final Clock clock;
 
     public RidePassengerService(
             RideRepository rideRepository,
             RidePassengerRepository ridePassengerRepository,
             ApplicationEventPublisher eventPublisher,
             VehicleRepository vehicleRepository,
-            RideRefundService rideRefundService
+            RideRefundService rideRefundService,
+            Clock clock
     ) {
         this.rideRepository = rideRepository;
         this.ridePassengerRepository = ridePassengerRepository;
         this.eventPublisher = eventPublisher;
         this.vehicleRepository = vehicleRepository;
         this.rideRefundService = rideRefundService;
+        this.clock = clock;
     }
 
     /**
@@ -100,7 +104,10 @@ public class RidePassengerService {
         }
 
         if (ride.getDepartureDate() == null
-                || !ride.getDepartureDate().isAfter(LocalDateTime.now())) {
+                || !ride.getDepartureDate().isAfter(LocalDateTime.now(clock))) {
+            // S2-06 / RF10: bloqueia solicitações a partir do horário de saída
+            // (departureDate <= now => 409), mesmo antes do scheduler promover
+            // a carona para IN_PROGRESS.
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
                     "Não é possível solicitar uma carona com partida passada."
@@ -259,6 +266,15 @@ public class RidePassengerService {
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN,
                     "Você não tem permissão para decidir solicitações desta carona."
+            );
+        }
+
+        // S2-06 / RF10: bloqueia o aceite/recusa quando a carona já não está
+        // PLANNED (partida atingida / viagem em andamento) => 409.
+        if (ride.getStatus() != RideStatus.PLANNED) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Não é possível decidir solicitações de uma carona que já iniciou."
             );
         }
 
