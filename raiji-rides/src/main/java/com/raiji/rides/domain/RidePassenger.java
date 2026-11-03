@@ -54,6 +54,10 @@ public class RidePassenger extends AuditableEntity {
     @Column(name = "cancellation_reason", columnDefinition = "TEXT")
     private String cancellationReason;
 
+    /** S2-04 / RF09 — momento em que a reserva foi CANCELLED (a "data"). */
+    @Column(name = "cancelled_at")
+    private Instant cancelledAt;
+
     /**
      * S2-01 / RF18 — bagagem declarada na solicitação.
      * Cascade ALL: persistida junto com a solicitação na MESMA transação.
@@ -71,9 +75,16 @@ public class RidePassenger extends AuditableEntity {
         this.confirmedAt = Instant.now();
     }
 
+    /**
+     * S2-02 (REJECT) + S2-04 (RF09): marca a reserva como CANCELLED, guarda o
+     * motivo e registra a data/hora do cancelamento. Método único reutilizado
+     * pelos dois fluxos (observação da issue S2-04: "reutilizar
+     * RidePassenger.cancel(reason) já existente").
+     */
     public void cancel(String reason) {
         this.status = RidePassengerStatus.CANCELLED;
         this.cancellationReason = reason;
+        this.cancelledAt = Instant.now();
     }
 
     /** Adiciona um item de bagagem mantendo os dois lados do relacionamento. */
@@ -92,6 +103,7 @@ public class RidePassenger extends AuditableEntity {
     public RidePassengerStatus getStatus() { return status; }
     public Instant getJoinedAt() { return joinedAt; }
     public Instant getConfirmedAt() { return confirmedAt; }
+    public Instant getCancelledAt() { return cancelledAt; }
     public String getCancellationReason() { return cancellationReason; }
     public List<Baggage> getBaggage() { return baggage; }
 }

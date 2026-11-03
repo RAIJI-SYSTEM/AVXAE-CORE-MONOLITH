@@ -2,6 +2,8 @@ package com.raiji.rides.web;
 
 import java.util.UUID;
 
+import com.raiji.rides.dto.RideCancelRequest;
+import com.raiji.rides.dto.RideCancelResponse;
 import com.raiji.rides.dto.RideDecisionRequest;
 import com.raiji.rides.dto.RideDecisionResponse;
 import com.raiji.rides.service.RidePassengerService;
@@ -47,6 +49,32 @@ public class RidePassengerController {
                 jwt.getSubject(),
                 request.decision(),
                 request.reason()
+        );
+    }
+
+    /**
+     * S2-04 / RF09 + RN06 — cancela a reserva e libera a vaga imediatamente.
+     *
+     * <p>Aceita o passageiro dono da reserva OU o motorista dono da carona; a
+     * checagem fina de posse acontece no service (403 quando não pertence).
+     * O corpo {@code { "reason": "..." }} é OPCIONAL.
+     *
+     * <p>200 =&gt; {@code {id, rideId, status=CANCELLED, cancelledAt,
+     * cancellationReason, seatReleased}}.
+     */
+    @DeleteMapping("/{requestId}")
+    @PreAuthorize("hasAnyRole('PASSENGER', 'DRIVER')")
+    public RideCancelResponse cancel(
+            @PathVariable UUID rideId,
+            @PathVariable UUID requestId,
+            @Valid @RequestBody(required = false) RideCancelRequest request,
+            @AuthenticationPrincipal Jwt jwt
+    ) {
+        return ridePassengerService.cancel(
+                rideId,
+                requestId,
+                jwt.getSubject(),
+                request == null ? null : request.reason()
         );
     }
 }
