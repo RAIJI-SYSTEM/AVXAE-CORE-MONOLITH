@@ -12,7 +12,8 @@
       { "name": "PJ" },
       { "name": "DRIVER" },
       { "name": "PASSENGER" },
-      { "name": "admin" }
+      { "name": "admin" },
+      { "name": "chat-admin", "description": "Administrador do raiji-chat" }
     ]
   },
   "clients": [

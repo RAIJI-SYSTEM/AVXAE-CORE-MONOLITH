@@ -1,0 +1,112 @@
+_format_version: "3.0"
+
+# ============================================================================
+# Kong — configuração declarativa (DB-less) do Raiji
+# Toda a entrada pública do sistema passa pelo proxy em :8000
+#
+# ESTE ARQUIVO É UM TEMPLATE. O container `kong-init` (kong/render-config.sh)
+# busca a chave pública do realm no Keycloak e gera o kong.yml final,
+# substituindo:
+#   __KC_ISSUER__      -> ${PUBLIC_BASE_URL}/realms/raiji  (claim "iss")
+#   __KC_PUBLIC_KEY__  -> chave RSA pública do realm (PEM)
+# ============================================================================
+
+# ----------------------------------------------------------------------------
+# Consumer que representa o Keycloak: o plugin jwt localiza a chave de
+# validação pelo claim "iss" do token e confere a assinatura RS256.
+# ----------------------------------------------------------------------------
+consumers:
+  - username: keycloak-raiji
+    jwt_secrets:
+      - key: "__KC_ISSUER__"
+        algorithm: RS256
+        rsa_public_key: |
+          -----BEGIN PUBLIC KEY-----
+__KC_PUBLIC_KEY__
+          -----END PUBLIC KEY-----
+
+services:
+  # -------------------------------------------------------------------------
+  # Backend Spring Boot
+  # -------------------------------------------------------------------------
+  - name: raiji-app
+    url: http://app:8080
+    connect_timeout: 60000
+    write_timeout: 60000
+    read_timeout: 60000
+    routes:
+      # Rotas públicas (sem token) — o Kong prioriza o prefixo mais longo,
+      # então estas vencem a rota /api protegida abaixo.
+      - name: raiji-app-public
+        paths:
+          - /api/public
+          - /actuator/health
+        strip_path: false
+        preserve_host: true
+
+      # Todo o resto de /api exige um JWT válido emitido pelo Keycloak.
+      - name: raiji-app-api
+        paths:
+          - /api
+        strip_path: false
+        preserve_host: true
+        plugins:
+          - name: jwt
+            config:
+              key_claim_name: iss
+              claims_to_verify:
+                - exp
+              header_names:
+                - authorization
+              uri_param_names: []     # nunca aceitar token na URL
+              cookie_names: []
+              run_on_preflight: false # OPTIONS (CORS) passa sem token
+
+  # -------------------------------------------------------------------------
+  # Chat (raiji-chat, Bun + Fastify) — o Kong encaminha DIRETO ao chat,
+  # sem passar pelo monolito. /chat/conversations -> /conversations
+  # O chat também valida o JWT (jose), como defesa em profundidade.
+  # Sobe com: docker compose --profile chat up
+  # -------------------------------------------------------------------------
+  - name: raiji-chat
+    url: http://chat:3000
+    connect_timeout: 60000
+    write_timeout: 60000
+    read_timeout: 60000
+    routes:
+      - name: raiji-chat-api
+        paths:
+          - /chat
+        strip_path: true
+        plugins:
+          - name: jwt
+            config:
+              key_claim_name: iss
+              claims_to_verify:
+                - exp
+              header_names:
+                - authorization
+              uri_param_names: []
+              cookie_names: []
+              run_on_preflight: false
+
+  # -------------------------------------------------------------------------
+  # Keycloak — apenas endpoints OIDC usados pelo frontend / apps.
+  # O console admin (/admin) NÃO é exposto pelo gateway: use a porta 8180
+  # (ligada só em 127.0.0.1 no ambiente local).
+  # -------------------------------------------------------------------------
+  - name: raiji-keycloak
+    url: http://keycloak:8080
+    connect_timeout: 60000
+    write_timeout: 60000
+    read_timeout: 60000
+    routes:
+      - name: raiji-keycloak-realms
+        paths: ["/realms"]
+        strip_path: false
+      - name: raiji-keycloak-resources
+        paths: ["/resources"]
+        strip_path: false
+      - name: raiji-keycloak-js
+        paths: ["/js"]
+        strip_path: false

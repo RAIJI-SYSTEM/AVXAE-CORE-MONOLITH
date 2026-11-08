@@ -5,7 +5,7 @@
 # Variáveis (arquivo .env gerado pelo scripts/aws/deploy.sh — NUNCA commitar):
 #   ECR_REGISTRY, ECR_REPOSITORY, IMAGE_TAG, BASE_PORT, KC_PORT,
 #   DB_URL, DB_USER, DB_PASSWORD, JWK_SET_URI, KEYCLOAK_ADMIN_CLIENT_SECRET,
-#   SPRING_PROFILES_ACTIVE, POSTGRES_DB
+#   SPRING_PROFILES_ACTIVE, POSTGRES_DB, PUBLIC_BASE_URL (URL pública do Kong)
 #
 # Requer Docker Compose >= 2.24 (tags !override/!reset).
 # =============================================================================
@@ -45,6 +45,9 @@ services:
       SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: ${JWK_SET_URI:-http://keycloak:8080/realms/raiji/protocol/openid-connect/certs}
       RAIJI_KEYCLOAK_ADMIN_CLIENT_SECRET: ${KEYCLOAK_ADMIN_CLIENT_SECRET:?KEYCLOAK_ADMIN_CLIENT_SECRET obrigatório}
     ports: !override []          # app acessível apenas via Kong
+
+  kong-init:
+    container_name: ${COMPOSE_PROJECT_NAME:-raiji}-kong-init
 
   kong:
     container_name: ${COMPOSE_PROJECT_NAME:-raiji}-kong
