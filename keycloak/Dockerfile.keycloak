@@ -1,9 +1,20 @@
+# --- 1) Build do plugin de eventos (event-listener -> RabbitMQ) --------------
+FROM maven:3.9-eclipse-temurin-21 AS events-build
+WORKDIR /build
+COPY event-listener/pom.xml ./
+RUN mvn -B -q dependency:go-offline || true
+COPY event-listener/src ./src
+RUN mvn -B -q package -DskipTests
+
+# --- 2) Keycloak --------------------------------------------------------------
 FROM quay.io/keycloak/keycloak:26.0.5
 
 # A imagem 26.0 é distroless (não tem apt-get/microdnf).
-# Apenas copiamos o realm e iniciamos o servidor.
+# Copiamos o realm e o plugin; o start-dev faz o build dos providers ao subir.
 USER root
 COPY --chown=keycloak:keycloak raiji-realm.json /opt/keycloak/data/import/raiji-realm.json
+COPY --from=events-build --chown=keycloak:keycloak \
+     /build/target/raiji-keycloak-events.jar /opt/keycloak/providers/raiji-keycloak-events.jar
 
 USER keycloak
 EXPOSE 8080

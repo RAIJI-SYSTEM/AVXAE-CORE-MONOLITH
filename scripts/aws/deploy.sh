@@ -51,7 +51,7 @@ log "sincronizando arquivos para $SSH_TARGET:$REMOTE_DIR ..."
 ssh "${SSH_OPTS[@]}" "$SSH_TARGET" "mkdir -p '$REMOTE_DIR/scripts/aws'"
 tar czf - \
   docker-compose.yml docker-compose.aws.yml \
-  kong keycloak postgres \
+  kong keycloak postgres rabbitmq \
   scripts/aws/deploy-remote.sh scripts/smoke-test.sh \
   | ssh "${SSH_OPTS[@]}" "$SSH_TARGET" "tar xzf - -C '$REMOTE_DIR'"
 

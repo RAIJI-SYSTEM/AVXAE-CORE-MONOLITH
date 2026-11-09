@@ -43,6 +43,9 @@
         KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
         KC_PROXY_HEADERS: xforwarded
         KC_HTTP_ENABLED: "true"
+        # Plugin raiji-rabbitmq: publica user.created / user.deleted
+        RABBITMQ_URI: amqp://raiji:raiji123@rabbitmq:5672
+        RABBITMQ_USERS_EXCHANGE: raiji.users
       ports:
         - "127.0.0.1:8180:8080"   # console admin só local; usuários entram via Kong
       depends_on:
@@ -85,6 +88,27 @@
         start_period: 60s
 
     # ---------------------------------------------------------------------------
+    # 3.0) RABBITMQ — eventos de usuário (Keycloak -> raiji.users -> consumidores)
+    #   Painel de gestão só local: http://localhost:15672 (raiji / raiji123)
+    # ---------------------------------------------------------------------------
+    rabbitmq:
+      build:
+        context: ./rabbitmq
+        dockerfile: Dockerfile.rabbitmq
+      container_name: raiji-rabbitmq
+      hostname: rabbitmq          # fixo: o RabbitMQ guarda os dados pelo nome do nó
+      # Usuário (raiji / raiji123), vhost e exchanges vêm de rabbitmq/definitions.json
+      ports:
+        - "127.0.0.1:15672:15672"
+      volumes:
+        - rabbitmq-data:/var/lib/rabbitmq
+      healthcheck:
+        test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+        interval: 10s
+        timeout: 10s
+        retries: 10
+
+    # ---------------------------------------------------------------------------
     # 3.1) CHAT (raiji-chat) + MONGO — profile "chat" (opcional)
     #   Requer o repositório raiji-chat clonado ao lado deste:
     #     raiji/monolith  e  raiji/raiji-chat   (ou CHAT_CONTEXT=<caminho>)
@@ -115,10 +139,14 @@
         KEYCLOAK_ISSUER: ${PUBLIC_BASE_URL:-http://localhost:8000}/realms/raiji
         KEYCLOAK_JWKS_URL: http://keycloak:8080/realms/raiji/protocol/openid-connect/certs
         KEYCLOAK_AUDIENCE: ""
+        RABBITMQ_URI: amqp://raiji:raiji123@rabbitmq:5672
+        RABBITMQ_USERS_EXCHANGE: raiji.users
       # Sem "ports": acessível apenas pela rede interna, via Kong.
       restart: unless-stopped
       depends_on:
         mongo:
+          condition: service_healthy
+        rabbitmq:
           condition: service_healthy
         keycloak:
           condition: service_started
@@ -181,3 +209,4 @@
     postgres-data:
     kong-config:
     mongo-data:
+    rabbitmq-data:

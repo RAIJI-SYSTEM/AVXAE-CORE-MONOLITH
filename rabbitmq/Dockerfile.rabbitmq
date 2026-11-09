@@ -1,0 +1,12 @@
+FROM rabbitmq:4.0-management-alpine
+
+# Configuração + topologia base carregadas no boot.
+#  - rabbitmq.conf    -> /etc/rabbitmq/conf.d/10-raiji.conf
+#  - definitions.json -> usuário, vhost e exchanges compartilhadas
+#
+# As FILAS não ficam aqui: cada serviço consumidor declara a sua
+# (ex.: o chat declara chat.user-events e a DLQ dela).
+COPY rabbitmq.conf /etc/rabbitmq/conf.d/10-raiji.conf
+COPY definitions.json /etc/rabbitmq/definitions.json
+
+EXPOSE 5672 15672

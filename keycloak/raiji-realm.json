@@ -6,6 +6,7 @@
   "rememberMe": true,
   "verifyEmail": false,
   "loginWithEmailAllowed": true,
+  "eventsListeners": ["jboss-logging", "raiji-rabbitmq"],
   "roles": {
     "realm": [
       { "name": "PF" },

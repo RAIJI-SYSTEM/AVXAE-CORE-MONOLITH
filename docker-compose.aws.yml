@@ -46,6 +46,10 @@ services:
       RAIJI_KEYCLOAK_ADMIN_CLIENT_SECRET: ${KEYCLOAK_ADMIN_CLIENT_SECRET:?KEYCLOAK_ADMIN_CLIENT_SECRET obrigatório}
     ports: !override []          # app acessível apenas via Kong
 
+  rabbitmq:
+    container_name: ${COMPOSE_PROJECT_NAME:-raiji}-rabbitmq
+    ports: !override []          # broker e painel só na rede interna
+
   kong-init:
     container_name: ${COMPOSE_PROJECT_NAME:-raiji}-kong-init
 
