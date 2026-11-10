@@ -14,3 +14,6 @@ raiji:
   keycloak:
     base-url: http://keycloak:8080
     realm: raiji
+  driver-verification:
+    storage:
+      endpoint: ${DRIVER_DOCS_S3_ENDPOINT:http://rustfs:9000}

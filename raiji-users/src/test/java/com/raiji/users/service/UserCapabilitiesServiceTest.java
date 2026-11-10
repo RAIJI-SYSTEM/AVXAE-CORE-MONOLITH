@@ -4,6 +4,8 @@ import java.util.List;
 import java.util.Map;
 
 import com.raiji.common.Roles;
+import com.raiji.users.driververification.DriverApplicationRepository;
+import com.raiji.users.driververification.DriverApplicationStatus;
 import com.raiji.users.dto.UserProfileResponse;
 import com.raiji.users.keycloak.KeycloakAdminService;
 import org.junit.jupiter.api.BeforeEach;
@@ -16,6 +18,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -29,6 +32,7 @@ class UserCapabilitiesServiceTest {
 
     private KeycloakAdminService keycloak;
     private DriverActivityChecker activity;
+    private DriverApplicationRepository applications;
     private UserCapabilitiesService service;
 
     @BeforeEach
@@ -38,7 +42,8 @@ class UserCapabilitiesServiceTest {
         activity = mock(DriverActivityChecker.class);
         ObjectProvider<DriverActivityChecker> provider = mock(ObjectProvider.class);
         when(provider.getIfAvailable()).thenReturn(activity);
-        service = new UserCapabilitiesService(keycloak, provider);
+        applications = mock(DriverApplicationRepository.class);
+        service = new UserCapabilitiesService(keycloak, provider, applications);
     }
 
     private static Jwt jwt(String... roles) {
@@ -74,8 +79,9 @@ class UserCapabilitiesServiceTest {
     }
 
     @Test
-    @DisplayName("tornar-se motorista ADICIONA DRIVER e nunca remove PASSENGER")
+    @DisplayName("tornar-se motorista (com CNH verificada) ADICIONA DRIVER e nunca remove PASSENGER")
     void becomeDriverIsAdditive() {
+        cnhVerificada(true);
         when(keycloak.effectiveRealmRoles(SUB)).thenReturn(List.of(Roles.PASSENGER, Roles.DRIVER, Roles.PF));
 
         UserProfileResponse me = service.becomeDriver(jwt(Roles.PASSENGER, Roles.PF));
@@ -127,13 +133,50 @@ class UserCapabilitiesServiceTest {
     }
 
     @Test
-    @DisplayName("legado POST /profile com DRIVER acrescenta a role")
+    @DisplayName("legado POST /profile com DRIVER (CNH verificada) acrescenta a role")
     void legacyDriverAdds() {
+        cnhVerificada(true);
         when(keycloak.effectiveRealmRoles(SUB)).thenReturn(List.of(Roles.PASSENGER, Roles.DRIVER, Roles.PF));
 
         service.applyLegacyProfile(jwt(Roles.PASSENGER), Roles.DRIVER, Roles.PF);
 
         verify(keycloak).assignRealmRole(SUB, Roles.DRIVER);
         verify(keycloak, never()).removeRealmRole(anyString(), anyString());
+    }
+
+    private void cnhVerificada(boolean verificada) {
+        when(applications.existsBySubAndStatusAndValidadeGreaterThanEqual(
+                eq(SUB), eq(DriverApplicationStatus.APPROVED), any())).thenReturn(verificada);
+    }
+
+    @Test
+    @DisplayName("sem CNH verificada: POST /driver responde 409 e não dá a role")
+    void becomeDriverWithoutCnh() {
+        cnhVerificada(false);
+
+        assertThatThrownBy(() -> service.becomeDriver(jwt(Roles.PASSENGER)))
+                .isInstanceOf(ResponseStatusException.class)
+                .extracting(e -> ((ResponseStatusException) e).getStatusCode())
+                .isEqualTo(HttpStatus.CONFLICT);
+        verify(keycloak, never()).assignRealmRole(anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("sem CNH verificada: legado /profile com DRIVER responde 409 e não muda nada")
+    void legacyDriverWithoutCnh() {
+        cnhVerificada(false);
+
+        assertThatThrownBy(() -> service.applyLegacyProfile(jwt(Roles.PASSENGER), Roles.DRIVER, Roles.PF))
+                .isInstanceOf(ResponseStatusException.class);
+        verify(keycloak, never()).setUserType(anyString(), anyString());
+        verify(keycloak, never()).assignRealmRole(anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("CNH aprovada na verificação: a conta recebe DRIVER")
+    void grantVerifiedDriver() {
+        service.grantVerifiedDriver(SUB);
+
+        verify(keycloak).assignRealmRole(SUB, Roles.DRIVER);
     }
 }

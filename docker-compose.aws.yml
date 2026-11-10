@@ -44,7 +44,24 @@ services:
       SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD obrigatório}
       SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: ${JWK_SET_URI:-http://keycloak:8080/realms/raiji/protocol/openid-connect/certs}
       RAIJI_KEYCLOAK_ADMIN_CLIENT_SECRET: ${KEYCLOAK_ADMIN_CLIENT_SECRET:?KEYCLOAK_ADMIN_CLIENT_SECRET obrigatório}
+      # --- verificação da CNH: S3 real (sem endpoint/chaves: role da EC2) ------
+      INFO_SIMPLES_KEY: ${INFO_SIMPLES_KEY:-}
+      INFOSIMPLES_GOVBR_CPF: ${INFOSIMPLES_GOVBR_CPF:-}
+      INFOSIMPLES_GOVBR_SENHA: ${INFOSIMPLES_GOVBR_SENHA:-}
+      DRIVER_DOCS_BUCKET: ${DRIVER_DOCS_BUCKET:-}
+      DRIVER_DOCS_S3_ENDPOINT: ""
+      DRIVER_DOCS_S3_PATH_STYLE: "false"
+      DRIVER_DOCS_S3_ACCESS_KEY: ""
+      DRIVER_DOCS_S3_SECRET_KEY: ""
     ports: !override []          # app acessível apenas via Kong
+
+  # S3 local (RustFS) só no desenvolvimento: na AWS usa-se o S3 de verdade
+  rustfs:
+    profiles: ["local-only"]
+    ports: !override []
+
+  rustfs-init:
+    profiles: ["local-only"]
 
   rabbitmq:
     container_name: ${COMPOSE_PROJECT_NAME:-raiji}-rabbitmq

@@ -2,6 +2,7 @@ package com.raiji.it;
 
 import static io.restassured.RestAssured.given;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
@@ -82,41 +83,42 @@ class PerfilUsuarioApiIT extends RaijiTestSupport {
 
     @Test
     @Order(6)
-    @DisplayName("CT-013: pedir DRIVER + PJ → 200, motorista E passageira")
-    void ct013_trocarPerfil() {
+    @DisplayName("CT-013: pedir DRIVER pelo /profile SEM CNH verificada → 409 (motorista só com CNH aprovada)")
+    void ct013_driverSemCnh() {
         given().auth().oauth2(token).contentType(ContentType.JSON)
                 .body("{\"role\":\"DRIVER\",\"userType\":\"PJ\"}")
                 .when().post(app("/api/users/me/profile"))
-                .then().statusCode(200)
-                .body("driver", is(true))
-                .body("passenger", is(true))
-                .body("userType", equalTo("PJ"));
+                .then().statusCode(409)
+                .body("message", containsString("CNH"));
     }
 
     @Test
     @Order(7)
-    @DisplayName("CT-014 (RF34): novo token tem DRIVER + PASSENGER (acumuláveis) e PJ no lugar de PF")
-    void ct014_trocaDeRole() {
+    @DisplayName("CT-014 (RF34): após o 409 nada mudou — token só passageira, ainda PF")
+    void ct014_nadaMudou() {
         token = obterToken(USUARIO, SENHA_NOVOS_USUARIOS);
         given().auth().oauth2(token)
                 .when().get(app("/api/me"))
                 .then().statusCode(200)
-                .body("realmRoles", hasItem("DRIVER"))
                 .body("realmRoles", hasItem("PASSENGER"))
-                .body("realmRoles", hasItem("PJ"))
-                .body("realmRoles", not(hasItem("PF")));
+                .body("realmRoles", hasItem("PF"))
+                .body("realmRoles", not(hasItem("DRIVER")))
+                .body("realmRoles", not(hasItem("PJ")));
     }
 
     @Test
     @Order(8)
-    @DisplayName("CT-015: reenviar o mesmo perfil é idempotente → 200")
+    @DisplayName("CT-015: /profile PASSENGER + PJ é idempotente → 200 e troca só o tipo")
     void ct015_idempotencia() {
-        given().auth().oauth2(token).contentType(ContentType.JSON)
-                .body("{\"role\":\"DRIVER\",\"userType\":\"PJ\"}")
-                .when().post(app("/api/users/me/profile"))
-                .then().statusCode(200)
-                .body("driver", is(true))
-                .body("passenger", is(true));
+        for (int i = 0; i < 2; i++) {
+            given().auth().oauth2(token).contentType(ContentType.JSON)
+                    .body("{\"role\":\"PASSENGER\",\"userType\":\"PJ\"}")
+                    .when().post(app("/api/users/me/profile"))
+                    .then().statusCode(200)
+                    .body("userType", equalTo("PJ"))
+                    .body("driver", is(false))
+                    .body("passenger", is(true));
+        }
     }
 
     @Test
@@ -164,14 +166,14 @@ class PerfilUsuarioApiIT extends RaijiTestSupport {
 
     @Test
     @Order(13)
-    @DisplayName("CT-019: PUT /account-type PF → troca só o tipo, mantém motorista e passageira")
+    @DisplayName("CT-019: PUT /account-type PF → troca só o tipo, continua passageira")
     void ct019_accountType() {
         given().auth().oauth2(token).contentType(ContentType.JSON)
                 .body("{\"userType\":\"PF\"}")
                 .when().put(app("/api/users/me/account-type"))
                 .then().statusCode(200)
                 .body("userType", equalTo("PF"))
-                .body("driver", is(true))
+                .body("driver", is(false))
                 .body("passenger", is(true));
     }
 
@@ -187,7 +189,7 @@ class PerfilUsuarioApiIT extends RaijiTestSupport {
 
     @Test
     @Order(15)
-    @DisplayName("CT-021: DELETE /driver sem carona ativa → deixa de ser motorista, continua passageira")
+    @DisplayName("CT-021: DELETE /driver (sem ser motorista) é inofensivo → 200, continua passageira")
     void ct021_deixarDeSerMotorista() {
         given().auth().oauth2(token)
                 .when().delete(app("/api/users/me/driver"))
@@ -198,20 +200,11 @@ class PerfilUsuarioApiIT extends RaijiTestSupport {
 
     @Test
     @Order(16)
-    @DisplayName("CT-022: POST /driver → volta a ser motorista (idempotente)")
-    void ct022_tornarSeMotorista() {
-        for (int i = 0; i < 2; i++) {
-            given().auth().oauth2(token)
-                    .when().post(app("/api/users/me/driver"))
-                    .then().statusCode(200)
-                    .body("driver", is(true))
-                    .body("passenger", is(true));
-        }
-        token = obterToken(USUARIO, SENHA_NOVOS_USUARIOS);
+    @DisplayName("CT-022: POST /driver sem CNH verificada → 409 (ver DriverVerificationApiIT para o caminho aprovado)")
+    void ct022_driverSemCnh() {
         given().auth().oauth2(token)
-                .when().get(app("/api/users/me"))
-                .then().statusCode(200)
-                .body("driver", is(true))
-                .body("passenger", is(true));
+                .when().post(app("/api/users/me/driver"))
+                .then().statusCode(409)
+                .body("message", containsString("CNH"));
     }
 }

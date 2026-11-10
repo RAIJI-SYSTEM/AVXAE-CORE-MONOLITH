@@ -10,12 +10,14 @@ import io.restassured.http.ContentType;
 import io.restassured.common.mapper.TypeRef;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@Import(InMemoryCnhImageStorage.Config.class)
 public abstract class RaijiTestSupport {
 
     protected static final String REALM = "raiji";
@@ -73,6 +75,13 @@ public abstract class RaijiTestSupport {
         // promoteDueRides() manualmente, de forma determinística.
         registro.add("raiji.scheduler.initial-delay", () -> "3600000");
         registro.add("raiji.scheduler.fixed-delay", () -> "3600000");
+
+        // Verificação da CNH: SEMPRE a Infosimples falsa (servidor local) e token
+        // falso, em todos os testes — nenhum teste chama a API real (sem custo).
+        registro.add("raiji.driver-verification.infosimples.base-url", FakeInfosimples::start);
+        registro.add("raiji.driver-verification.infosimples.token", () -> FakeInfosimples.TOKEN);
+        registro.add("raiji.driver-verification.infosimples.govbr-cpf", () -> "");
+        registro.add("raiji.driver-verification.infosimples.govbr-password", () -> "");
     }
 
     protected String app(String caminho) { return "http://localhost:" + porta + caminho; }

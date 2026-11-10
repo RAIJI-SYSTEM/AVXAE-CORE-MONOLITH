@@ -75,10 +75,33 @@ class ApiCatalogIT extends RaijiTestSupport {
                         .body("{\"userType\":\"PF\"}")
                         .when().put(app("/api/users/me/account-type"))),
 
+            new Endpoint("POST", "/api/users/me/driver/cnh",
+                "Bearer token (JWT) — multipart: image + securityCode",
+                "VERIFICAR CNH — foto + código de segurança; responde 202 e verifica em segundo plano "
+                        + "(Infosimples: OCR + SENATRAN). Aprovado: a conta vira motorista (acumula com passageira)",
+                () -> given().auth().oauth2(token)
+                        .multiPart("image", "cnh.png", "foto".getBytes(), "image/png")
+                        .multiPart("securityCode", FakeInfosimples.CNH_VALIDA)
+                        .when().post(app("/api/users/me/driver/cnh"))),
+
+            new Endpoint("GET", "/api/users/me/driver/cnh",
+                "Bearer token (JWT)",
+                "SITUAÇÃO DA VERIFICAÇÃO — NONE | PROCESSING | APPROVED | REJECTED | ERROR, com o motivo",
+                () -> given().auth().oauth2(token).when().get(app("/api/users/me/driver/cnh"))),
+
             new Endpoint("POST", "/api/users/me/driver",
                 "Bearer token (JWT)",
-                "TORNAR-SE MOTORISTA — acrescenta DRIVER; a conta continua passageira (acumuláveis)",
-                () -> given().auth().oauth2(token).when().post(app("/api/users/me/driver"))),
+                "VOLTAR A SER MOTORISTA — só com CNH já aprovada e válida (senão 409 pedindo a verificação)",
+                () -> {
+                    // espera a verificação enviada acima terminar (Infosimples falsa)
+                    for (int i = 0; i < 100; i++) {
+                        String s = given().auth().oauth2(token).when().get(app("/api/users/me/driver/cnh"))
+                                .then().extract().path("status");
+                        if (!"PROCESSING".equals(s)) break;
+                        try { Thread.sleep(100); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+                    }
+                    return given().auth().oauth2(token).when().post(app("/api/users/me/driver"));
+                }),
 
             new Endpoint("DELETE", "/api/users/me/driver",
                 "Bearer token (JWT)",

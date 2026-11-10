@@ -65,6 +65,13 @@
         SPRING_PROFILES_ACTIVE: docker
         SPRING_DATASOURCE_USERNAME: raiji
         SPRING_DATASOURCE_PASSWORD: raiji123
+        # Verificação da CNH (Infosimples). Valores vêm do .env da raiz (fora do git).
+        INFO_SIMPLES_KEY: ${INFO_SIMPLES_KEY:-}
+        INFOSIMPLES_GOVBR_CPF: ${INFOSIMPLES_GOVBR_CPF:-}
+        INFOSIMPLES_GOVBR_SENHA: ${INFOSIMPLES_GOVBR_SENHA:-}
+        # Foto da CNH (temporária): RustFS local
+        DRIVER_DOCS_BUCKET: raiji-driver-docs
+        DRIVER_DOCS_S3_ENDPOINT: http://rustfs:9000
       # Sem "ports": o app só é acessível pela rede interna, via Kong (:8000).
       depends_on:
         postgres:
@@ -163,8 +170,9 @@
           condition: service_started
 
     # ---------------------------------------------------------------------------
-    # 3.2) RUSTFS — S3 local para a mídia do chat (profile "chat")
-    #   App acessa via Kong: http://localhost:8000/raiji-media/...
+    # 3.2) RUSTFS — S3 local (mídia do chat + foto temporária da CNH do monolito)
+    #   App acessa a mídia do chat via Kong: http://localhost:8000/raiji-media/...
+    #   API S3 só local: http://localhost:9000 (para rodar o Java pela IDE)
     #   Painel web só local: http://localhost:9001 (raiji / raiji12345)
     # ---------------------------------------------------------------------------
     rustfs:
@@ -172,11 +180,11 @@
         context: ./rustfs
         dockerfile: Dockerfile.rustfs
       container_name: raiji-rustfs
-      profiles: ["chat"]
       environment:
         RUSTFS_ACCESS_KEY: raiji
         RUSTFS_SECRET_KEY: raiji12345
       ports:
+        - "127.0.0.1:9000:9000"   # API S3
         - "127.0.0.1:9001:9001"   # painel web
       volumes:
         - rustfs-data:/data
@@ -184,7 +192,6 @@
     rustfs-init:
       image: amazon/aws-cli:2.38.5
       container_name: raiji-rustfs-init
-      profiles: ["chat"]
       entrypoint: ["sh", "/init/01-create-bucket.sh"]
       environment:
         AWS_ACCESS_KEY_ID: raiji
@@ -193,6 +200,7 @@
         S3_ENDPOINT: http://rustfs:9000
         S3_BUCKET: raiji-media
         CORS_ORIGINS: http://localhost,http://localhost:3000
+        DOCS_BUCKET: raiji-driver-docs   # foto temporária da CNH (monolito)
       volumes:
         - ./rustfs/init:/init:ro
       restart: "no"

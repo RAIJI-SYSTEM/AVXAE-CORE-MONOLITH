@@ -57,3 +57,25 @@ s3api put-bucket-cors --bucket "$S3_BUCKET" --cors-configuration "{
 }"
 
 echo "[rustfs-init] lifecycle (1 dia) e CORS ($CORS_ORIGINS) aplicados"
+
+# --- Bucket de documentos de motorista (foto da CNH na verificação) -----------
+# Privado, SEM CORS (só o back-end acessa) e com expiração de 1 dia como garantia:
+# o monolito já apaga a foto assim que decide a verificação.
+if [ -n "${DOCS_BUCKET:-}" ]; then
+  if s3api head-bucket --bucket "$DOCS_BUCKET" >/dev/null 2>&1; then
+    echo "[rustfs-init] bucket $DOCS_BUCKET já existe"
+  else
+    s3api create-bucket --bucket "$DOCS_BUCKET" >/dev/null
+    echo "[rustfs-init] bucket $DOCS_BUCKET criado"
+  fi
+  s3api put-bucket-lifecycle-configuration --bucket "$DOCS_BUCKET" --lifecycle-configuration '{
+    "Rules": [{
+      "ID": "driver-docs-1d",
+      "Status": "Enabled",
+      "Filter": { "Prefix": "cnh/" },
+      "Expiration": { "Days": 1 },
+      "AbortIncompleteMultipartUpload": { "DaysAfterInitiation": 1 }
+    }]
+  }'
+  echo "[rustfs-init] $DOCS_BUCKET: privado, expiração de 1 dia"
+fi
