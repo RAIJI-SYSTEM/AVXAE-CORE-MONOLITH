@@ -2,10 +2,14 @@
   "realm": "raiji",
   "enabled": true,
   "registrationAllowed": true,
-  "resetPasswordAllowed": true,
+  "registrationEmailAsUsername": true,
+  "resetPasswordAllowed": false,
   "rememberMe": true,
   "verifyEmail": false,
   "loginWithEmailAllowed": true,
+  "internationalizationEnabled": true,
+  "supportedLocales": ["pt-BR", "en"],
+  "defaultLocale": "pt-BR",
   "eventsListeners": ["jboss-logging", "raiji-rabbitmq"],
   "roles": {
     "realm": [
@@ -26,8 +30,12 @@
       "publicClient": true,
       "standardFlowEnabled": true,
       "directAccessGrantsEnabled": true,
-      "redirectUris": ["http://localhost:3000/*", "http://localhost:5173/*", "http://localhost:8080/*", "http://localhost:8000/*"],
-      "webOrigins": ["+"],
+      "redirectUris": ["http://localhost:3000/*", "http://localhost:5173/*", "http://localhost:8080/*", "http://localhost:8000/*", "com.raiji.app://auth/callback"],
+      "webOrigins": ["+", "http://localhost"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "+"
+      },
       "defaultClientScopes": ["web-origins", "acr", "profile", "roles", "email", "basic"],
       "optionalClientScopes": ["address", "phone", "offline_access", "microprofile-jwt"],
       "protocolMappers": [

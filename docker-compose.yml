@@ -141,6 +141,15 @@
         KEYCLOAK_AUDIENCE: ""
         RABBITMQ_URI: amqp://raiji:raiji123@rabbitmq:5672
         RABBITMQ_USERS_EXCHANGE: raiji.users
+        # Mídia (fotos, áudios, documentos) — RustFS local; em produção, S3:
+        # basta S3_BUCKET + AWS_REGION (sem endpoints, sem chaves: role da EC2)
+        S3_BUCKET: raiji-media
+        AWS_REGION: us-east-1
+        S3_ENDPOINT: http://rustfs:9000                         # chamadas do chat
+        S3_PUBLIC_ENDPOINT: ${PUBLIC_BASE_URL:-http://localhost:8000}  # links p/ o app (via Kong)
+        S3_FORCE_PATH_STYLE: "true"
+        AWS_ACCESS_KEY_ID: raiji
+        AWS_SECRET_ACCESS_KEY: raiji12345
       # Sem "ports": acessível apenas pela rede interna, via Kong.
       restart: unless-stopped
       depends_on:
@@ -148,7 +157,47 @@
           condition: service_healthy
         rabbitmq:
           condition: service_healthy
+        rustfs-init:
+          condition: service_completed_successfully
         keycloak:
+          condition: service_started
+
+    # ---------------------------------------------------------------------------
+    # 3.2) RUSTFS — S3 local para a mídia do chat (profile "chat")
+    #   App acessa via Kong: http://localhost:8000/raiji-media/...
+    #   Painel web só local: http://localhost:9001 (raiji / raiji12345)
+    # ---------------------------------------------------------------------------
+    rustfs:
+      build:
+        context: ./rustfs
+        dockerfile: Dockerfile.rustfs
+      container_name: raiji-rustfs
+      profiles: ["chat"]
+      environment:
+        RUSTFS_ACCESS_KEY: raiji
+        RUSTFS_SECRET_KEY: raiji12345
+      ports:
+        - "127.0.0.1:9001:9001"   # painel web
+      volumes:
+        - rustfs-data:/data
+
+    rustfs-init:
+      image: amazon/aws-cli:2.38.5
+      container_name: raiji-rustfs-init
+      profiles: ["chat"]
+      entrypoint: ["sh", "/init/01-create-bucket.sh"]
+      environment:
+        AWS_ACCESS_KEY_ID: raiji
+        AWS_SECRET_ACCESS_KEY: raiji12345
+        AWS_DEFAULT_REGION: us-east-1
+        S3_ENDPOINT: http://rustfs:9000
+        S3_BUCKET: raiji-media
+        CORS_ORIGINS: http://localhost,http://localhost:3000
+      volumes:
+        - ./rustfs/init:/init:ro
+      restart: "no"
+      depends_on:
+        rustfs:
           condition: service_started
 
     # ---------------------------------------------------------------------------
@@ -197,11 +246,12 @@
         interval: 10s
         timeout: 5s
         retries: 10
+      # Não depende do app Java nem do chat: o Kong (DB-less) só resolve os
+      # destinos na hora da requisição. Serviço fora do ar = 502/503 só naquela rota.
+      # Ex.: só Keycloak + chat:  docker compose --profile chat up -d keycloak chat kong
       depends_on:
         kong-init:
           condition: service_completed_successfully
-        app:
-          condition: service_healthy
         keycloak:
           condition: service_started
 
@@ -210,3 +260,4 @@
     kong-config:
     mongo-data:
     rabbitmq-data:
+    rustfs-data:

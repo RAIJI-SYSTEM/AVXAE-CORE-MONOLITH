@@ -49,7 +49,7 @@ log "ECR registry: $ECR_REGISTRY | tag: $IMAGE_TAG"
 # --- 3) Sincronizar arquivos de infra -----------------------------------------
 log "sincronizando arquivos para $SSH_TARGET:$REMOTE_DIR ..."
 ssh "${SSH_OPTS[@]}" "$SSH_TARGET" "mkdir -p '$REMOTE_DIR/scripts/aws'"
-tar czf - \
+tar czf - --exclude='.env' --exclude='target' \
   docker-compose.yml docker-compose.aws.yml \
   kong keycloak postgres rabbitmq \
   scripts/aws/deploy-remote.sh scripts/smoke-test.sh \

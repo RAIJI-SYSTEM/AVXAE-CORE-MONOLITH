@@ -8,6 +8,7 @@ keycloak
 postgres
 kong
 rabbitmq
+rustfs
 docker-compose.yml
 Dockerfile.app
 Dockerfile.app.dockerignore
