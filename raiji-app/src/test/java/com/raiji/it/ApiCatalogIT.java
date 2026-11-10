@@ -68,9 +68,26 @@ class ApiCatalogIT extends RaijiTestSupport {
                 "PERFIL DE NEGÓCIO — lê o perfil atual do JWT (sem banco local; RN20)",
                 () -> given().auth().oauth2(token).when().get(app("/api/users/me"))),
 
+            new Endpoint("PUT", "/api/users/me/account-type",
+                "Bearer token (JWT)",
+                "TIPO DA CONTA — PF ou PJ (exclusivos); não mexe em motorista/passageiro",
+                () -> given().auth().oauth2(token).contentType(ContentType.JSON)
+                        .body("{\"userType\":\"PF\"}")
+                        .when().put(app("/api/users/me/account-type"))),
+
+            new Endpoint("POST", "/api/users/me/driver",
+                "Bearer token (JWT)",
+                "TORNAR-SE MOTORISTA — acrescenta DRIVER; a conta continua passageira (acumuláveis)",
+                () -> given().auth().oauth2(token).when().post(app("/api/users/me/driver"))),
+
+            new Endpoint("DELETE", "/api/users/me/driver",
+                "Bearer token (JWT)",
+                "DEIXAR DE SER MOTORISTA — remove só DRIVER; 409 se houver carona planejada ou em andamento",
+                () -> given().auth().oauth2(token).when().delete(app("/api/users/me/driver"))),
+
             new Endpoint("POST", "/api/users/me/profile",
                 "Bearer token (JWT)",
-                "DEFINIR O PERFIL — role DRIVER/PASSENGER + userType PF/PJ, sincroniza realm roles no Keycloak (RN01/RF34)",
+                "LEGADO — PF/PJ + role; DRIVER é ACRESCENTADO (nunca remove PASSENGER). Prefira /account-type e /driver",
                 () -> given().auth().oauth2(token).contentType(ContentType.JSON)
                         .body("{\"role\":\"PASSENGER\",\"userType\":\"PF\"}")
                         .when().post(app("/api/users/me/profile"))),

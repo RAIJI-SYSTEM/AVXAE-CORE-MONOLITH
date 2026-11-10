@@ -55,6 +55,21 @@ public class KeycloakAdminService {
     }
 
     /**
+     * Roles EFETIVAS do usuário no realm (inclui as que vêm de roles compostas,
+     * como default-roles-raiji -> PASSENGER). É o que aparece no próximo token.
+     */
+    public List<String> effectiveRealmRoles(String userId) {
+        List<Map<String, Object>> roles = restClient.get()
+                .uri(adminBaseUrl() + "/users/" + userId + "/role-mappings/realm/composite")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken())
+                .retrieve()
+                .body(new ParameterizedTypeReference<>() {});
+        return roles == null
+                ? List.of()
+                : roles.stream().map(role -> String.valueOf(role.get("name"))).toList();
+    }
+
+    /**
      * Troca o tipo PF/PJ: remove as duas e adiciona a nova.
      */
     public void setUserType(String userId, String userType) {

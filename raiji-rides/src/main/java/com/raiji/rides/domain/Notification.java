@@ -5,6 +5,8 @@ import java.util.UUID;
 import com.raiji.common.base.AuditableEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -27,8 +29,20 @@ public class Notification extends AuditableEntity {
     @Column(nullable = false, length = 500)
     private String message;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private NotificationAudience audience;
+
     public UUID getId() {
         return id;
+    }
+
+    public NotificationAudience getAudience() {
+        return audience;
+    }
+
+    public void setAudience(NotificationAudience audience) {
+        this.audience = audience;
     }
 
     public String getRecipientSub() {

@@ -1,6 +1,7 @@
 package com.raiji.rides.service;
 
 import com.raiji.rides.domain.Notification;
+import com.raiji.rides.domain.NotificationAudience;
 import com.raiji.rides.domain.RideDecision;
 import com.raiji.rides.event.RideCancelledEvent;
 import com.raiji.rides.event.RideDecisionEvent;
@@ -37,6 +38,7 @@ public class NotificationService {
 
         Notification notification = new Notification();
         notification.setRecipientSub(event.driverSub());
+        notification.setAudience(NotificationAudience.DRIVER);
         notification.setRideId(event.rideId());
         notification.setMessage(message);
 
@@ -70,6 +72,7 @@ public class NotificationService {
 
         Notification notification = new Notification();
         notification.setRecipientSub(event.passengerSub());
+        notification.setAudience(NotificationAudience.PASSENGER);
         notification.setRideId(event.rideId());
         notification.setMessage(message);
 
@@ -105,6 +108,7 @@ public class NotificationService {
 
         Notification notification = new Notification();
         notification.setRecipientSub(event.driverSub());
+        notification.setAudience(NotificationAudience.DRIVER);
         notification.setRideId(event.rideId());
         notification.setMessage(message);
 

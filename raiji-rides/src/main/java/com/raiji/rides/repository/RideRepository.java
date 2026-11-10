@@ -36,4 +36,8 @@ public interface RideRepository extends JpaRepository<Ride, UUID>, JpaSpecificat
      */
     List<Ride> findByStatusAndDepartureDateLessThanEqualAndDeletedAtIsNull(
             RideStatus status, LocalDateTime cutoff);
+
+    /** O motorista tem carona em algum destes status? (ex.: PLANNED, IN_PROGRESS) */
+    boolean existsByDriverSubAndStatusInAndDeletedAtIsNull(
+            String driverSub, List<RideStatus> statuses);
 }

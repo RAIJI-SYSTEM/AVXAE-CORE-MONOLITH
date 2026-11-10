@@ -40,7 +40,7 @@ class JornadaCompletaE2EIT extends RaijiTestSupport {
                 .body("{\"role\":\"PASSENGER\",\"userType\":\"PF\"}")
                 .when().post(app("/api/users/me/profile"))
                 .then().statusCode(200)
-                .body("role", equalTo("PASSENGER"))
+                .body("passenger", is(true))
                 .body("userType", equalTo("PF"));
 
         passo(6, "novo login → token contém as roles sincronizadas (RF34)");

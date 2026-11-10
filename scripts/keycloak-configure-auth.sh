@@ -4,6 +4,7 @@
 # já está rodando (o --import-realm só vale na primeira vez que o realm é criado).
 #
 #   - pt-BR, cadastro aberto (e-mail como usuário), SEM confirmação de e-mail
+#   - toda conta é PASSAGEIRA (PASSENGER nas roles padrão); DRIVER é acumulável
 #   - "Esqueci a senha" desligado até existir SMTP (Resend)
 #   - client raiji-api: PKCE S256, retorno do app Android, CORS do Capacitor
 #   - Google (login social): só se GOOGLE_CLIENT_ID e GOOGLE_CLIENT_SECRET
@@ -67,6 +68,14 @@ api PUT "" '{
   "defaultLocale": "pt-BR"
 }' >/dev/null
 log "realm: pt-BR, cadastro sem confirmação de e-mail, recuperação de senha desligada"
+
+# --- 1b) Toda conta é passageira (PASSENGER nas roles padrão) --------------------
+# Vale também para as contas que já existem: elas têm default-roles-raiji, e a
+# composição é avaliada a cada token. DRIVER continua sendo acrescentado à parte.
+PASSENGER_ROLE="$(curl -fsS -H "Authorization: Bearer $TOKEN" "$KEYCLOAK_URL/admin/realms/$REALM/roles/PASSENGER")" \
+  || die "role PASSENGER não encontrada no realm $REALM"
+api POST "/roles/default-roles-$REALM/composites" "[$PASSENGER_ROLE]" >/dev/null
+log "roles padrão: PASSENGER incluída (toda conta pode pedir vaga; motorista é acumulável)"
 
 # --- 2) Client do app ----------------------------------------------------------
 CLIENT_UUID="$(curl -fsS -H "Authorization: Bearer $TOKEN" \

@@ -148,6 +148,18 @@ class RidePassengerServiceTest {
     }
 
     @Test
+    void deveRejeitarMotoristaPedindoVagaNaPropriaCarona() {
+        // A conta pode ser motorista e passageira, mas não na mesma carona
+        ResponseStatusException ex = assertThrows(
+                ResponseStatusException.class,
+                () -> service.request(rideId, DRIVER_SUB, "Motorista", bagagemValida())
+        );
+
+        assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
+        verify(passengerRepository, never()).save(any());
+    }
+
+    @Test
     void deveRejeitarCaronaNaoPlanejada() {
         ride.setStatus(RideStatus.IN_PROGRESS);
 

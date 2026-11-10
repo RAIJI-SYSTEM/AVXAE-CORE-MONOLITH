@@ -116,17 +116,29 @@ class RideSearchApiIT extends RaijiTestSupport {
                 2,
                 LocalDateTime.now().plusDays(1));
 
-        given().auth().oauth2(driver.token())
-                .queryParam("size", 50)
-                .when().get(app("/api/rides"))
-                .then().statusCode(200)
-                .body("page", equalTo(0))
-                .body("size", equalTo(50))
-                .body("totalElements", greaterThanOrEqualTo(1))
-                .body("totalPages", greaterThanOrEqualTo(1))
-                .body("content.id", hasItem(rideId))
-                .body("content.status", everyItem(equalTo("PLANNED")))
-                .body("content.availableSeats", everyItem(greaterThanOrEqualTo(1)));
+        // Sem filtro, o banco compartilhado pelas ITs tem muitas caronas: percorre as
+        // páginas até achar a criada aqui, conferindo as regras fixas em todas elas.
+        boolean encontrada = false;
+        int totalPages = 1;
+        for (int page = 0; page < totalPages && !encontrada; page++) {
+            io.restassured.response.ValidatableResponse resposta = given().auth().oauth2(driver.token())
+                    .queryParam("size", 50)
+                    .queryParam("page", page)
+                    .when().get(app("/api/rides"))
+                    .then().statusCode(200)
+                    .body("page", equalTo(page))
+                    .body("size", equalTo(50))
+                    .body("totalElements", greaterThanOrEqualTo(1))
+                    .body("totalPages", greaterThanOrEqualTo(1))
+                    .body("content.status", everyItem(equalTo("PLANNED")))
+                    .body("content.availableSeats", everyItem(greaterThanOrEqualTo(1)));
+            totalPages = resposta.extract().path("totalPages");
+            java.util.List<String> ids = resposta.extract().path("content.id");
+            encontrada = ids.contains(rideId);
+        }
+        org.assertj.core.api.Assertions.assertThat(encontrada)
+                .as("a carona criada aparece na busca sem filtros")
+                .isTrue();
     }
 
     @Test

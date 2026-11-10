@@ -13,6 +13,7 @@ import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.utility.DockerImageName;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 public abstract class RaijiTestSupport {
@@ -23,8 +24,10 @@ public abstract class RaijiTestSupport {
     protected static final String SENHA_TESTE = "teste123";
     protected static final String SENHA_NOVOS_USUARIOS = "Raiji@It123";
 
+    // Mesma imagem do postgres/Dockerfile.postgres: a migration V13 exige PostGIS
     static final PostgreSQLContainer<?> POSTGRES =
-            new PostgreSQLContainer<>("postgres:17-alpine")
+            new PostgreSQLContainer<>(DockerImageName.parse("postgis/postgis:17-3.6-alpine")
+                    .asCompatibleSubstituteFor("postgres"))
                     .withDatabaseName("raiji_app")
                     .withUsername("raiji")
                     .withPassword("raiji123");

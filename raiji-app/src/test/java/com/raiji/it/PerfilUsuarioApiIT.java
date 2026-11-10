@@ -42,14 +42,15 @@ class PerfilUsuarioApiIT extends RaijiTestSupport {
 
     @Test
     @Order(3)
-    @DisplayName("CT-010 (RN20): 1º acesso → perfil ainda não configurado")
+    @DisplayName("CT-010 (RN20): 1º acesso → já é passageira, ainda sem PF/PJ (não configurado)")
     void ct010_primeiroAcesso() {
         given().auth().oauth2(token)
                 .when().get(app("/api/users/me"))
                 .then().statusCode(200)
                 .body("sub", notNullValue())
                 .body("userType", nullValue())
-                .body("role", nullValue())
+                .body("passenger", is(true))
+                .body("driver", is(false))
                 .body("profileConfigured", is(false));
     }
 
@@ -61,7 +62,8 @@ class PerfilUsuarioApiIT extends RaijiTestSupport {
                 .body("{\"role\":\"PASSENGER\",\"userType\":\"PF\"}")
                 .when().post(app("/api/users/me/profile"))
                 .then().statusCode(200)
-                .body("role", equalTo("PASSENGER"))
+                .body("passenger", is(true))
+                .body("driver", is(false))
                 .body("userType", equalTo("PF"))
                 .body("profileConfigured", is(true));
     }
@@ -80,27 +82,28 @@ class PerfilUsuarioApiIT extends RaijiTestSupport {
 
     @Test
     @Order(6)
-    @DisplayName("CT-013: alterar para DRIVER + PJ → 200")
+    @DisplayName("CT-013: pedir DRIVER + PJ → 200, motorista E passageira")
     void ct013_trocarPerfil() {
         given().auth().oauth2(token).contentType(ContentType.JSON)
                 .body("{\"role\":\"DRIVER\",\"userType\":\"PJ\"}")
                 .when().post(app("/api/users/me/profile"))
                 .then().statusCode(200)
-                .body("role", equalTo("DRIVER"))
+                .body("driver", is(true))
+                .body("passenger", is(true))
                 .body("userType", equalTo("PJ"));
     }
 
     @Test
     @Order(7)
-    @DisplayName("CT-014 (RF34): após troca, token tem DRIVER+PJ e NÃO tem PASSENGER nem PF")
+    @DisplayName("CT-014 (RF34): novo token tem DRIVER + PASSENGER (acumuláveis) e PJ no lugar de PF")
     void ct014_trocaDeRole() {
         token = obterToken(USUARIO, SENHA_NOVOS_USUARIOS);
         given().auth().oauth2(token)
                 .when().get(app("/api/me"))
                 .then().statusCode(200)
                 .body("realmRoles", hasItem("DRIVER"))
+                .body("realmRoles", hasItem("PASSENGER"))
                 .body("realmRoles", hasItem("PJ"))
-                .body("realmRoles", not(hasItem("PASSENGER")))
                 .body("realmRoles", not(hasItem("PF")));
     }
 
@@ -112,7 +115,8 @@ class PerfilUsuarioApiIT extends RaijiTestSupport {
                 .body("{\"role\":\"DRIVER\",\"userType\":\"PJ\"}")
                 .when().post(app("/api/users/me/profile"))
                 .then().statusCode(200)
-                .body("role", equalTo("DRIVER"));
+                .body("driver", is(true))
+                .body("passenger", is(true));
     }
 
     @Test
@@ -152,5 +156,62 @@ class PerfilUsuarioApiIT extends RaijiTestSupport {
         given().auth().oauth2(token).contentType(ContentType.JSON)
                 .when().post(app("/api/users/me/profile"))
                 .then().statusCode(400);
+    }
+
+    // ---------------------------------------------------------------------
+    // Motorista e passageiro ao mesmo tempo (endpoints novos)
+    // ---------------------------------------------------------------------
+
+    @Test
+    @Order(13)
+    @DisplayName("CT-019: PUT /account-type PF → troca só o tipo, mantém motorista e passageira")
+    void ct019_accountType() {
+        given().auth().oauth2(token).contentType(ContentType.JSON)
+                .body("{\"userType\":\"PF\"}")
+                .when().put(app("/api/users/me/account-type"))
+                .then().statusCode(200)
+                .body("userType", equalTo("PF"))
+                .body("driver", is(true))
+                .body("passenger", is(true));
+    }
+
+    @Test
+    @Order(14)
+    @DisplayName("CT-020: PUT /account-type inválido → 400")
+    void ct020_accountTypeInvalido() {
+        given().auth().oauth2(token).contentType(ContentType.JSON)
+                .body("{\"userType\":\"XX\"}")
+                .when().put(app("/api/users/me/account-type"))
+                .then().statusCode(400);
+    }
+
+    @Test
+    @Order(15)
+    @DisplayName("CT-021: DELETE /driver sem carona ativa → deixa de ser motorista, continua passageira")
+    void ct021_deixarDeSerMotorista() {
+        given().auth().oauth2(token)
+                .when().delete(app("/api/users/me/driver"))
+                .then().statusCode(200)
+                .body("driver", is(false))
+                .body("passenger", is(true));
+    }
+
+    @Test
+    @Order(16)
+    @DisplayName("CT-022: POST /driver → volta a ser motorista (idempotente)")
+    void ct022_tornarSeMotorista() {
+        for (int i = 0; i < 2; i++) {
+            given().auth().oauth2(token)
+                    .when().post(app("/api/users/me/driver"))
+                    .then().statusCode(200)
+                    .body("driver", is(true))
+                    .body("passenger", is(true));
+        }
+        token = obterToken(USUARIO, SENHA_NOVOS_USUARIOS);
+        given().auth().oauth2(token)
+                .when().get(app("/api/users/me"))
+                .then().statusCode(200)
+                .body("driver", is(true))
+                .body("passenger", is(true));
     }
 }
