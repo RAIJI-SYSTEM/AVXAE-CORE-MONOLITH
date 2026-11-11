@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
+import com.raiji.users.mail.DriverApprovalMailer;
 import com.raiji.users.service.UserCapabilitiesService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -43,6 +44,7 @@ class DriverVerificationServiceTest {
     private InfosimplesClient infosimples;
     private UserCapabilitiesService capabilities;
     private ApplicationEventPublisher events;
+    private DriverApprovalMailer mailer;
     private DriverVerificationService service;
 
     @BeforeEach
@@ -53,6 +55,7 @@ class DriverVerificationServiceTest {
         infosimples = mock(InfosimplesClient.class);
         capabilities = mock(UserCapabilitiesService.class);
         events = mock(ApplicationEventPublisher.class);
+        mailer = mock(DriverApprovalMailer.class);
         ObjectProvider<Clock> clock = mock(ObjectProvider.class);
         when(clock.getIfAvailable(any())).thenReturn(CLOCK);
         when(infosimples.configured()).thenReturn(true);
@@ -61,7 +64,7 @@ class DriverVerificationServiceTest {
             if (app.getId() == null) ReflectionTestUtils.setField(app, "id", UUID.randomUUID());
             return app;
         });
-        service = new DriverVerificationService(repository, storage, infosimples, capabilities, events, clock);
+        service = new DriverVerificationService(repository, storage, infosimples, capabilities, events, mailer, clock);
     }
 
     private static Jwt jwt() {
@@ -151,6 +154,21 @@ class DriverVerificationServiceTest {
         assertThat(app.getImageKey()).isNull();
         verify(capabilities).grantVerifiedDriver(SUB);
         verify(storage).delete("cnh/user-1/abc");
+        verify(mailer).sendApproved(eq(SUB), eq(app.getId()), eq("B"), any());
+    }
+
+    @Test
+    @DisplayName("falha no envio do e-mail NÃO desfaz a aprovação")
+    void emailFalhaNaoDesfaz() {
+        DriverApplication app = emAnalise();
+        when(infosimples.ocrCnh(any())).thenReturn(ocrOk());
+        when(infosimples.validarCnh(anyString(), anyString(), anyString(), anyString())).thenReturn(validacao(200, "válida"));
+        doThrow(new RuntimeException("resend fora")).when(mailer).sendApproved(anyString(), any(), any(), any());
+
+        service.process(app.getId(), "55566677788");
+
+        assertThat(app.getStatus()).isEqualTo(DriverApplicationStatus.APPROVED);
+        verify(capabilities).grantVerifiedDriver(SUB);
     }
 
     @Test
@@ -166,6 +184,7 @@ class DriverVerificationServiceTest {
         assertThat(app.getReason()).contains("Não encontramos");
         verify(capabilities, never()).grantVerifiedDriver(anyString());
         verify(storage).delete("cnh/user-1/abc");
+        verify(mailer, never()).sendApproved(anyString(), any(), any(), any());
     }
 
     @Test

@@ -8,6 +8,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
+import com.raiji.users.mail.DriverApprovalMailer;
 import com.raiji.users.service.UserCapabilitiesService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,7 +26,8 @@ import org.springframework.web.server.ResponseStatusException;
  * <ol>
  *   <li>recebe a foto + código de segurança; guarda a foto (temporária) — 202</li>
  *   <li>em segundo plano: OCR da foto -> validação no SENATRAN -> regras ({@link CnhDecision})</li>
- *   <li>aprovado: a conta recebe a role DRIVER. Em qualquer desfecho a foto é apagada.</li>
+ *   <li>aprovado: a conta recebe a role DRIVER e um e-mail (Resend). Em qualquer
+ *       desfecho a foto é apagada.</li>
  * </ol>
  */
 @Service
@@ -43,6 +45,7 @@ public class DriverVerificationService {
     private final InfosimplesClient infosimples;
     private final UserCapabilitiesService capabilities;
     private final ApplicationEventPublisher events;
+    private final DriverApprovalMailer approvalMailer;
     private final Clock clock;
 
     public DriverVerificationService(
@@ -51,12 +54,14 @@ public class DriverVerificationService {
             InfosimplesClient infosimples,
             UserCapabilitiesService capabilities,
             ApplicationEventPublisher events,
+            DriverApprovalMailer approvalMailer,
             ObjectProvider<Clock> clock) {
         this.repository = repository;
         this.storage = storage;
         this.infosimples = infosimples;
         this.capabilities = capabilities;
         this.events = events;
+        this.approvalMailer = approvalMailer;
         this.clock = clock.getIfAvailable(Clock::systemDefaultZone);
     }
 
@@ -137,6 +142,17 @@ public class DriverVerificationService {
         deleteImage(application);
         repository.save(application);
         log.info("Verificação da CNH (pedido {}): {}", applicationId, application.getStatus());
+
+        if (application.getStatus() == DriverApplicationStatus.APPROVED) {
+            try {
+                approvalMailer.sendApproved(application.getSub(), application.getId(),
+                        application.getCategoria(), application.getValidade());
+            } catch (Exception e) {
+                // O cadastro já está aprovado: falha no e-mail não desfaz nada
+                log.warn("Não foi possível enviar o e-mail de aprovação (pedido {}): {}",
+                        applicationId, e.getClass().getSimpleName());
+            }
+        }
     }
 
     private CnhDecision.Result verify(DriverApplication application, String securityCode) {

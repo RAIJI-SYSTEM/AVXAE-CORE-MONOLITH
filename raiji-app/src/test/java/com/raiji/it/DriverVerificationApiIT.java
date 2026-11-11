@@ -84,6 +84,19 @@ class DriverVerificationApiIT extends RaijiTestSupport {
                 .body("passenger", is(true))
                 .body("realmRoles", hasItem("DRIVER"));
 
+        // E-mail de aprovação enviado (Resend FALSO) para o e-mail da conta, uma vez por pedido
+        String email = conta.username() + "@raiji.com";
+        java.util.List<Map<String, String>> enviados = FakeResend.EMAILS.stream()
+                .filter(e -> e.get("body").contains("\"to\":[\"" + email + "\"]"))
+                .toList();
+        assertThat(enviados).hasSize(1);
+        assertThat(enviados.get(0).get("path")).isEqualTo("/emails");
+        assertThat(enviados.get(0).get("auth")).isEqualTo("Bearer " + FakeResend.API_KEY);
+        assertThat(enviados.get(0).get("idempotencyKey")).startsWith("driver-approved-");
+        assertThat(enviados.get(0).get("body"))
+                .contains("Seu cadastro de motorista no Raiji foi aprovado")
+                .contains("Olá, Usuario!");
+
         // Chegou na Infosimples (falsa) com o token falso e sem login gov.br configurado
         assertThat(FakeInfosimples.CALLS).anySatisfy(call -> {
             assertThat(call).containsEntry("_path", "/api/v2/consultas/senatran/validar-cnh")
@@ -104,6 +117,9 @@ class DriverVerificationApiIT extends RaijiTestSupport {
         assertThat(status).containsEntry("status", "REJECTED");
         assertThat((String) status.get("reason")).contains("Não encontramos");
         semFotoGuardada(conta);
+        assertThat(FakeResend.EMAILS)
+                .as("rejeitado não recebe e-mail de aprovação")
+                .noneMatch(e -> e.get("body").contains(conta.username() + "@raiji.com"));
         given().auth().oauth2(obterToken(conta.username(), SENHA_NOVOS_USUARIOS))
                 .when().get(app("/api/users/me"))
                 .then().body("driver", is(false)).body("realmRoles", not(hasItem("DRIVER")));

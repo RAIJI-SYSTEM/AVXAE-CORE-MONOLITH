@@ -3,16 +3,20 @@
 # keycloak-configure-auth.sh — aplica a configuração de LOGIN num Keycloak que
 # já está rodando (o --import-realm só vale na primeira vez que o realm é criado).
 #
-#   - pt-BR, cadastro aberto (e-mail como usuário), SEM confirmação de e-mail
+#   - pt-BR, cadastro aberto (e-mail como usuário)
 #   - toda conta é PASSAGEIRA (PASSENGER nas roles padrão); DRIVER é acumulável
-#   - "Esqueci a senha" desligado até existir SMTP (Resend)
+#   - E-MAIL (Resend via SMTP): com RESEND_API_KEY, liga a CONFIRMAÇÃO de e-mail
+#     no cadastro e o "ESQUECI A SENHA". Sem a chave, os dois ficam desligados
+#     (ninguém fica preso esperando um e-mail que nunca chega).
 #   - client raiji-api: PKCE S256, retorno do app Android, CORS do Capacitor
 #   - Google (login social): só se GOOGLE_CLIENT_ID e GOOGLE_CLIENT_SECRET
 #     estiverem definidos — o segredo nunca vai para o repositório
 #
-# Credenciais do Google: em keycloak/.env (ignorado pelo git), lido automaticamente:
-#   GOOGLE_CLIENT_ID=xxx.apps.googleusercontent.com
-#   GOOGLE_CLIENT_SECRET=GOCSPX-...
+# Lidos automaticamente (arquivos fora do git; variável de ambiente tem prioridade):
+#   keycloak/.env   GOOGLE_CLIENT_ID=xxx.apps.googleusercontent.com
+#                   GOOGLE_CLIENT_SECRET=GOCSPX-...
+#   .env (raiz)     RESEND_API_KEY=re_...
+#                   RESEND_FROM=Raiji <nao-responda@seudominio.com.br>   (domínio verificado no Resend)
 #
 # Uso:
 #   ./scripts/keycloak-configure-auth.sh
@@ -23,16 +27,22 @@
 # =============================================================================
 set -euo pipefail
 
-# Lê só as variáveis GOOGLE_* do keycloak/.env (sem executar o arquivo)
-ENV_FILE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/keycloak/.env"
-if [[ -f "$ENV_FILE" ]]; then
+# Lê só variáveis permitidas dos .env (sem executar os arquivos)
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+load_env() { # arquivo nomes-permitidos...
+  local file="$1"; shift
+  [[ -f "$file" ]] || return 0
   while IFS='=' read -r key value || [[ -n "$key" ]]; do
     key="$(printf '%s' "$key" | tr -d '[:space:]')"
-    [[ "$key" == GOOGLE_CLIENT_ID || "$key" == GOOGLE_CLIENT_SECRET ]] || continue
+    local allowed=false
+    for name in "$@"; do [[ "$key" == "$name" ]] && allowed=true; done
+    $allowed || continue
     value="$(printf '%s' "$value" | tr -d '\r' | sed -E 's/^[[:space:]]+|[[:space:]]+$//g; s/^"(.*)"$/\1/; s/^'"'"'(.*)'"'"'$/\1/')"
     [[ -n "${!key:-}" ]] || printf -v "$key" '%s' "$value" # variável de ambiente tem prioridade
-  done < "$ENV_FILE"
-fi
+  done < "$file"
+}
+load_env "$ROOT_DIR/keycloak/.env" GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET
+load_env "$ROOT_DIR/.env" RESEND_API_KEY RESEND_FROM
 
 KEYCLOAK_URL="${KEYCLOAK_URL:-http://127.0.0.1:8180}"
 KC_ADMIN="${KC_ADMIN:-admin}"
@@ -57,17 +67,57 @@ api() { # método caminho [json]
 }
 
 # --- 1) Realm ------------------------------------------------------------------
-api PUT "" '{
-  "registrationAllowed": true,
-  "registrationEmailAsUsername": true,
-  "resetPasswordAllowed": false,
-  "verifyEmail": false,
-  "loginWithEmailAllowed": true,
-  "internationalizationEnabled": true,
-  "supportedLocales": ["pt-BR", "en"],
-  "defaultLocale": "pt-BR"
-}' >/dev/null
-log "realm: pt-BR, cadastro sem confirmação de e-mail, recuperação de senha desligada"
+json_escape() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
+
+if [[ -n "${RESEND_API_KEY:-}" ]]; then
+  # "Raiji <nao-responda@dominio>" -> nome + e-mail (o Keycloak quer o e-mail puro em "from")
+  FROM_RAW="${RESEND_FROM:-Raiji <onboarding@resend.dev>}"
+  if [[ "$FROM_RAW" =~ ^(.*)\<([^>]+)\>[[:space:]]*$ ]]; then
+    FROM_NAME="$(printf '%s' "${BASH_REMATCH[1]}" | sed -E 's/[[:space:]]+$//')"
+    FROM_EMAIL="${BASH_REMATCH[2]}"
+  else
+    FROM_NAME="Raiji"; FROM_EMAIL="$FROM_RAW"
+  fi
+  [[ -n "$FROM_NAME" ]] || FROM_NAME="Raiji"
+
+  # Resend via SMTP: smtp.resend.com:465 (SSL), usuário "resend", senha = chave da API
+  api PUT "" "{
+    \"registrationAllowed\": true,
+    \"registrationEmailAsUsername\": true,
+    \"resetPasswordAllowed\": true,
+    \"verifyEmail\": true,
+    \"loginWithEmailAllowed\": true,
+    \"internationalizationEnabled\": true,
+    \"supportedLocales\": [\"pt-BR\", \"en\"],
+    \"defaultLocale\": \"pt-BR\",
+    \"smtpServer\": {
+      \"host\": \"smtp.resend.com\",
+      \"port\": \"465\",
+      \"ssl\": \"true\",
+      \"starttls\": \"false\",
+      \"auth\": \"true\",
+      \"user\": \"resend\",
+      \"password\": \"$(json_escape "$RESEND_API_KEY")\",
+      \"from\": \"$(json_escape "$FROM_EMAIL")\",
+      \"fromDisplayName\": \"$(json_escape "$FROM_NAME")\"
+    }
+  }" >/dev/null
+  log "realm: pt-BR, CONFIRMAÇÃO de e-mail e ESQUECI A SENHA ligados (Resend, remetente $FROM_EMAIL)"
+  [[ "$FROM_EMAIL" == *@resend.dev ]] && \
+    log "AVISO: remetente de teste do Resend — só entrega para o e-mail do dono da conta Resend. Verifique seu domínio no Resend e defina RESEND_FROM."
+else
+  api PUT "" '{
+    "registrationAllowed": true,
+    "registrationEmailAsUsername": true,
+    "resetPasswordAllowed": false,
+    "verifyEmail": false,
+    "loginWithEmailAllowed": true,
+    "internationalizationEnabled": true,
+    "supportedLocales": ["pt-BR", "en"],
+    "defaultLocale": "pt-BR"
+  }' >/dev/null
+  log "realm: pt-BR; SEM e-mail (defina RESEND_API_KEY): confirmação e recuperação de senha desligadas"
+fi
 
 # --- 1b) Toda conta é passageira (PASSENGER nas roles padrão) --------------------
 # Vale também para as contas que já existem: elas têm default-roles-raiji, e a

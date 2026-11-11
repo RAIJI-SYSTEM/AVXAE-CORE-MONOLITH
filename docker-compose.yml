@@ -69,6 +69,9 @@
         INFO_SIMPLES_KEY: ${INFO_SIMPLES_KEY:-}
         INFOSIMPLES_GOVBR_CPF: ${INFOSIMPLES_GOVBR_CPF:-}
         INFOSIMPLES_GOVBR_SENHA: ${INFOSIMPLES_GOVBR_SENHA:-}
+        # E-mails transacionais (Resend), também do .env da raiz
+        RESEND_API_KEY: ${RESEND_API_KEY:-}
+        RESEND_FROM: ${RESEND_FROM:-Raiji <onboarding@resend.dev>}
         # Foto da CNH (temporária): RustFS local
         DRIVER_DOCS_BUCKET: raiji-driver-docs
         DRIVER_DOCS_S3_ENDPOINT: http://rustfs:9000
@@ -172,7 +175,8 @@
     # ---------------------------------------------------------------------------
     # 3.2) RUSTFS — S3 local (mídia do chat + foto temporária da CNH do monolito)
     #   App acessa a mídia do chat via Kong: http://localhost:8000/raiji-media/...
-    #   API S3 só local: http://localhost:9000 (para rodar o Java pela IDE)
+    #   API S3 só local: http://localhost:9010 (para rodar o Java pela IDE).
+    #   9010, e não 9000: a 9000 costuma estar ocupada (ex.: Portainer).
     #   Painel web só local: http://localhost:9001 (raiji / raiji12345)
     # ---------------------------------------------------------------------------
     rustfs:
@@ -184,7 +188,7 @@
         RUSTFS_ACCESS_KEY: raiji
         RUSTFS_SECRET_KEY: raiji12345
       ports:
-        - "127.0.0.1:9000:9000"   # API S3
+        - "127.0.0.1:9010:9000"   # API S3
         - "127.0.0.1:9001:9001"   # painel web
       volumes:
         - rustfs-data:/data

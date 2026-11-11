@@ -54,6 +54,22 @@ public class KeycloakAdminService {
                 .toBodilessEntity();
     }
 
+    /** E-mail e primeiro nome atuais do usuário (para e-mails transacionais) */
+    public record UserContact(String email, String firstName) {
+    }
+
+    public UserContact findUserContact(String userId) {
+        Map<String, Object> user = restClient.get()
+                .uri(adminBaseUrl() + "/users/" + userId)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken())
+                .retrieve()
+                .body(new ParameterizedTypeReference<>() {});
+        if (user == null) return null;
+        return new UserContact(
+                user.get("email") == null ? null : String.valueOf(user.get("email")),
+                user.get("firstName") == null ? null : String.valueOf(user.get("firstName")));
+    }
+
     /**
      * Roles EFETIVAS do usuário no realm (inclui as que vêm de roles compostas,
      * como default-roles-raiji -> PASSENGER). É o que aparece no próximo token.

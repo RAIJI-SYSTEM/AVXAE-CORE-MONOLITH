@@ -82,6 +82,11 @@ public abstract class RaijiTestSupport {
         registro.add("raiji.driver-verification.infosimples.token", () -> FakeInfosimples.TOKEN);
         registro.add("raiji.driver-verification.infosimples.govbr-cpf", () -> "");
         registro.add("raiji.driver-verification.infosimples.govbr-password", () -> "");
+
+        // E-mail: SEMPRE o Resend falso (servidor local) — nenhum e-mail real sai dos testes
+        registro.add("raiji.mail.resend.base-url", FakeResend::start);
+        registro.add("raiji.mail.resend.api-key", () -> FakeResend.API_KEY);
+        registro.add("raiji.mail.resend.from", () -> "Raiji <nao-responda@raiji.test>");
     }
 
     protected String app(String caminho) { return "http://localhost:" + porta + caminho; }
