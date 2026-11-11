@@ -1,4 +1,3 @@
-
 package com.raiji.rides.service;
 
 import com.raiji.rides.domain.RideIntent;
@@ -14,7 +13,9 @@ import org.locationtech.jts.geom.PrecisionModel;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.UUID;
 
@@ -23,6 +24,9 @@ public class RideIntentService {
 
     private static final int PASSENGER_EXPIRATION_MINUTES = 30;
     private static final int DRIVER_EXPIRATION_MINUTES = 60;
+    private static final int FUTURE_EXPIRATION_TOLERANCE_MINUTES = 60;
+    private static final int IMMEDIATE_WINDOW_MINUTES = 60;
+    private static final double MAX_RADIUS_METERS = 100_000;
 
     private final RideIntentRepository repository;
 
@@ -49,7 +53,7 @@ public class RideIntentService {
             OffsetDateTime desiredAt
     ) {
         validateCreation(type, mode, originLatitude, originLongitude,
-                destinationLatitude, destinationLongitude);
+                destinationLatitude, destinationLongitude, desiredAt);
 
         RideIntent intent = new RideIntent();
 
@@ -75,8 +79,14 @@ public class RideIntentService {
                 ? PASSENGER_EXPIRATION_MINUTES
                 : DRIVER_EXPIRATION_MINUTES;
 
-        intent.setExpiresAt(
-                OffsetDateTime.now().plusMinutes(expirationMinutes));
+        OffsetDateTime now = OffsetDateTime.now();
+
+        if (desiredAt != null && desiredAt.isAfter(now)) {
+            intent.setExpiresAt(desiredAt.plusMinutes(
+                    FUTURE_EXPIRATION_TOLERANCE_MINUTES));
+        } else {
+            intent.setExpiresAt(now.plusMinutes(expirationMinutes));
+        }
 
         return repository.save(intent);
     }
@@ -90,19 +100,43 @@ public class RideIntentService {
             double longitude,
             double radiusMeters
     ) {
-        validateCoordinates(latitude, longitude);
-
-        if (radiusMeters <= 0 || radiusMeters > 100_000) {
-            throw new IllegalArgumentException(
-                    "O raio deve ser maior que zero e no máximo 100 km.");
-        }
+        validateSearch(latitude, longitude, radiusMeters);
 
         return repository.findNearby(
-                        type.name(),
-                        mode.name(),
-                        latitude,
-                        longitude,
-                        radiusMeters)
+                        type.name(), mode.name(),
+                        latitude, longitude, radiusMeters)
+                .stream()
+                .filter(intent -> !intent.getUserSub().equals(userSub))
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<RideIntent> findBoard(
+            String userSub,
+            RideIntentType type,
+            RideIntentMode mode,
+            double latitude,
+            double longitude,
+            double radiusMeters,
+            LocalDate date
+    ) {
+        validateSearch(latitude, longitude, radiusMeters);
+
+        if (date == null || date.isBefore(LocalDate.now())) {
+            throw new IllegalArgumentException(
+                    "A data do mural deve ser hoje ou uma data futura.");
+        }
+
+        ZoneId zone = ZoneId.systemDefault();
+
+        OffsetDateTime startAt = date.atStartOfDay(zone).toOffsetDateTime();
+        OffsetDateTime endAt = date.plusDays(1)
+                .atStartOfDay(zone).toOffsetDateTime();
+
+        return repository.findBoard(
+                        type.name(), mode.name(),
+                        latitude, longitude, radiusMeters,
+                        startAt, endAt)
                 .stream()
                 .filter(intent -> !intent.getUserSub().equals(userSub))
                 .toList();
@@ -131,7 +165,11 @@ public class RideIntentService {
     @Transactional(readOnly = true)
     public List<RideIntent> findMyIntents(String userSub) {
         return repository.findByUserSubAndStatus(
-                userSub, RideIntentStatus.ACTIVE);
+                        userSub, RideIntentStatus.ACTIVE)
+                .stream()
+                .filter(intent -> intent.getExpiresAt().isAfter(
+                        OffsetDateTime.now()))
+                .toList();
     }
 
     private Point createPoint(double latitude, double longitude) {
@@ -147,7 +185,8 @@ public class RideIntentService {
             double originLatitude,
             double originLongitude,
             Double destinationLatitude,
-            Double destinationLongitude
+            Double destinationLongitude,
+            OffsetDateTime desiredAt
     ) {
         if (type == null || mode == null) {
             throw new IllegalArgumentException(
@@ -155,6 +194,11 @@ public class RideIntentService {
         }
 
         validateCoordinates(originLatitude, originLongitude);
+
+        if (desiredAt != null && desiredAt.isBefore(OffsetDateTime.now())) {
+            throw new IllegalArgumentException(
+                    "O horário desejado não pode estar no passado.");
+        }
 
         if (mode == RideIntentMode.FREE
                 && type != RideIntentType.DRIVER_OFFER) {
@@ -171,6 +215,19 @@ public class RideIntentService {
 
             validateCoordinates(
                     destinationLatitude, destinationLongitude);
+        }
+    }
+
+    private void validateSearch(
+            double latitude,
+            double longitude,
+            double radiusMeters
+    ) {
+        validateCoordinates(latitude, longitude);
+
+        if (radiusMeters <= 0 || radiusMeters > MAX_RADIUS_METERS) {
+            throw new IllegalArgumentException(
+                    "O raio deve ser maior que zero e no máximo 100 km.");
         }
     }
 
