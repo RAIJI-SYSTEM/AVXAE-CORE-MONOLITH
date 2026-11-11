@@ -190,7 +190,8 @@ class RideIntentServiceTest {
 
         when(repository.findById(id)).thenReturn(Optional.of(intent));
 
-        assertThrows(IllegalArgumentException.class,
+        // Responde "não encontrada" (404): não confirma que a intenção de outra pessoa existe
+        assertThrows(EntityNotFoundException.class,
                 () -> service.cancel("user-123", id));
 
         verify(repository, never()).save(any());

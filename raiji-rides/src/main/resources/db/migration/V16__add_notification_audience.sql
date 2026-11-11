@@ -1,4 +1,4 @@
--- V14: em qual modo do app a notificação aparece (a mesma conta pode ser
+-- V16: em qual modo do app a notificação aparece (a mesma conta pode ser
 -- passageira e motorista). PASSENGER | DRIVER.
 ALTER TABLE notifications
     ADD COLUMN IF NOT EXISTS audience VARCHAR(20);

@@ -27,6 +27,7 @@ public class RideIntentService {
     private static final int FUTURE_EXPIRATION_TOLERANCE_MINUTES = 60;
     private static final int IMMEDIATE_WINDOW_MINUTES = 60;
     private static final double MAX_RADIUS_METERS = 100_000;
+    private static final ZoneId BRAZIL = ZoneId.of("America/Sao_Paulo");
 
     private final RideIntentRepository repository;
 
@@ -122,12 +123,13 @@ public class RideIntentService {
     ) {
         validateSearch(latitude, longitude, radiusMeters);
 
-        if (date == null || date.isBefore(LocalDate.now())) {
+        // O "dia" do mural é o dia no Brasil, não o do servidor (UTC no Docker:
+        // o "hoje" começaria às 21h de Brasília)
+        ZoneId zone = BRAZIL;
+        if (date == null || date.isBefore(LocalDate.now(zone))) {
             throw new IllegalArgumentException(
                     "A data do mural deve ser hoje ou uma data futura.");
         }
-
-        ZoneId zone = ZoneId.systemDefault();
 
         OffsetDateTime startAt = date.atStartOfDay(zone).toOffsetDateTime();
         OffsetDateTime endAt = date.plusDays(1)
@@ -148,9 +150,10 @@ public class RideIntentService {
                 .orElseThrow(() -> new EntityNotFoundException(
                         "Intenção de carona não encontrada."));
 
+        // Intenção de outra pessoa: responde como "não encontrada" (404), para não
+        // confirmar a quem testa IDs que aquela intenção existe
         if (!intent.getUserSub().equals(userSub)) {
-            throw new IllegalArgumentException(
-                    "Você não pode cancelar uma intenção de outro usuário.");
+            throw new EntityNotFoundException("Intenção de carona não encontrada.");
         }
 
         if (intent.getStatus() != RideIntentStatus.ACTIVE) {

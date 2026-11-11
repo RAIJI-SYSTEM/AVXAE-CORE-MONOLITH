@@ -1,4 +1,4 @@
--- V15: pedidos para virar motorista (verificação da CNH via Infosimples).
+-- V17: pedidos para virar motorista (verificação da CNH via Infosimples).
 -- O código de segurança da CNH não é gravado; a foto fica no armazenamento
 -- (S3/RustFS) só até a decisão.
 CREATE TABLE IF NOT EXISTS driver_applications (
