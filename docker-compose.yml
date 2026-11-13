@@ -72,6 +72,9 @@
         # E-mails transacionais (Resend), também do .env da raiz
         RESEND_API_KEY: ${RESEND_API_KEY:-}
         RESEND_FROM: ${RESEND_FROM:-Raiji <onboarding@resend.dev>}
+        # Comissão da plataforma (%) e regra CNPJ/MEI intermunicipal (desligada)
+        RAIJI_PLATFORM_FEE_PERCENT: ${RAIJI_PLATFORM_FEE_PERCENT:-1.5}
+        RAIJI_INTERMUNICIPAL_REQUIRES_BUSINESS: ${RAIJI_INTERMUNICIPAL_REQUIRES_BUSINESS:-false}
         # Foto da CNH (temporária): RustFS local
         DRIVER_DOCS_BUCKET: raiji-driver-docs
         DRIVER_DOCS_S3_ENDPOINT: http://rustfs:9000

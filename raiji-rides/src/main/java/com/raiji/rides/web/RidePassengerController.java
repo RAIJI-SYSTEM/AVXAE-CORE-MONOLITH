@@ -2,6 +2,10 @@ package com.raiji.rides.web;
 
 import java.util.UUID;
 
+import com.raiji.rides.domain.RideDecision;
+import com.raiji.rides.dto.AcceptAllResponse;
+import com.raiji.rides.dto.BaggageUpdateRequest;
+import com.raiji.rides.dto.RidePassengerResponse;
 import com.raiji.rides.dto.RideCancelRequest;
 import com.raiji.rides.dto.RideCancelResponse;
 import com.raiji.rides.dto.RideDecisionRequest;
@@ -32,6 +36,34 @@ public class RidePassengerController {
             RidePassengerService ridePassengerService
     ) {
         this.ridePassengerService = ridePassengerService;
+    }
+
+    /** "Aceitar todos" os pedidos pendentes de viagem inteira, enquanto houver vaga e espaço. */
+    @PostMapping("/accept-all")
+    @PreAuthorize("hasRole('DRIVER')")
+    public AcceptAllResponse acceptAll(@PathVariable UUID rideId, @AuthenticationPrincipal Jwt jwt) {
+        return ridePassengerService.acceptAll(rideId, jwt.getSubject());
+    }
+
+    /** O passageiro troca a bagagem (vazia = sem bagagem). Aumento depois do aceite espera o motorista. */
+    @PutMapping("/{requestId}/baggage")
+    @PreAuthorize("isAuthenticated()")
+    public RidePassengerResponse updateBaggage(@PathVariable UUID rideId, @PathVariable UUID requestId,
+                                               @Valid @RequestBody BaggageUpdateRequest body,
+                                               @AuthenticationPrincipal Jwt jwt) {
+        return ridePassengerService.updateBaggage(rideId, requestId, jwt.getSubject(), body.baggage());
+    }
+
+    public record BaggageDecisionRequest(@jakarta.validation.constraints.NotNull RideDecision decision) {}
+
+    /** O motorista aprova (ACCEPT) ou recusa (REJECT) a bagagem nova. */
+    @PatchMapping("/{requestId}/baggage")
+    @PreAuthorize("hasRole('DRIVER')")
+    public RidePassengerResponse decideBaggage(@PathVariable UUID rideId, @PathVariable UUID requestId,
+                                               @Valid @RequestBody BaggageDecisionRequest body,
+                                               @AuthenticationPrincipal Jwt jwt) {
+        return ridePassengerService.decideBaggageChange(rideId, requestId, jwt.getSubject(),
+                body.decision() == RideDecision.ACCEPT);
     }
 
     /** 200 => {id, status, confirmedAt}. reason obrigatório no REJECT. */

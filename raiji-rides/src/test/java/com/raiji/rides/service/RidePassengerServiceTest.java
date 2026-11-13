@@ -68,7 +68,7 @@ class RidePassengerServiceTest {
                 rideRepository,
                 passengerRepository,
                 eventPublisher,
-                vehicleRepository,
+                new com.raiji.rides.cargo.CargoCapacityService(passengerRepository, vehicleRepository, java.util.List.of()),
                 rideRefundService,
                 java.time.Clock.systemDefaultZone()
         );
@@ -83,6 +83,7 @@ class RidePassengerServiceTest {
         ride.setDepartureDate(LocalDateTime.now().plusDays(1));
         ride.setTotalSeats(4);
         ride.setAvailableSeats(4);
+        ride.setType(com.raiji.common.enums.RideType.PASSENGER);
         ride.setVehicleId(UUID.randomUUID());
 
         when(rideRepository.findById(rideId))
@@ -251,20 +252,41 @@ class RidePassengerServiceTest {
     }
 
     @Test
-    void deveRejeitarBagagemAusenteOuVazia() {
-        ResponseStatusException semBagagem = assertThrows(
-                ResponseStatusException.class,
-                () -> service.request(rideId, PASSENGER_SUB, "João", null)
-        );
-        assertEquals(HttpStatus.BAD_REQUEST, semBagagem.getStatusCode());
+    void bagagemEhOpcional_semBagagemOuListaVazia() {
+        RidePassengerResponse semBagagem = service.request(rideId, PASSENGER_SUB, "João", null);
+        assertTrue(semBagagem.baggage().isEmpty());
 
-        ResponseStatusException bagagemVazia = assertThrows(
-                ResponseStatusException.class,
-                () -> service.request(rideId, PASSENGER_SUB, "João", List.of())
-        );
-        assertEquals(HttpStatus.BAD_REQUEST, bagagemVazia.getStatusCode());
+        RidePassengerResponse bagagemVazia = service.request(rideId, PASSENGER_SUB, "Ana", List.of());
+        assertTrue(bagagemVazia.baggage().isEmpty());
+        assertTrue(bagagemVazia.fullRoute());
+    }
 
-        verify(passengerRepository, never()).save(any());
+    @Test
+    void viagemSoDeEncomendasNaoAceitaPassageiro() {
+        ride.setType(com.raiji.common.enums.RideType.CARGO);
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> service.request(rideId, PASSENGER_SUB, "João", null));
+        assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
+    }
+
+    @Test
+    void reservasEncerradasNaoAceitamPedido() {
+        ride.setBookingsClosed(true);
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> service.request(rideId, PASSENGER_SUB, "João", null));
+        assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
+    }
+
+    @Test
+    void aumentoDeCargaDepoisDoAceiteDetectado() {
+        com.raiji.rides.domain.Baggage mochila = new com.raiji.rides.domain.Baggage();
+        mochila.setQuantity(1); mochila.setLengthCm(40); mochila.setWidthCm(30); mochila.setHeightCm(20);
+        com.raiji.rides.domain.Baggage mala = new com.raiji.rides.domain.Baggage();
+        mala.setQuantity(1); mala.setLengthCm(70); mala.setWidthCm(45); mala.setHeightCm(30);
+        assertTrue(RidePassengerService.aumentaCarga(List.of(mochila), List.of(mala)));
+        assertTrue(RidePassengerService.aumentaCarga(List.of(), List.of(mochila)));
+        assertFalse(RidePassengerService.aumentaCarga(List.of(mala), List.of(mochila)));
+        assertFalse(RidePassengerService.aumentaCarga(List.of(mochila), List.of()));
     }
 
     private static List<BaggageItemRequest> bagagemValida() {

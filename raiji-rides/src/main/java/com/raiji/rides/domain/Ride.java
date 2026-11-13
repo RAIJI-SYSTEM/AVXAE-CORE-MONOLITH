@@ -1,6 +1,7 @@
 package com.raiji.rides.domain;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -22,6 +23,8 @@ import jakarta.persistence.Index;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
+import org.locationtech.jts.geom.LineString;
+import org.locationtech.jts.geom.Point;
 
 @Entity
 @Table(name = "rides", indexes = {
@@ -66,6 +69,10 @@ public class Ride extends AuditableEntity {
     @Column(name = "price_per_passenger", precision = 10, scale = 2)
     private BigDecimal pricePerPassenger;
 
+    /** Comissão da plataforma (%) vigente quando a carona foi publicada. */
+    @Column(name = "platform_fee_percent", nullable = false, precision = 5, scale = 2)
+    private BigDecimal platformFeePercent = BigDecimal.ZERO;
+
     @Column(name = "total_seats", nullable = false)
     private Integer totalSeats = 4;
 
@@ -85,6 +92,66 @@ public class Ride extends AuditableEntity {
             @AttributeOverride(name = "observation", column = @Column(name = "cargo_observation"))
     })
     private CargoDetails cargoDetails;
+
+    @Column(name = "origin_location", columnDefinition = "geography(Point,4326)")
+    private Point originLocation;
+
+    @Column(name = "destination_location", columnDefinition = "geography(Point,4326)")
+    private Point destinationLocation;
+
+    @Column(name = "origin_address", length = 255)
+    private String originAddress;
+
+    @Column(name = "destination_address", length = 255)
+    private String destinationAddress;
+
+    /** Onde o motorista encontra os passageiros (texto livre: "portão 2 do shopping"). */
+    /** Preço por encomenda (CARGO/MIXED); null = grátis. A comissão vale igual. */
+    @Column(name = "price_per_package", precision = 10, scale = 2)
+    private BigDecimal pricePerPackage;
+
+    @Column(name = "meeting_point", length = 255)
+    private String meetingPoint;
+
+    @Column(name = "route", columnDefinition = "geography(LineString,4326)")
+    private LineString route;
+
+    @Column(name = "route_distance_meters")
+    private Integer routeDistanceMeters;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "visibility", nullable = false, length = 20)
+    private RideVisibility visibility = RideVisibility.PUBLIC;
+
+    @Column(name = "bookings_closed", nullable = false)
+    private boolean bookingsClosed;
+
+    @Column(name = "started_at")
+    private Instant startedAt;
+
+    @Column(name = "completed_at")
+    private Instant completedAt;
+
+    @Column(name = "cancelled_at")
+    private Instant cancelledAt;
+
+    @Column(name = "cancellation_reason", columnDefinition = "TEXT")
+    private String cancellationReason;
+
+    /** Leva passageiros? (PASSENGER ou MIXED) */
+    public boolean carriesPassengers() {
+        return type == RideType.PASSENGER || type == RideType.MIXED;
+    }
+
+    /** Leva encomendas? (CARGO ou MIXED) */
+    public boolean carriesPackages() {
+        return type == RideType.CARGO || type == RideType.MIXED;
+    }
+
+    /** Aceita pedidos novos agora? */
+    public boolean openForBookings() {
+        return status == RideStatus.PLANNED && !bookingsClosed && getDeletedAt() == null;
+    }
 
     @PrePersist
     @PreUpdate
@@ -117,12 +184,42 @@ public class Ride extends AuditableEntity {
     public void setDepartureDate(LocalDateTime v) { this.departureDate = v; }
     public BigDecimal getPricePerPassenger() { return pricePerPassenger; }
     public void setPricePerPassenger(BigDecimal v) { this.pricePerPassenger = v; }
+    public BigDecimal getPlatformFeePercent() { return platformFeePercent; }
+    public void setPlatformFeePercent(BigDecimal v) { this.platformFeePercent = v; }
     public Integer getTotalSeats() { return totalSeats; }
     public void setTotalSeats(Integer v) { this.totalSeats = v; }
     public Integer getAvailableSeats() { return availableSeats; }
     public void setAvailableSeats(Integer v) { this.availableSeats = v; }
     public RideStatus getStatus() { return status; }
     public void setStatus(RideStatus v) { this.status = v; }
+    public Point getOriginLocation() { return originLocation; }
+    public void setOriginLocation(Point v) { this.originLocation = v; }
+    public Point getDestinationLocation() { return destinationLocation; }
+    public void setDestinationLocation(Point v) { this.destinationLocation = v; }
+    public String getOriginAddress() { return originAddress; }
+    public void setOriginAddress(String v) { this.originAddress = v; }
+    public String getDestinationAddress() { return destinationAddress; }
+    public void setDestinationAddress(String v) { this.destinationAddress = v; }
+    public BigDecimal getPricePerPackage() { return pricePerPackage; }
+    public void setPricePerPackage(BigDecimal v) { this.pricePerPackage = v; }
+    public String getMeetingPoint() { return meetingPoint; }
+    public void setMeetingPoint(String v) { this.meetingPoint = v; }
+    public LineString getRoute() { return route; }
+    public void setRoute(LineString v) { this.route = v; }
+    public Integer getRouteDistanceMeters() { return routeDistanceMeters; }
+    public void setRouteDistanceMeters(Integer v) { this.routeDistanceMeters = v; }
+    public RideVisibility getVisibility() { return visibility; }
+    public void setVisibility(RideVisibility v) { this.visibility = v; }
+    public boolean isBookingsClosed() { return bookingsClosed; }
+    public void setBookingsClosed(boolean v) { this.bookingsClosed = v; }
+    public Instant getStartedAt() { return startedAt; }
+    public void setStartedAt(Instant v) { this.startedAt = v; }
+    public Instant getCompletedAt() { return completedAt; }
+    public void setCompletedAt(Instant v) { this.completedAt = v; }
+    public Instant getCancelledAt() { return cancelledAt; }
+    public void setCancelledAt(Instant v) { this.cancelledAt = v; }
+    public String getCancellationReason() { return cancellationReason; }
+    public void setCancellationReason(String v) { this.cancellationReason = v; }
     public CargoDetails getCargoDetails() { return cargoDetails; }
     public void setCargoDetails(CargoDetails v) { this.cargoDetails = v; }
 }

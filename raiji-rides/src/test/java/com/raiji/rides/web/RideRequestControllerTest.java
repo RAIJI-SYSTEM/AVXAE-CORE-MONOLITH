@@ -64,7 +64,10 @@ class RideRequestControllerTest {
                 RidePassengerStatus.PENDING,
                 Instant.parse("2026-11-01T12:00:00Z"),
                 List.of(new BaggageItemResponse(
-                        BaggageType.MALA, 1, 60, 40, 30, null, "Mala de bordo"))
+                        BaggageType.MALA, 1, 60, 40, 30, null, "Mala de bordo")),
+                List.of(), true, null,
+                null, null, null, null, null, null,
+                null, null, null
         );
     }
 
@@ -75,7 +78,7 @@ class RideRequestControllerTest {
                 eq(rideId),
                 eq("passenger-123"),
                 eq("João Silva"),
-                any()
+                any(), any(), any()
         )).thenReturn(response());
 
         mockMvc.perform(post("/api/rides/{rideId}/requests", rideId)
@@ -187,7 +190,9 @@ class RideRequestControllerTest {
     }
 
     @Test
-    void baggageAusenteRetorna400() throws Exception {
+    void semBagagemEhAceito() throws Exception {
+        when(ridePassengerService.request(eq(rideId), eq("passenger-123"), eq("João Silva"), any(), any(), any()))
+                .thenReturn(response());
 
         mockMvc.perform(post("/api/rides/{rideId}/requests", rideId)
                         .with(jwt()
@@ -199,11 +204,13 @@ class RideRequestControllerTest {
                                     "passengerName": "João Silva"
                                 }
                                 """))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isCreated());
     }
 
     @Test
-    void baggageVazioRetorna400() throws Exception {
+    void bagagemVaziaEhAceita() throws Exception {
+        when(ridePassengerService.request(eq(rideId), eq("passenger-123"), eq("João Silva"), any(), any(), any()))
+                .thenReturn(response());
 
         mockMvc.perform(post("/api/rides/{rideId}/requests", rideId)
                         .with(jwt()
@@ -216,7 +223,7 @@ class RideRequestControllerTest {
                                     "baggage": []
                                 }
                                 """))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isCreated());
     }
 
     @TestConfiguration

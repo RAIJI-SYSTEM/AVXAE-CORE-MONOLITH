@@ -8,5 +8,7 @@ public enum NotificationAudience {
     /** Ex.: "sua solicitação foi aceita" */
     PASSENGER,
     /** Ex.: "nova solicitação na sua carona", "reserva cancelada" */
-    DRIVER
+    DRIVER,
+    /** Avisos de empresa (convites, propostas e ofertas de frete) */
+    COMPANY
 }

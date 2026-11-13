@@ -52,6 +52,26 @@ raiji:
     api-key: ${STRIPE_API_KEY:}
     webhook-secret: ${STRIPE_WEBHOOK_SECRET:}
 
+  # Comissão da plataforma sobre caronas pagas, em % (1.5 = 1,5%; 0 desliga).
+  # Descontada do que o motorista recebe: o passageiro paga o preço anunciado.
+  # Fica gravada na carona ao publicar (mudar aqui não altera caronas existentes).
+  pricing:
+    platform-fee-percent: ${RAIJI_PLATFORM_FEE_PERCENT:1.5}
+
+  # Fuso das caronas: os horários são "hora de parede" no Brasil (o Docker roda em UTC).
+  time-zone: ${RAIJI_TIME_ZONE:America/Sao_Paulo}
+
+  # Empresas: consulta do CNPJ na Receita (BrasilAPI, dados abertos, grátis).
+  companies:
+    cnpj-base-url: ${RAIJI_CNPJ_BASE_URL:https://brasilapi.com.br}
+    timeout-seconds: 15
+
+  # Regras liga/desliga.
+  # intermunicipal-requires-business: só conta PJ (CNPJ/MEI) publica carona entre
+  # cidades diferentes. Desligada por enquanto.
+  rules:
+    intermunicipal-requires-business: ${RAIJI_INTERMUNICIPAL_REQUIRES_BUSINESS:false}
+
   # E-mails transacionais (Resend). Chave no .env da raiz; sem chave nada é enviado.
   # RESEND_FROM: use um domínio verificado no Resend. O padrão (onboarding@resend.dev)
   # só entrega para o e-mail do dono da conta Resend.

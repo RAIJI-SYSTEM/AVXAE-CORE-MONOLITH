@@ -63,6 +63,13 @@ public class Baggage extends AuditableEntity {
     @Column(name = "weight_kg", precision = 10, scale = 2)
     private BigDecimal weightKg;
 
+    /** Alteração feita depois do aceite que aumenta a carga: espera o motorista aprovar. */
+    @Column(name = "pending_approval", nullable = false)
+    private boolean pendingApproval;
+
+    public boolean isPendingApproval() { return pendingApproval; }
+    public void setPendingApproval(boolean v) { this.pendingApproval = v; }
+
     public UUID getId() { return id; }
 
     public RidePassenger getRidePassenger() { return ridePassenger; }

@@ -27,7 +27,7 @@ public class RideRequestController {
         this.ridePassengerService = ridePassengerService;
     }
 
-    /** S2-01: payload exige passengerName + baggage (>= 1 item). */
+    /** Pedir vaga: passengerName; bagagem opcional; pickup/dropoff para um trecho. */
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize("hasRole('PASSENGER')")
@@ -40,7 +40,9 @@ public class RideRequestController {
                 rideId,
                 jwt.getSubject(),
                 request.passengerName(),
-                request.baggage()
+                request.baggage(),
+                request.pickup(),
+                request.dropoff()
         );
     }
 

@@ -87,6 +87,9 @@ public abstract class RaijiTestSupport {
         registro.add("raiji.mail.resend.base-url", FakeResend::start);
         registro.add("raiji.mail.resend.api-key", () -> FakeResend.API_KEY);
         registro.add("raiji.mail.resend.from", () -> "Raiji <nao-responda@raiji.test>");
+
+        // CNPJ: SEMPRE a BrasilAPI falsa (servidor local) — nenhum teste consulta a Receita de verdade
+        registro.add("raiji.companies.cnpj-base-url", FakeBrasilApi::start);
     }
 
     protected String app(String caminho) { return "http://localhost:" + porta + caminho; }

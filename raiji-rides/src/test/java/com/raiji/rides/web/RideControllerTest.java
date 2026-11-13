@@ -45,6 +45,8 @@ class RideControllerTest {
     @Autowired MockMvc mockMvc;
     @Autowired ObjectMapper objectMapper;
     @MockitoBean RideService rideService;
+    @MockitoBean com.raiji.rides.service.RideLifecycleService lifecycle;
+    @MockitoBean com.raiji.users.company.CompanyMembership companyMembership;
 
     private final UUID rideId    = UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
     private final UUID vehicleId = UUID.fromString("cccccccc-cccc-cccc-cccc-cccccccccccc");
@@ -63,13 +65,17 @@ class RideControllerTest {
                 vehicleId, RideType.PASSENGER,
                 "Fortaleza", "CE", "Sobral", "CE",
                 LocalDateTime.now().plusDays(1),
-                new BigDecimal("50.00"), 4, 4,
-                RideStatus.PLANNED, null, null, null);
+                new BigDecimal("50.00"),
+                new BigDecimal("1.5"), new BigDecimal("0.75"), new BigDecimal("49.25"),
+                4, 4,
+                RideStatus.PLANNED, null, null, null,
+                null, null, null, null, null, null, null, null,
+                com.raiji.rides.domain.RideVisibility.PUBLIC, false, null, null, null);
     }
 
     @Test
     void deveCriarCaronaRetornando201() throws Exception {
-        when(rideService.create(any(RideRequest.class), eq("driver-123"), any()))
+        when(rideService.create(any(RideRequest.class), eq("driver-123"), any(), eq(false)))
                 .thenReturn(response());
 
         mockMvc.perform(post("/api/rides")
@@ -81,7 +87,23 @@ class RideControllerTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").value(rideId.toString()))
                 .andExpect(jsonPath("$.status").value("PLANNED"))
-                .andExpect(jsonPath("$.availableSeats").value(4));
+                .andExpect(jsonPath("$.availableSeats").value(4))
+                .andExpect(jsonPath("$.driverReceivesPerPassenger").value(49.25));
+    }
+
+    @Test
+    void motoristaComContaPJEhInformadoAoServico() throws Exception {
+        when(rideService.create(any(RideRequest.class), eq("driver-123"), any(), eq(true)))
+                .thenReturn(response());
+
+        mockMvc.perform(post("/api/rides")
+                        .with(jwt()
+                                .jwt(t -> t.subject("driver-123"))
+                                .authorities(new SimpleGrantedAuthority("ROLE_DRIVER"),
+                                        new SimpleGrantedAuthority("ROLE_PJ")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request())))
+                .andExpect(status().isCreated());
     }
 
     @Test

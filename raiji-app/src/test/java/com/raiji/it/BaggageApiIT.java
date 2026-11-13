@@ -160,8 +160,8 @@ class BaggageApiIT extends RaijiTestSupport {
     // -------------------------------------------------------------------------
 
     @Test
-    @DisplayName("S2-01: solicitação SEM baggage retorna 400")
-    void solicitacaoSemBaggageRetorna400() {
+    @DisplayName("bagagem opcional: solicitação SEM baggage é criada (201)")
+    void solicitacaoSemBaggageEhCriada() {
         DriverSetup driver = criarMotorista();
         UserSetup passenger = criarPassageiro();
         String rideId = criarCarona(driver);
@@ -171,12 +171,12 @@ class BaggageApiIT extends RaijiTestSupport {
                 .contentType(ContentType.JSON)
                 .body(payload("Maria Silva", null))
                 .when().post(app("/api/rides/" + rideId + "/requests"))
-                .then().statusCode(400);
+                .then().statusCode(201);
     }
 
     @Test
-    @DisplayName("S2-01: solicitação com baggage VAZIO retorna 400")
-    void solicitacaoComBaggageVazioRetorna400() {
+    @DisplayName("bagagem opcional: baggage VAZIO = sem bagagem (201)")
+    void solicitacaoComBaggageVazioEhCriada() {
         DriverSetup driver = criarMotorista();
         UserSetup passenger = criarPassageiro();
         String rideId = criarCarona(driver);
@@ -186,7 +186,7 @@ class BaggageApiIT extends RaijiTestSupport {
                 .contentType(ContentType.JSON)
                 .body(payload("Maria Silva", List.of()))
                 .when().post(app("/api/rides/" + rideId + "/requests"))
-                .then().statusCode(400);
+                .then().statusCode(201).body("baggage", org.hamcrest.Matchers.hasSize(0));
     }
 
     @Test

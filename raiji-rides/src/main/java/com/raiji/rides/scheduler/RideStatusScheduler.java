@@ -7,6 +7,7 @@ import java.util.List;
 import com.raiji.common.enums.RideStatus;
 import com.raiji.rides.domain.Ride;
 import com.raiji.rides.repository.RideRepository;
+import com.raiji.rides.service.RideLifecycleService;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,10 +36,17 @@ public class RideStatusScheduler {
 
     private final RideRepository rideRepository;
     private final Clock clock;
+    private final RideLifecycleService lifecycle;
 
     public RideStatusScheduler(RideRepository rideRepository, Clock clock) {
+        this(rideRepository, clock, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public RideStatusScheduler(RideRepository rideRepository, Clock clock, RideLifecycleService lifecycle) {
         this.rideRepository = rideRepository;
         this.clock = clock;
+        this.lifecycle = lifecycle;
     }
 
     /**
@@ -63,7 +71,11 @@ public class RideStatusScheduler {
         }
 
         for (Ride ride : due) {
-            ride.setStatus(RideStatus.IN_PROGRESS);
+            if (lifecycle != null) {
+                lifecycle.iniciar(ride);   // também recusa os pedidos pendentes
+            } else {
+                ride.setStatus(RideStatus.IN_PROGRESS);
+            }
         }
         rideRepository.saveAll(due);
 
