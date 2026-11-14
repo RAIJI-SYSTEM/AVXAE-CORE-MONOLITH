@@ -1,5 +1,12 @@
 package com.raiji.rides.service;
 
+import java.time.Instant;
+import java.util.List;
+import java.util.UUID;
+
+import com.raiji.common.notification.NotificationRequested;
+import com.raiji.rides.dto.NotificationResponse;
+
 import com.raiji.rides.domain.Notification;
 import com.raiji.rides.domain.NotificationAudience;
 import com.raiji.rides.domain.RideDecision;
@@ -28,6 +35,47 @@ public class NotificationService {
         this.notificationRepository = notificationRepository;
     }
 
+    /** Aviso genérico vindo de qualquer módulo (encomendas, empresas, frete, ciclo da viagem). */
+    @EventListener
+    @Transactional
+    public void handleNotificationRequested(NotificationRequested event) {
+        save(event.recipientSub(), NotificationAudience.valueOf(event.audience()), event.kind(),
+                event.rideId(), event.referenceId(), event.message());
+    }
+
+    private void save(String recipientSub, NotificationAudience audience, String kind,
+                      UUID rideId, UUID referenceId, String message) {
+        Notification notification = new Notification();
+        notification.setRecipientSub(recipientSub);
+        notification.setAudience(audience);
+        notification.setKind(kind);
+        notification.setRideId(rideId);
+        notification.setReferenceId(referenceId);
+        notification.setMessage(message.length() > 500 ? message.substring(0, 500) : message);
+        notificationRepository.save(notification);
+    }
+
+    @Transactional(readOnly = true)
+    public List<NotificationResponse> list(String recipientSub, NotificationAudience audience) {
+        return notificationRepository
+                .findTop100ByRecipientSubAndAudienceAndDeletedAtIsNullOrderByCreatedAtDesc(recipientSub, audience)
+                .stream().map(NotificationResponse::from).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public long countUnread(String recipientSub, NotificationAudience audience) {
+        return notificationRepository.countByRecipientSubAndAudienceAndReadAtIsNullAndDeletedAtIsNull(
+                recipientSub, audience);
+    }
+
+    /** Marca como lidas as notificações informadas (ou todas daquela caixa, se ids vazio). */
+    @Transactional
+    public int markRead(String recipientSub, NotificationAudience audience, List<UUID> ids) {
+        return (ids == null || ids.isEmpty())
+                ? notificationRepository.markAllRead(recipientSub, audience, Instant.now())
+                : notificationRepository.markRead(recipientSub, ids, Instant.now());
+    }
+
     @EventListener
     @Transactional
     public void handleRideRequestCreated(RideRequestCreatedEvent event) {
@@ -39,6 +87,7 @@ public class NotificationService {
         Notification notification = new Notification();
         notification.setRecipientSub(event.driverSub());
         notification.setAudience(NotificationAudience.DRIVER);
+        notification.setKind("RIDE_REQUEST");
         notification.setRideId(event.rideId());
         notification.setMessage(message);
 
@@ -73,6 +122,8 @@ public class NotificationService {
         Notification notification = new Notification();
         notification.setRecipientSub(event.passengerSub());
         notification.setAudience(NotificationAudience.PASSENGER);
+        notification.setKind(event.decision() == RideDecision.ACCEPT ? "RIDE_REQUEST_ACCEPTED" : "RIDE_REQUEST_REJECTED");
+        notification.setReferenceId(event.requestId());
         notification.setRideId(event.rideId());
         notification.setMessage(message);
 
@@ -109,6 +160,8 @@ public class NotificationService {
         Notification notification = new Notification();
         notification.setRecipientSub(event.driverSub());
         notification.setAudience(NotificationAudience.DRIVER);
+        notification.setKind("RIDE_BOOKING_CANCELLED");
+        notification.setReferenceId(event.requestId());
         notification.setRideId(event.rideId());
         notification.setMessage(message);
 

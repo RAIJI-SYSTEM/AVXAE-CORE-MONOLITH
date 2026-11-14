@@ -1,15 +1,26 @@
 package com.raiji.rides.service;
 
-import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
-import com.raiji.common.embeddable.CargoDetails;
 import com.raiji.common.enums.RidePassengerStatus;
+import com.raiji.common.notification.NotificationRequested;
+import com.raiji.rides.cargo.CargoCapacityService;
+import com.raiji.rides.cargo.CargoLoad;
+import com.raiji.rides.dto.AcceptAllResponse;
+import com.raiji.rides.dto.MyBookingResponse;
+import com.raiji.rides.dto.RideResponse;
+import com.raiji.rides.geo.GeoSupport;
+import com.raiji.rides.geo.Place;
+import com.raiji.rides.pricing.SegmentPricing;
+import com.raiji.rides.repository.RideRouteMatch;
 import com.raiji.common.enums.RideStatus;
 import com.raiji.rides.domain.Baggage;
 import com.raiji.rides.domain.Ride;
@@ -24,8 +35,6 @@ import com.raiji.rides.event.RideDecisionEvent;
 import com.raiji.rides.event.RideRequestCreatedEvent;
 import com.raiji.rides.repository.RidePassengerRepository;
 import com.raiji.rides.repository.RideRepository;
-import com.raiji.users.domain.Vehicle;
-import com.raiji.users.repository.VehicleRepository;
 
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
@@ -50,31 +59,29 @@ public class RidePassengerService {
     private final RideRepository rideRepository;
     private final RidePassengerRepository ridePassengerRepository;
     private final ApplicationEventPublisher eventPublisher;
-    private final VehicleRepository vehicleRepository;
+    private final CargoCapacityService cargoCapacity;
     private final RideRefundService rideRefundService;
     private final Clock clock;
+
+    /** Distância máxima (m) entre a rota e o embarque/desembarque pedido. */
+    static final double MAX_DETOUR_METERS = 5_000;
 
     public RidePassengerService(
             RideRepository rideRepository,
             RidePassengerRepository ridePassengerRepository,
             ApplicationEventPublisher eventPublisher,
-            VehicleRepository vehicleRepository,
+            CargoCapacityService cargoCapacity,
             RideRefundService rideRefundService,
             Clock clock
     ) {
         this.rideRepository = rideRepository;
         this.ridePassengerRepository = ridePassengerRepository;
         this.eventPublisher = eventPublisher;
-        this.vehicleRepository = vehicleRepository;
+        this.cargoCapacity = cargoCapacity;
         this.rideRefundService = rideRefundService;
         this.clock = clock;
     }
 
-    /**
-     * S2-01 / RF18: a solicitação de vaga exige a declaração de bagagem.
-     * Solicitação + bagagem são persistidas na MESMA transação
-     * (cascade ALL em RidePassenger.baggage).
-     */
     @Transactional
     public RidePassengerResponse request(
             UUID rideId,
@@ -82,13 +89,23 @@ public class RidePassengerService {
             String passengerName,
             List<BaggageItemRequest> baggage
     ) {
-        if (baggage == null || baggage.isEmpty()) {
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "A declaração de bagagem é obrigatória (mínimo 1 item)."
-            );
-        }
+        return request(rideId, passengerSub, passengerName, baggage, null, null);
+    }
 
+    /**
+     * Pedido de vaga. A bagagem é OPCIONAL (vazia = sem bagagem; dá para editar
+     * depois). Com pickup/dropoff, a pessoa embarca/desce no meio do caminho e
+     * paga o proporcional do trecho. Pedido + bagagem na MESMA transação.
+     */
+    @Transactional
+    public RidePassengerResponse request(
+            UUID rideId,
+            String passengerSub,
+            String passengerName,
+            List<BaggageItemRequest> baggage,
+            Place pickup,
+            Place dropoff
+    ) {
         Ride ride = rideRepository.findById(rideId)
                 .filter(r -> r.getDeletedAt() == null)
                 .orElseThrow(() -> new ResponseStatusException(
@@ -104,7 +121,14 @@ public class RidePassengerService {
             );
         }
 
-        if (ride.getStatus() != RideStatus.PLANNED) {
+        if (!ride.carriesPassengers()) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Esta viagem leva só encomendas (sem vagas para passageiros)."
+            );
+        }
+
+        if (ride.getStatus() != RideStatus.PLANNED || ride.isBookingsClosed()) {
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
                     "Esta carona não está disponível para solicitações."
@@ -157,17 +181,11 @@ public class RidePassengerService {
         passenger.setRideId(rideId);
         passenger.setPassengerSub(passengerSub);
         passenger.setPassengerName(passengerName.trim());
+        aplicarTrecho(ride, passenger, pickup, dropoff);
 
-        for (BaggageItemRequest item : baggage) {
-            Baggage baggageEntity = new Baggage();
-            baggageEntity.setType(item.type());
-            baggageEntity.setQuantity(item.quantity());
-            baggageEntity.setLengthCm(item.lengthCm());
-            baggageEntity.setWidthCm(item.widthCm());
-            baggageEntity.setHeightCm(item.heightCm());
-            baggageEntity.setWeightKg(item.weightKg());
-            baggageEntity.setDescription(item.description());
-            passenger.addBaggage(baggageEntity);
+        for (BaggageItemRequest item : baggage == null ? List.<BaggageItemRequest>of() : baggage) {
+            cargoCapacity.assertItemDimensions(ride, item.lengthCm(), item.widthCm(), item.heightCm());
+            passenger.addBaggage(toEntity(item, false));
         }
 
         // cascade ALL: solicitação + bagagem persistidas juntas (mesma transação)
@@ -311,7 +329,8 @@ public class RidePassengerService {
                 );
             }
             // S2-03 / RN12: trava de capacidade de carga (peso + volume)
-            validarCapacidadeCarga(ride, passenger);
+            cargoCapacity.assertFits(ride,
+                    CargoCapacityService.loadOf(passenger.activeBaggage()), passenger.getId());
 
             // S2-05 / RN04: vincula o PaymentIntent (carona paga) à reserva
             // para permitir o estorno automático num cancelamento futuro.
@@ -465,88 +484,274 @@ public class RidePassengerService {
         return RideCancelResponse.from(saved, seatReleased);
     }
 
+    // ------------------------------------------------------------------ aceitar todos
+
     /**
-     * S2-03 / RN12 — trava de capacidade de carga no ACCEPT.
-     *
-     * <p>Soma o peso (weightKg × quantity) e o volume
-     * (lengthCm × widthCm × heightCm × quantity ÷ 1000, em litros) das
-     * bagagens CONFIRMED na carona + as da solicitação em aceite, e compara
-     * com cargoDetails.maxWeightKg (carona) e cargoVolumeLiters (veículo),
-     * quando declarados. Excedeu => 400; sem limite declarado => ignora
-     * ("se existir", critério da issue #10).
+     * "Aceitar todos": confirma, na ordem de chegada, os pedidos PENDENTES de
+     * viagem inteira enquanto houver vaga e espaço para a bagagem. Pedidos de
+     * trecho ficam para o motorista decidir um a um.
      */
-    private void validarCapacidadeCarga(Ride ride, RidePassenger candidato) {
-        List<RidePassenger> passageiros = ridePassengerRepository
-                .findByRideIdAndDeletedAtIsNull(ride.getId());
+    @Transactional
+    public AcceptAllResponse acceptAll(UUID rideId, String driverSub) {
+        Ride ride = rideDoMotoristaParaDecidir(rideId, driverSub);
 
-        BigDecimal pesoTotal = BigDecimal.ZERO;
-        BigDecimal volumeTotalLitros = BigDecimal.ZERO;
+        List<RidePassenger> pendentes = ridePassengerRepository.findByRideIdAndDeletedAtIsNull(rideId).stream()
+                .filter(p -> p.getStatus() == RidePassengerStatus.PENDING)
+                .sorted(Comparator.comparing(RidePassenger::getJoinedAt, Comparator.nullsLast(Comparator.naturalOrder())))
+                .toList();
 
-        for (RidePassenger p : passageiros) {
-            boolean confirmado =
-                    p.getStatus() == RidePassengerStatus.CONFIRMED;
-            boolean ehCandidato = p.getId() != null
-                    && p.getId().equals(candidato.getId());
-            if (!confirmado && !ehCandidato) {
-                continue; // PENDING não reserva capacidade
+        List<UUID> aceitos = new ArrayList<>();
+        List<AcceptAllResponse.Skipped> pulados = new ArrayList<>();
+        for (RidePassenger p : pendentes) {
+            if (!p.isFullRoute()) {
+                pulados.add(new AcceptAllResponse.Skipped(p.getId(), "Pedido de trecho: decida individualmente."));
+                continue;
             }
-            for (Baggage item : p.getBaggage()) {
-                pesoTotal = pesoTotal.add(pesoTotalDoItem(item));
-                volumeTotalLitros =
-                        volumeTotalLitros.add(volumeDoItemEmLitros(item));
+            if (ride.getAvailableSeats() == null || ride.getAvailableSeats() <= 0) {
+                pulados.add(new AcceptAllResponse.Skipped(p.getId(), "Não há mais vagas."));
+                continue;
             }
+            try {
+                cargoCapacity.assertFits(ride, CargoCapacityService.loadOf(p.activeBaggage()), p.getId());
+            } catch (ResponseStatusException e) {
+                pulados.add(new AcceptAllResponse.Skipped(p.getId(), e.getReason()));
+                continue;
+            }
+            ride.setAvailableSeats(ride.getAvailableSeats() - 1);
+            p.confirm();
+            ridePassengerRepository.save(p);
+            // salva a cada aceite: a próxima checagem de capacidade enxerga este passageiro
+            ridePassengerRepository.flush();
+            aceitos.add(p.getId());
+            publicarDecisao(ride, p, RideDecision.ACCEPT, null, p.getConfirmedAt());
+        }
+        rideRepository.save(ride);
+        return new AcceptAllResponse(aceitos, pulados, ride.getAvailableSeats());
+    }
+
+    // ------------------------------------------------------------- editar bagagem
+
+    /**
+     * O passageiro troca a bagagem (lista vazia = sem bagagem) até a viagem começar.
+     * Pedido pendente: vale na hora. Pedido aceito: se a carga não aumenta (peso,
+     * volume e número de volumes), vale na hora; se aumenta, fica esperando o
+     * motorista aprovar e a vaga continua garantida com a bagagem anterior.
+     */
+    @Transactional
+    public RidePassengerResponse updateBaggage(UUID rideId, UUID requestId, String passengerSub,
+                                               List<BaggageItemRequest> items) {
+        Ride ride = rideRepository.findByIdForUpdate(rideId)
+                .filter(r -> r.getDeletedAt() == null)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Carona não encontrada."));
+        RidePassenger passenger = pedidoDaCarona(rideId, requestId);
+        if (!passenger.getPassengerSub().equals(passengerSub)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Este pedido é de outra pessoa.");
+        }
+        if (ride.getStatus() != RideStatus.PLANNED) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "A viagem já começou: a bagagem não pode mais mudar.");
+        }
+        if (passenger.getStatus() != RidePassengerStatus.PENDING
+                && passenger.getStatus() != RidePassengerStatus.CONFIRMED) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Este pedido não está mais ativo.");
+        }
+        for (BaggageItemRequest item : items) {
+            cargoCapacity.assertItemDimensions(ride, item.lengthCm(), item.widthCm(), item.heightCm());
         }
 
-        CargoDetails cargo = ride.getCargoDetails();
-        if (cargo != null && cargo.hasCargoCapacity()
-                && pesoTotal.compareTo(cargo.getMaxWeightKg()) > 0) {
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "Peso total das bagagens ("
-                            + pesoTotal.stripTrailingZeros().toPlainString()
-                            + " kg) excede o limite da carona ("
-                            + cargo.getMaxWeightKg().stripTrailingZeros().toPlainString()
-                            + " kg)."
-            );
+        List<Baggage> novos = items.stream().map(i -> toEntity(i, false)).toList();
+        boolean precisaAprovar = passenger.getStatus() == RidePassengerStatus.CONFIRMED
+                && aumentaCarga(passenger.activeBaggage(), novos);
+
+        if (precisaAprovar) {
+            passenger.getBaggage().removeIf(Baggage::isPendingApproval);
+            novos.forEach(b -> {
+                b.setPendingApproval(true);
+                passenger.addBaggage(b);
+            });
+            eventPublisher.publishEvent(new NotificationRequested(ride.getDriverSub(), "DRIVER",
+                    "BAGGAGE_CHANGE_REQUEST", ride.getId(), passenger.getId(),
+                    passenger.getPassengerName() + " quer levar mais bagagem na sua carona. Aprove ou recuse."));
+        } else {
+            passenger.getBaggage().clear();
+            novos.forEach(passenger::addBaggage);
         }
+        return RidePassengerResponse.from(ridePassengerRepository.save(passenger));
+    }
 
-        Vehicle vehicle = vehicleRepository
-                .findByIdAndOwnerSubAndDeletedAtIsNull(
-                        ride.getVehicleId(), ride.getDriverSub())
-                .orElse(null);
+    /** O motorista aprova (confere o espaço) ou recusa a bagagem nova de um passageiro aceito. */
+    @Transactional
+    public RidePassengerResponse decideBaggageChange(UUID rideId, UUID requestId, String driverSub, boolean approve) {
+        Ride ride = rideDoMotoristaParaDecidir(rideId, driverSub);
+        RidePassenger passenger = pedidoDaCarona(rideId, requestId);
+        List<Baggage> pendentes = passenger.pendingBaggage();
+        if (pendentes.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Não há alteração de bagagem esperando aprovação.");
+        }
+        if (approve) {
+            cargoCapacity.assertFits(ride, CargoCapacityService.loadOf(pendentes), passenger.getId());
+            passenger.getBaggage().removeIf(b -> !b.isPendingApproval());
+            passenger.getBaggage().forEach(b -> b.setPendingApproval(false));
+        } else {
+            passenger.getBaggage().removeIf(Baggage::isPendingApproval);
+        }
+        eventPublisher.publishEvent(new NotificationRequested(passenger.getPassengerSub(), "PASSENGER",
+                approve ? "BAGGAGE_CHANGE_APPROVED" : "BAGGAGE_CHANGE_REJECTED", ride.getId(), passenger.getId(),
+                approve ? "O motorista aprovou a sua bagagem nova."
+                        : "O motorista não aprovou a bagagem nova: vale a bagagem anterior."));
+        return RidePassengerResponse.from(ridePassengerRepository.save(passenger));
+    }
 
-        if (vehicle != null
-                && vehicle.getCargoVolumeLiters() != null
-                && vehicle.getCargoVolumeLiters() > 0
-                && volumeTotalLitros.compareTo(
-                        BigDecimal.valueOf(vehicle.getCargoVolumeLiters())) > 0) {
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "Volume total das bagagens ("
-                            + volumeTotalLitros.stripTrailingZeros().toPlainString()
-                            + " L) excede a capacidade do veículo ("
-                            + vehicle.getCargoVolumeLiters() + " L)."
-            );
+    // ------------------------------------------------------------- ciclo de vida
+
+    /** Recusa todos os pedidos pendentes (reservas encerradas, viagem iniciada ou cancelada). */
+    @Transactional
+    public int rejectAllPending(Ride ride, String reason) {
+        int total = 0;
+        for (RidePassenger p : ridePassengerRepository.findByRideIdAndDeletedAtIsNull(ride.getId())) {
+            if (p.getStatus() != RidePassengerStatus.PENDING) continue;
+            p.cancel(reason);
+            ridePassengerRepository.save(p);
+            publicarDecisao(ride, p, RideDecision.REJECT, reason, Instant.now());
+            total++;
+        }
+        return total;
+    }
+
+    /** Viagem cancelada pelo motorista: cancela as reservas aceitas (com estorno) e avisa. */
+    @Transactional
+    public int cancelAllConfirmed(Ride ride, String reason, String actorSub) {
+        int total = 0;
+        for (RidePassenger p : ridePassengerRepository.findByRideIdAndDeletedAtIsNull(ride.getId())) {
+            if (p.getStatus() != RidePassengerStatus.CONFIRMED) continue;
+            p.cancel(reason);
+            RidePassenger saved = ridePassengerRepository.save(p);
+            try {
+                rideRefundService.refundIfApplicable(ride, saved, actorSub);
+            } catch (RuntimeException ex) {
+                log.warn("Estorno não processado para a reserva {}: {}", saved.getId(), ex.getMessage());
+            }
+            eventPublisher.publishEvent(new NotificationRequested(p.getPassengerSub(), "PASSENGER",
+                    "RIDE_CANCELLED", ride.getId(), p.getId(),
+                    "A carona com " + ride.getDriverName() + " foi cancelada pelo motorista."
+                            + (reason == null || reason.isBlank() ? "" : " Motivo: " + reason)));
+            total++;
+        }
+        return total;
+    }
+
+    /** Viagem finalizada: as reservas aceitas viram concluídas. */
+    @Transactional
+    public int completeAllConfirmed(Ride ride) {
+        int total = 0;
+        for (RidePassenger p : ridePassengerRepository.findByRideIdAndDeletedAtIsNull(ride.getId())) {
+            if (p.getStatus() != RidePassengerStatus.CONFIRMED) continue;
+            p.complete();
+            ridePassengerRepository.save(p);
+            total++;
+        }
+        return total;
+    }
+
+    /** "Minhas viagens" do passageiro (ativas primeiro; depois o histórico). */
+    @Transactional(readOnly = true)
+    public List<MyBookingResponse> myBookings(String passengerSub) {
+        List<RidePassenger> pedidos = ridePassengerRepository.findByPassengerSub(passengerSub).stream()
+                .filter(p -> p.getDeletedAt() == null).toList();
+        Map<UUID, Ride> rides = rideRepository.findAllById(pedidos.stream().map(RidePassenger::getRideId).distinct().toList())
+                .stream().collect(Collectors.toMap(Ride::getId, r -> r));
+        return pedidos.stream()
+                .filter(p -> rides.containsKey(p.getRideId()))
+                .sorted(Comparator.comparing((RidePassenger p) -> rides.get(p.getRideId()).getDepartureDate()).reversed())
+                .map(p -> new MyBookingResponse(RidePassengerResponse.from(p), RideResponse.from(rides.get(p.getRideId()))))
+                .toList();
+    }
+
+    // ------------------------------------------------------------------ apoio
+
+    private Ride rideDoMotoristaParaDecidir(UUID rideId, String driverSub) {
+        Ride ride = rideRepository.findByIdForUpdate(rideId)
+                .filter(r -> r.getDeletedAt() == null)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Carona não encontrada."));
+        if (!ride.getDriverSub().equals(driverSub)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                    "Você não tem permissão para decidir solicitações desta carona.");
+        }
+        if (ride.getStatus() != RideStatus.PLANNED) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Não é possível decidir solicitações de uma carona que já iniciou.");
+        }
+        return ride;
+    }
+
+    private RidePassenger pedidoDaCarona(UUID rideId, UUID requestId) {
+        return ridePassengerRepository.findById(requestId)
+                .filter(p -> p.getDeletedAt() == null)
+                .filter(p -> rideId.equals(p.getRideId()))
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Solicitação não encontrada."));
+    }
+
+    private void publicarDecisao(Ride ride, RidePassenger p, RideDecision decision, String reason, Instant at) {
+        eventPublisher.publishEvent(new RideDecisionEvent(ride.getId(), p.getId(), ride.getDriverSub(),
+                ride.getDriverName(), p.getPassengerSub(), p.getPassengerName(), decision, reason, at));
+    }
+
+    /** Embarque/desembarque no meio do caminho: confere a rota e calcula o preço do trecho. */
+    private void aplicarTrecho(Ride ride, RidePassenger passenger, Place pickup, Place dropoff) {
+        passenger.setFullRoute(true);
+        passenger.setPrice(ride.getPricePerPassenger());
+        if (pickup == null && dropoff == null) {
+            return;
+        }
+        if (ride.getRoute() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Esta carona não tem rota no mapa: não dá para embarcar ou descer no meio do caminho.");
+        }
+        double pLat = pickup != null ? pickup.latitude() : ride.getOriginLocation().getY();
+        double pLng = pickup != null ? pickup.longitude() : ride.getOriginLocation().getX();
+        double dLat = dropoff != null ? dropoff.latitude() : ride.getDestinationLocation().getY();
+        double dLng = dropoff != null ? dropoff.longitude() : ride.getDestinationLocation().getX();
+        RideRouteMatch m = rideRepository.locateOnRoute(ride.getId(), pLat, pLng, dLat, dLng)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Rota da carona indisponível."));
+        if (m.getPickupDistance() > MAX_DETOUR_METERS || m.getDropoffDistance() > MAX_DETOUR_METERS) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "O embarque ou o desembarque fica longe demais do caminho desta carona (máximo 5 km).");
+        }
+        if (m.getDropoffFraction() <= m.getPickupFraction()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "O desembarque precisa vir depois do embarque, no sentido da viagem.");
+        }
+        double fraction = SegmentPricing.fraction(m.getPickupFraction(), m.getDropoffFraction());
+        passenger.setFullRoute(SegmentPricing.isFullRoute(fraction));
+        passenger.setPrice(SegmentPricing.price(ride.getPricePerPassenger(), fraction));
+        if (pickup != null) {
+            passenger.setPickupLocation(GeoSupport.point(pickup.latitude(), pickup.longitude()));
+            passenger.setPickupAddress(pickup.address());
+        }
+        if (dropoff != null) {
+            passenger.setDropoffLocation(GeoSupport.point(dropoff.latitude(), dropoff.longitude()));
+            passenger.setDropoffAddress(dropoff.address());
         }
     }
 
-    /** Peso do item = weightKg × quantity; sem weightKg declarado => 0. */
-    private static BigDecimal pesoTotalDoItem(Baggage item) {
-        if (item.getWeightKg() == null) {
-            return BigDecimal.ZERO;
-        }
-        return item.getWeightKg()
-                .multiply(BigDecimal.valueOf(item.getQuantity()));
+    private static Baggage toEntity(BaggageItemRequest item, boolean pending) {
+        Baggage b = new Baggage();
+        b.setType(item.type());
+        b.setQuantity(item.quantity());
+        b.setLengthCm(item.lengthCm());
+        b.setWidthCm(item.widthCm());
+        b.setHeightCm(item.heightCm());
+        b.setWeightKg(item.weightKg());
+        b.setDescription(item.description());
+        b.setPendingApproval(pending);
+        return b;
     }
 
-    /** Volume do item = (lengthCm × widthCm × heightCm ÷ 1000) × quantity, em litros. */
-    private static BigDecimal volumeDoItemEmLitros(Baggage item) {
-        BigDecimal volumeUnitarioLitros = BigDecimal
-                .valueOf((long) item.getLengthCm()
-                        * item.getWidthCm()
-                        * item.getHeightCm())
-                .divide(BigDecimal.valueOf(1000), 3, RoundingMode.HALF_UP);
-        return volumeUnitarioLitros
-                .multiply(BigDecimal.valueOf(item.getQuantity()));
+    /** A bagagem nova aumenta a carga? (mais peso, mais volume ou mais volumes) */
+    static boolean aumentaCarga(List<Baggage> atual, List<Baggage> nova) {
+        int qtdAtual = atual.stream().mapToInt(Baggage::getQuantity).sum();
+        int qtdNova = nova.stream().mapToInt(Baggage::getQuantity).sum();
+        CargoLoad cargaAtual = CargoCapacityService.loadOf(atual);
+        CargoLoad cargaNova = CargoCapacityService.loadOf(nova);
+        return qtdNova > qtdAtual || !cargaNova.notGreaterThan(cargaAtual);
     }
 }

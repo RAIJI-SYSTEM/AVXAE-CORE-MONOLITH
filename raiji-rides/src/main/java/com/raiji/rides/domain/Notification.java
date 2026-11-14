@@ -23,8 +23,27 @@ public class Notification extends AuditableEntity {
     @Column(name = "recipient_sub", nullable = false, length = 64)
     private String recipientSub;
 
-    @Column(name = "ride_id", nullable = false)
+    /** Carona relacionada (null em avisos de empresa, frete etc.). */
+    @Column(name = "ride_id")
     private UUID rideId;
+
+    /** Assunto, para o app abrir a tela certa (ex.: RIDE_REQUEST, DELIVERY_ACCEPTED, COMPANY_INVITE). */
+    @Column(name = "kind", length = 40)
+    private String kind;
+
+    /** Id do que a notificação fala (pedido, encomenda, empresa, frete...). */
+    @Column(name = "reference_id")
+    private UUID referenceId;
+
+    @Column(name = "read_at")
+    private java.time.Instant readAt;
+
+    public String getKind() { return kind; }
+    public void setKind(String v) { this.kind = v; }
+    public UUID getReferenceId() { return referenceId; }
+    public void setReferenceId(UUID v) { this.referenceId = v; }
+    public java.time.Instant getReadAt() { return readAt; }
+    public void setReadAt(java.time.Instant v) { this.readAt = v; }
 
     @Column(nullable = false, length = 500)
     private String message;

@@ -45,10 +45,30 @@ public class SecurityConfig {
         return converter;
     }
 
+    /**
+     * Origens aceitas:
+     * <ul>
+     *   <li>app web em desenvolvimento: http://localhost:3000 (qualquer porta);</li>
+     *   <li>app Android (Capacitor): http://localhost e https://localhost (SEM porta — o
+     *       padrão antigo "http://localhost:*" exigia porta e o app recebia 403);</li>
+     *   <li>app iOS (Capacitor): capacitor://localhost;</li>
+     *   <li>extras por variável: RAIJI_CORS_ALLOWED_ORIGINS (ex.: https://app.raijmobi.com.br).</li>
+     * </ul>
+     */
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOriginPatterns(List.of("http://localhost:*"));
+        List<String> origins = new java.util.ArrayList<>(List.of(
+                "http://localhost", "http://localhost:[*]",
+                "https://localhost", "https://localhost:[*]",
+                "http://127.0.0.1:[*]", "capacitor://localhost"));
+        String extras = System.getenv("RAIJI_CORS_ALLOWED_ORIGINS");
+        if (extras != null && !extras.isBlank()) {
+            for (String o : extras.split(",")) {
+                if (!o.isBlank()) origins.add(o.trim());
+            }
+        }
+        config.setAllowedOriginPatterns(origins);
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);

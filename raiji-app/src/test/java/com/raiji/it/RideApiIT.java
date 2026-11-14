@@ -180,4 +180,45 @@ class RideApiIT extends RaijiTestSupport {
                 .when().post(app("/api/rides"))
                 .then().statusCode(400);
     }
+
+    @Test
+    @DisplayName("Comissão de 1,5%: a carona paga mostra quanto fica com a plataforma e quanto o motorista recebe")
+    void comissaoDaPlataforma() {
+        DriverSetup ds = criarMotoristaComVeiculo(4);
+
+        given().auth().oauth2(ds.token()).contentType(ContentType.JSON)
+                .body(ridePayload(ds.vehicleId(), new BigDecimal("50.00")))
+                .when().post(app("/api/rides"))
+                .then().statusCode(201)
+                .body("platformFeePercent", equalTo(1.5f))
+                .body("platformFeePerPassenger", equalTo(0.75f))
+                .body("driverReceivesPerPassenger", equalTo(49.25f));
+
+        // Prévia para a tela de publicar (antes de criar a carona)
+        given().auth().oauth2(ds.token()).queryParam("price", "12.35")
+                .when().get(app("/api/rides/price-preview"))
+                .then().statusCode(200)
+                .body("price", equalTo(12.35f))
+                .body("platformFee", equalTo(0.19f))
+                .body("driverReceives", equalTo(12.16f));
+
+        // Carona gratuita: sem comissão
+        given().auth().oauth2(ds.token()).contentType(ContentType.JSON)
+                .body(ridePayload(ds.vehicleId(), null))
+                .when().post(app("/api/rides"))
+                .then().statusCode(201)
+                .body("platformFeePerPassenger", nullValue())
+                .body("driverReceivesPerPassenger", nullValue());
+    }
+
+    @Test
+    @DisplayName("Regra CNPJ/MEI desligada: motorista pessoa física publica carona entre cidades")
+    void regraIntermunicipalDesligada() {
+        DriverSetup ds = criarMotoristaComVeiculo(4);   // sem role PJ; Fortaleza -> Sobral
+
+        given().auth().oauth2(ds.token()).contentType(ContentType.JSON)
+                .body(ridePayload(ds.vehicleId(), new BigDecimal("30.00")))
+                .when().post(app("/api/rides"))
+                .then().statusCode(201);
+    }
 }

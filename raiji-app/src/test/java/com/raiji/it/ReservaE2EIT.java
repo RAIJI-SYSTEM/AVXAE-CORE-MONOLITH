@@ -414,8 +414,8 @@ class ReservaE2EIT extends RaijiTestSupport {
     // =====================================================================
 
     @Test
-    @DisplayName("CT-E2E-02: solicitação SEM bagagem é rejeitada com 400 e nada é persistido")
-    void solicitacaoSemBagagemRetorna400() {
+    @DisplayName("CT-E2E-02: bagagem é OPCIONAL — pedido sem bagagem é criado (a pessoa pode declarar depois)")
+    void solicitacaoSemBagagemEhAceita() {
         Motorista motorista = cadastrarMotorista();
         Usuario passageiro = cadastrarPassageiro();
         String rideId = publicarCarona(motorista, 3, "50.00");
@@ -426,18 +426,11 @@ class ReservaE2EIT extends RaijiTestSupport {
         given().auth().oauth2(passageiro.token())
                 .contentType(ContentType.JSON).body(semBagagem)
                 .when().post(app("/api/rides/" + rideId + "/requests"))
-                .then().statusCode(400);
+                .then().statusCode(201);
 
-        // também com array vazio
-        given().auth().oauth2(passageiro.token())
-                .contentType(ContentType.JSON)
-                .body(Map.of("passengerName", "Maria Sem Mala", "baggage", List.of()))
-                .when().post(app("/api/rides/" + rideId + "/requests"))
-                .then().statusCode(400);
-
-        assertTrue(solicitacoesDoMotorista(motorista.token(), rideId).isEmpty(),
-                "nenhuma solicitação persistida sem bagagem válida");
-        assertEquals(3, vagasDisponiveis(rideId), "vagas intactas");
+        assertEquals(1, solicitacoesDoMotorista(motorista.token(), rideId).size(),
+                "o pedido sem bagagem chega ao motorista");
+        assertEquals(3, vagasDisponiveis(rideId), "vagas intactas até o aceite");
     }
 
     // =====================================================================

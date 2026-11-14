@@ -1,5 +1,6 @@
 package com.raiji.rides.domain;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -19,6 +20,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Index;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
+import org.locationtech.jts.geom.Point;
 
 @Entity
 @Table(name = "ride_passengers", indexes = {
@@ -77,6 +79,46 @@ public class RidePassenger extends AuditableEntity {
     )
     private List<Baggage> baggage = new ArrayList<>();
 
+    /** Onde embarca (null = na origem da viagem). */
+    @Column(name = "pickup_location", columnDefinition = "geography(Point,4326)")
+    private Point pickupLocation;
+
+    /** Onde desembarca (null = no destino da viagem). */
+    @Column(name = "dropoff_location", columnDefinition = "geography(Point,4326)")
+    private Point dropoffLocation;
+
+    @Column(name = "pickup_address", length = 255)
+    private String pickupAddress;
+
+    @Column(name = "dropoff_address", length = 255)
+    private String dropoffAddress;
+
+    /** Viagem inteira (origem -> destino)? Só estes entram no "aceitar todos". */
+    @Column(name = "full_route", nullable = false)
+    private boolean fullRoute = true;
+
+    /** Preço desta vaga (o da viagem ou o proporcional do trecho); null = gratuita. */
+    @Column(name = "price", precision = 10, scale = 2)
+    private BigDecimal price;
+
+    @Column(name = "completed_at")
+    private Instant completedAt;
+
+    public void complete() {
+        this.status = RidePassengerStatus.COMPLETED;
+        this.completedAt = Instant.now();
+    }
+
+    /** Bagagem em vigor (sem a alteração que espera aprovação do motorista). */
+    public List<Baggage> activeBaggage() {
+        return baggage.stream().filter(b -> !b.isPendingApproval()).toList();
+    }
+
+    /** Alteração de bagagem esperando o motorista aprovar (vazia se não houver). */
+    public List<Baggage> pendingBaggage() {
+        return baggage.stream().filter(Baggage::isPendingApproval).toList();
+    }
+
     public void confirm() {
         this.status = RidePassengerStatus.CONFIRMED;
         this.confirmedAt = Instant.now();
@@ -115,4 +157,17 @@ public class RidePassenger extends AuditableEntity {
     public String getPaymentIntentId() { return paymentIntentId; }
     public void setPaymentIntentId(String v) { this.paymentIntentId = v; }
     public List<Baggage> getBaggage() { return baggage; }
+    public Point getPickupLocation() { return pickupLocation; }
+    public void setPickupLocation(Point v) { this.pickupLocation = v; }
+    public Point getDropoffLocation() { return dropoffLocation; }
+    public void setDropoffLocation(Point v) { this.dropoffLocation = v; }
+    public String getPickupAddress() { return pickupAddress; }
+    public void setPickupAddress(String v) { this.pickupAddress = v; }
+    public String getDropoffAddress() { return dropoffAddress; }
+    public void setDropoffAddress(String v) { this.dropoffAddress = v; }
+    public boolean isFullRoute() { return fullRoute; }
+    public void setFullRoute(boolean v) { this.fullRoute = v; }
+    public BigDecimal getPrice() { return price; }
+    public void setPrice(BigDecimal v) { this.price = v; }
+    public Instant getCompletedAt() { return completedAt; }
 }
