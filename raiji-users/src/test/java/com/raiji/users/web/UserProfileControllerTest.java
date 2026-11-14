@@ -2,8 +2,8 @@
 package com.raiji.users.web;
 
 import com.raiji.users.domain.UserBusinessProfile;
-import com.raiji.users.keycloak.KeycloakAdminService;
 import com.raiji.users.service.UserBusinessProfileService;
+import com.raiji.users.service.UserCapabilitiesService;
 
 import org.junit.jupiter.api.Test;
 
@@ -43,7 +43,7 @@ class UserProfileControllerTest {
     private MockMvc mockMvc;
 
     @MockitoBean
-    private KeycloakAdminService keycloakAdminService;
+    private UserCapabilitiesService capabilitiesService;
 
     @MockitoBean
     private UserBusinessProfileService businessProfileService;

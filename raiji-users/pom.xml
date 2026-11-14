@@ -11,7 +11,45 @@
     <artifactId>raiji-users</artifactId>
     <name>Raiji :: Users</name>
 
+    <properties>
+        <aws-sdk.version>2.46.7</aws-sdk.version>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>software.amazon.awssdk</groupId>
+                <artifactId>bom</artifactId>
+                <version>${aws-sdk.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
     <dependencies>
+        <!-- Armazenamento temporário da foto da CNH (S3 em produção, RustFS no local).
+             Só o cliente HTTP leve (url-connection): os outros dois vêm por padrão e
+             o SDK recusa subir com mais de uma implementação no classpath. -->
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>s3</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>software.amazon.awssdk</groupId>
+                    <artifactId>apache-client</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>software.amazon.awssdk</groupId>
+                    <artifactId>netty-nio-client</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>url-connection-client</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>com.raiji</groupId>
             <artifactId>raiji-common</artifactId>

@@ -2,6 +2,7 @@ package com.raiji.it;
 
 import static io.restassured.RestAssured.given;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
@@ -42,14 +43,15 @@ class PerfilUsuarioApiIT extends RaijiTestSupport {
 
     @Test
     @Order(3)
-    @DisplayName("CT-010 (RN20): 1º acesso → perfil ainda não configurado")
+    @DisplayName("CT-010 (RN20): 1º acesso → já é passageira, ainda sem PF/PJ (não configurado)")
     void ct010_primeiroAcesso() {
         given().auth().oauth2(token)
                 .when().get(app("/api/users/me"))
                 .then().statusCode(200)
                 .body("sub", notNullValue())
                 .body("userType", nullValue())
-                .body("role", nullValue())
+                .body("passenger", is(true))
+                .body("driver", is(false))
                 .body("profileConfigured", is(false));
     }
 
@@ -61,7 +63,8 @@ class PerfilUsuarioApiIT extends RaijiTestSupport {
                 .body("{\"role\":\"PASSENGER\",\"userType\":\"PF\"}")
                 .when().post(app("/api/users/me/profile"))
                 .then().statusCode(200)
-                .body("role", equalTo("PASSENGER"))
+                .body("passenger", is(true))
+                .body("driver", is(false))
                 .body("userType", equalTo("PF"))
                 .body("profileConfigured", is(true));
     }
@@ -80,39 +83,42 @@ class PerfilUsuarioApiIT extends RaijiTestSupport {
 
     @Test
     @Order(6)
-    @DisplayName("CT-013: alterar para DRIVER + PJ → 200")
-    void ct013_trocarPerfil() {
+    @DisplayName("CT-013: pedir DRIVER pelo /profile SEM CNH verificada → 409 (motorista só com CNH aprovada)")
+    void ct013_driverSemCnh() {
         given().auth().oauth2(token).contentType(ContentType.JSON)
                 .body("{\"role\":\"DRIVER\",\"userType\":\"PJ\"}")
                 .when().post(app("/api/users/me/profile"))
-                .then().statusCode(200)
-                .body("role", equalTo("DRIVER"))
-                .body("userType", equalTo("PJ"));
+                .then().statusCode(409)
+                .body("message", containsString("CNH"));
     }
 
     @Test
     @Order(7)
-    @DisplayName("CT-014 (RF34): após troca, token tem DRIVER+PJ e NÃO tem PASSENGER nem PF")
-    void ct014_trocaDeRole() {
+    @DisplayName("CT-014 (RF34): após o 409 nada mudou — token só passageira, ainda PF")
+    void ct014_nadaMudou() {
         token = obterToken(USUARIO, SENHA_NOVOS_USUARIOS);
         given().auth().oauth2(token)
                 .when().get(app("/api/me"))
                 .then().statusCode(200)
-                .body("realmRoles", hasItem("DRIVER"))
-                .body("realmRoles", hasItem("PJ"))
-                .body("realmRoles", not(hasItem("PASSENGER")))
-                .body("realmRoles", not(hasItem("PF")));
+                .body("realmRoles", hasItem("PASSENGER"))
+                .body("realmRoles", hasItem("PF"))
+                .body("realmRoles", not(hasItem("DRIVER")))
+                .body("realmRoles", not(hasItem("PJ")));
     }
 
     @Test
     @Order(8)
-    @DisplayName("CT-015: reenviar o mesmo perfil é idempotente → 200")
+    @DisplayName("CT-015: /profile PASSENGER + PJ é idempotente → 200 e troca só o tipo")
     void ct015_idempotencia() {
-        given().auth().oauth2(token).contentType(ContentType.JSON)
-                .body("{\"role\":\"DRIVER\",\"userType\":\"PJ\"}")
-                .when().post(app("/api/users/me/profile"))
-                .then().statusCode(200)
-                .body("role", equalTo("DRIVER"));
+        for (int i = 0; i < 2; i++) {
+            given().auth().oauth2(token).contentType(ContentType.JSON)
+                    .body("{\"role\":\"PASSENGER\",\"userType\":\"PJ\"}")
+                    .when().post(app("/api/users/me/profile"))
+                    .then().statusCode(200)
+                    .body("userType", equalTo("PJ"))
+                    .body("driver", is(false))
+                    .body("passenger", is(true));
+        }
     }
 
     @Test
@@ -152,5 +158,53 @@ class PerfilUsuarioApiIT extends RaijiTestSupport {
         given().auth().oauth2(token).contentType(ContentType.JSON)
                 .when().post(app("/api/users/me/profile"))
                 .then().statusCode(400);
+    }
+
+    // ---------------------------------------------------------------------
+    // Motorista e passageiro ao mesmo tempo (endpoints novos)
+    // ---------------------------------------------------------------------
+
+    @Test
+    @Order(13)
+    @DisplayName("CT-019: PUT /account-type PF → troca só o tipo, continua passageira")
+    void ct019_accountType() {
+        given().auth().oauth2(token).contentType(ContentType.JSON)
+                .body("{\"userType\":\"PF\"}")
+                .when().put(app("/api/users/me/account-type"))
+                .then().statusCode(200)
+                .body("userType", equalTo("PF"))
+                .body("driver", is(false))
+                .body("passenger", is(true));
+    }
+
+    @Test
+    @Order(14)
+    @DisplayName("CT-020: PUT /account-type inválido → 400")
+    void ct020_accountTypeInvalido() {
+        given().auth().oauth2(token).contentType(ContentType.JSON)
+                .body("{\"userType\":\"XX\"}")
+                .when().put(app("/api/users/me/account-type"))
+                .then().statusCode(400);
+    }
+
+    @Test
+    @Order(15)
+    @DisplayName("CT-021: DELETE /driver (sem ser motorista) é inofensivo → 200, continua passageira")
+    void ct021_deixarDeSerMotorista() {
+        given().auth().oauth2(token)
+                .when().delete(app("/api/users/me/driver"))
+                .then().statusCode(200)
+                .body("driver", is(false))
+                .body("passenger", is(true));
+    }
+
+    @Test
+    @Order(16)
+    @DisplayName("CT-022: POST /driver sem CNH verificada → 409 (ver DriverVerificationApiIT para o caminho aprovado)")
+    void ct022_driverSemCnh() {
+        given().auth().oauth2(token)
+                .when().post(app("/api/users/me/driver"))
+                .then().statusCode(409)
+                .body("message", containsString("CNH"));
     }
 }

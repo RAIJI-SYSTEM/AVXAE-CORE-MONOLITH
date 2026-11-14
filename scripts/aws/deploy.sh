@@ -49,9 +49,9 @@ log "ECR registry: $ECR_REGISTRY | tag: $IMAGE_TAG"
 # --- 3) Sincronizar arquivos de infra -----------------------------------------
 log "sincronizando arquivos para $SSH_TARGET:$REMOTE_DIR ..."
 ssh "${SSH_OPTS[@]}" "$SSH_TARGET" "mkdir -p '$REMOTE_DIR/scripts/aws'"
-tar czf - \
+tar czf - --exclude='.env' --exclude='target' \
   docker-compose.yml docker-compose.aws.yml \
-  kong keycloak postgres \
+  kong keycloak postgres rabbitmq \
   scripts/aws/deploy-remote.sh scripts/smoke-test.sh \
   | ssh "${SSH_OPTS[@]}" "$SSH_TARGET" "tar xzf - -C '$REMOTE_DIR'"
 
@@ -64,6 +64,7 @@ ECR_REGISTRY=$ECR_REGISTRY
 ECR_REPOSITORY=raiji-app
 IMAGE_TAG=$IMAGE_TAG
 BASE_PORT=$BASE_PORT
+PUBLIC_BASE_URL=${PUBLIC_BASE_URL:-http://$EC2_HOST:$BASE_PORT}
 KC_PORT=$KC_PORT
 SPRING_PROFILES_ACTIVE=docker
 DB_URL=jdbc:postgresql://postgres:5432/raiji_app

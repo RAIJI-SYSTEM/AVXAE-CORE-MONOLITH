@@ -12,9 +12,22 @@
       { "name": "PJ" },
       { "name": "DRIVER" },
       { "name": "PASSENGER" },
-      { "name": "admin" }
+      { "name": "admin" },
+      { "name": "chat-admin", "description": "Administrador do raiji-chat" },
+      { "name": "offline_access", "description": "${role_offline-access}" },
+      { "name": "uma_authorization", "description": "${role_uma_authorization}" },
+      {
+        "name": "default-roles-raiji",
+        "description": "Roles de toda conta nova. PASSENGER: todo usuário pode pedir vaga; DRIVER é acrescentado à parte.",
+        "composite": true,
+        "composites": {
+          "realm": ["offline_access", "uma_authorization", "PASSENGER"],
+          "client": { "account": ["view-profile", "manage-account"] }
+        }
+      }
     ]
   },
+  "defaultRole": { "name": "default-roles-raiji" },
   "clients": [
     {
       "clientId": "raiji-api",

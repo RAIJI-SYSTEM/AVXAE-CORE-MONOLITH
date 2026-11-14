@@ -12,7 +12,7 @@
         POSTGRES_PASSWORD: raiji123
         POSTGRES_DB: raiji_keycloak
       ports:
-        - "5432:5432"
+        - "127.0.0.1:5432:5432"   # só local (IDE / psql); nunca público
       volumes:
         - postgres-data:/var/lib/postgresql/data
       healthcheck:
@@ -36,8 +36,18 @@
         KC_DB_URL: jdbc:postgresql://postgres:5432/raiji_keycloak
         KC_DB_USERNAME: raiji
         KC_DB_PASSWORD: raiji123
+        # URL pública = Kong. Garante que todo token saia com o mesmo
+        # iss (${PUBLIC_BASE_URL}/realms/raiji), que é o que o Kong valida.
+        KC_HOSTNAME: ${PUBLIC_BASE_URL:-http://localhost:8000}
+        # Chamadas internas (app -> http://keycloak:8080) continuam funcionando.
+        KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+        KC_PROXY_HEADERS: xforwarded
+        KC_HTTP_ENABLED: "true"
+        # Plugin raiji-rabbitmq: publica user.created / user.deleted
+        RABBITMQ_URI: amqp://raiji:raiji123@rabbitmq:5672
+        RABBITMQ_USERS_EXCHANGE: raiji.users
       ports:
-        - "8180:8080"
+        - "127.0.0.1:8180:8080"   # console admin só local; usuários entram via Kong
       depends_on:
         postgres:
           condition: service_healthy
@@ -55,8 +65,17 @@
         SPRING_PROFILES_ACTIVE: docker
         SPRING_DATASOURCE_USERNAME: raiji
         SPRING_DATASOURCE_PASSWORD: raiji123
-      ports:
-        - "8080:8080"
+        # Verificação da CNH (Infosimples). Valores vêm do .env da raiz (fora do git).
+        INFO_SIMPLES_KEY: ${INFO_SIMPLES_KEY:-}
+        INFOSIMPLES_GOVBR_CPF: ${INFOSIMPLES_GOVBR_CPF:-}
+        INFOSIMPLES_GOVBR_SENHA: ${INFOSIMPLES_GOVBR_SENHA:-}
+        # E-mails transacionais (Resend), também do .env da raiz
+        RESEND_API_KEY: ${RESEND_API_KEY:-}
+        RESEND_FROM: ${RESEND_FROM:-Raiji <onboarding@resend.dev>}
+        # Foto da CNH (temporária): RustFS local
+        DRIVER_DOCS_BUCKET: raiji-driver-docs
+        DRIVER_DOCS_S3_ENDPOINT: http://rustfs:9000
+      # Sem "ports": o app só é acessível pela rede interna, via Kong (:8000).
       depends_on:
         postgres:
           condition: service_healthy
@@ -79,7 +98,142 @@
         start_period: 60s
 
     # ---------------------------------------------------------------------------
-    # 4) KONG — API Gateway
+    # 3.0) RABBITMQ — eventos de usuário (Keycloak -> raiji.users -> consumidores)
+    #   Painel de gestão só local: http://localhost:15672 (raiji / raiji123)
+    # ---------------------------------------------------------------------------
+    rabbitmq:
+      build:
+        context: ./rabbitmq
+        dockerfile: Dockerfile.rabbitmq
+      container_name: raiji-rabbitmq
+      hostname: rabbitmq          # fixo: o RabbitMQ guarda os dados pelo nome do nó
+      # Usuário (raiji / raiji123), vhost e exchanges vêm de rabbitmq/definitions.json
+      ports:
+        - "127.0.0.1:15672:15672"
+      volumes:
+        - rabbitmq-data:/var/lib/rabbitmq
+      healthcheck:
+        test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+        interval: 10s
+        timeout: 10s
+        retries: 10
+
+    # ---------------------------------------------------------------------------
+    # 3.1) CHAT (raiji-chat) + MONGO — profile "chat" (opcional)
+    #   Requer o repositório raiji-chat clonado ao lado deste:
+    #     raiji/monolith  e  raiji/raiji-chat   (ou CHAT_CONTEXT=<caminho>)
+    #   Subir:  docker compose --profile chat up --build
+    #   Acesso: somente via Kong em http://localhost:8000/chat/...
+    # ---------------------------------------------------------------------------
+    mongo:
+      image: mongo:8
+      container_name: raiji-chat-mongo
+      profiles: ["chat"]
+      volumes:
+        - mongo-data:/data/db
+      healthcheck:
+        test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+        interval: 5s
+        timeout: 5s
+        retries: 20
+
+    chat:
+      build:
+        context: ${CHAT_CONTEXT:-../raiji-chat}
+      container_name: raiji-chat
+      profiles: ["chat"]
+      environment:
+        PORT: "3000"
+        MONGODB_URI: mongodb://mongo:27017/raiji
+        # iss dos tokens = URL pública (Kong); chaves buscadas pela rede interna
+        KEYCLOAK_ISSUER: ${PUBLIC_BASE_URL:-http://localhost:8000}/realms/raiji
+        KEYCLOAK_JWKS_URL: http://keycloak:8080/realms/raiji/protocol/openid-connect/certs
+        KEYCLOAK_AUDIENCE: ""
+        RABBITMQ_URI: amqp://raiji:raiji123@rabbitmq:5672
+        RABBITMQ_USERS_EXCHANGE: raiji.users
+        # Mídia (fotos, áudios, documentos) — RustFS local; em produção, S3:
+        # basta S3_BUCKET + AWS_REGION (sem endpoints, sem chaves: role da EC2)
+        S3_BUCKET: raiji-media
+        AWS_REGION: us-east-1
+        S3_ENDPOINT: http://rustfs:9000                         # chamadas do chat
+        S3_PUBLIC_ENDPOINT: ${PUBLIC_BASE_URL:-http://localhost:8000}  # links p/ o app (via Kong)
+        S3_FORCE_PATH_STYLE: "true"
+        AWS_ACCESS_KEY_ID: raiji
+        AWS_SECRET_ACCESS_KEY: raiji12345
+      # Sem "ports": acessível apenas pela rede interna, via Kong.
+      restart: unless-stopped
+      depends_on:
+        mongo:
+          condition: service_healthy
+        rabbitmq:
+          condition: service_healthy
+        rustfs-init:
+          condition: service_completed_successfully
+        keycloak:
+          condition: service_started
+
+    # ---------------------------------------------------------------------------
+    # 3.2) RUSTFS — S3 local (mídia do chat + foto temporária da CNH do monolito)
+    #   App acessa a mídia do chat via Kong: http://localhost:8000/raiji-media/...
+    #   API S3 só local: http://localhost:9010 (para rodar o Java pela IDE).
+    #   9010, e não 9000: a 9000 costuma estar ocupada (ex.: Portainer).
+    #   Painel web só local: http://localhost:9001 (raiji / raiji12345)
+    # ---------------------------------------------------------------------------
+    rustfs:
+      build:
+        context: ./rustfs
+        dockerfile: Dockerfile.rustfs
+      container_name: raiji-rustfs
+      environment:
+        RUSTFS_ACCESS_KEY: raiji
+        RUSTFS_SECRET_KEY: raiji12345
+      ports:
+        - "127.0.0.1:9010:9000"   # API S3
+        - "127.0.0.1:9001:9001"   # painel web
+      volumes:
+        - rustfs-data:/data
+
+    rustfs-init:
+      image: amazon/aws-cli:2.38.5
+      container_name: raiji-rustfs-init
+      entrypoint: ["sh", "/init/01-create-bucket.sh"]
+      environment:
+        AWS_ACCESS_KEY_ID: raiji
+        AWS_SECRET_ACCESS_KEY: raiji12345
+        AWS_DEFAULT_REGION: us-east-1
+        S3_ENDPOINT: http://rustfs:9000
+        S3_BUCKET: raiji-media
+        CORS_ORIGINS: http://localhost,http://localhost:3000
+        DOCS_BUCKET: raiji-driver-docs   # foto temporária da CNH (monolito)
+      volumes:
+        - ./rustfs/init:/init:ro
+      restart: "no"
+      depends_on:
+        rustfs:
+          condition: service_started
+
+    # ---------------------------------------------------------------------------
+    # 4) KONG-INIT — gera o kong.yml com a chave pública do realm
+    #    (a imagem do Kong não tem curl; este container roda uma vez e sai)
+    # ---------------------------------------------------------------------------
+    kong-init:
+      image: alpine:3.20
+      container_name: raiji-kong-init
+      environment:
+        PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:8000}
+        KC_INTERNAL_URL: http://keycloak:8080
+        KC_REALM: raiji
+      volumes:
+        - ./kong:/kong:ro
+        - kong-config:/out
+      command: ["sh", "/kong/render-config.sh"]
+      restart: "no"
+      depends_on:
+        keycloak:
+          condition: service_started
+
+    # ---------------------------------------------------------------------------
+    # 5) KONG — API Gateway (ÚNICO ponto de entrada público: :8000)
     # ---------------------------------------------------------------------------
     kong:
       image: kong:3.7
@@ -95,15 +249,27 @@
         KONG_ADMIN_ERROR_LOG: /dev/stderr
         KONG_LOG_LEVEL: info
       ports:
-        - "8000:8000"
-        - "8001:8001"
+        - "8000:8000"             # proxy público
+        - "127.0.0.1:8001:8001"   # Admin API do Kong só local
       volumes:
-        - ./kong/kong.yml:/kong/declarative/kong.yml:ro
+        - kong-config:/kong/declarative:ro
+      healthcheck:
+        test: ["CMD", "kong", "health"]
+        interval: 10s
+        timeout: 5s
+        retries: 10
+      # Não depende do app Java nem do chat: o Kong (DB-less) só resolve os
+      # destinos na hora da requisição. Serviço fora do ar = 502/503 só naquela rota.
+      # Ex.: só Keycloak + chat:  docker compose --profile chat up -d keycloak chat kong
       depends_on:
-        app:
-          condition: service_healthy
+        kong-init:
+          condition: service_completed_successfully
         keycloak:
           condition: service_started
 
   volumes:
     postgres-data:
+    kong-config:
+    mongo-data:
+    rabbitmq-data:
+    rustfs-data:

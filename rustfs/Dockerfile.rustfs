@@ -1,0 +1,7 @@
+# S3 local (compatível com a API do S3) para desenvolvimento.
+# Em produção o chat usa o S3 da AWS — só mudam as variáveis S3_* do chat.
+# (O MinIO gratuito foi descontinuado: imagens removidas e repositório arquivado.)
+FROM rustfs/rustfs:1.0.4-glibc
+
+# Dados em /data (volume); API S3 em :9000; painel web em :9001
+EXPOSE 9000 9001

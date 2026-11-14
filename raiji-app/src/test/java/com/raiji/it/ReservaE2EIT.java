@@ -129,10 +129,32 @@ class ReservaE2EIT extends RaijiTestSupport {
                 .when().get(app("/api/users/me"))
                 .then().statusCode(200);
 
+        // Tipo da conta (PF/PJ); toda conta já é passageira
         given().auth().oauth2(token).contentType(ContentType.JSON)
-                .body(Map.of("role", role, "userType", userType))
+                .body(Map.of("role", "PASSENGER", "userType", userType))
                 .when().post(app("/api/users/me/profile"))
                 .then().statusCode(200);
+
+        // Motorista: como no app — envia a CNH e espera a aprovação
+        // (Infosimples FALSA, ver FakeInfosimples: nenhuma chamada real)
+        if ("DRIVER".equals(role)) {
+            given().auth().oauth2(token)
+                    .multiPart("image", "cnh.png", "foto".getBytes(), "image/png")
+                    .multiPart("securityCode", FakeInfosimples.CNH_VALIDA)
+                    .when().post(app("/api/users/me/driver/cnh"))
+                    .then().statusCode(202);
+            String status = "PROCESSING";
+            for (int i = 0; i < 100 && "PROCESSING".equals(status); i++) {
+                try {
+                    Thread.sleep(100);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+                status = given().auth().oauth2(token).when().get(app("/api/users/me/driver/cnh"))
+                        .then().statusCode(200).extract().path("status");
+            }
+            org.assertj.core.api.Assertions.assertThat(status).isEqualTo("APPROVED");
+        }
 
         // re-login: novo token já carrega a role sincronizada
         String tokenComRole = obterToken(username, SENHA_NOVOS_USUARIOS);

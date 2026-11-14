@@ -251,8 +251,8 @@ class RideRequestApiIT extends RaijiTestSupport {
     }
 
     @Test
-    @DisplayName("RF06: usuário sem role PASSENGER não solicita vaga")
-    void usuarioSemRolePassengerNaoSolicita() {
+    @DisplayName("RF06: toda conta é passageira — conta nova, sem perfil definido, já solicita vaga")
+    void contaNovaJaEhPassageira() {
         DriverSetup driver = criarMotorista();
         UserSetup user = criarUsuarioComRole("request-user", null);
         String rideId = criarCarona(driver);
@@ -262,7 +262,21 @@ class RideRequestApiIT extends RaijiTestSupport {
                 .contentType(ContentType.JSON)
                 .body(payloadSolicitacao("Maria Silva"))
                 .when().post(app("/api/rides/" + rideId + "/requests"))
-                .then().statusCode(403);
+                .then().statusCode(201);
+    }
+
+    @Test
+    @DisplayName("RF06: motorista também é passageiro, mas não pede vaga na própria carona → 409")
+    void motoristaNaoPedeVagaNaPropriaCarona() {
+        DriverSetup driver = criarMotorista();
+        String rideId = criarCarona(driver);
+
+        given()
+                .auth().oauth2(driver.token())
+                .contentType(ContentType.JSON)
+                .body(payloadSolicitacao("Motorista"))
+                .when().post(app("/api/rides/" + rideId + "/requests"))
+                .then().statusCode(409);
     }
 
     @Test

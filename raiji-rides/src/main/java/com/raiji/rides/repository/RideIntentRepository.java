@@ -21,10 +21,12 @@ public interface RideIntentRepository extends JpaRepository<RideIntent, UUID> {
           AND ri.expires_at > NOW()
           AND ri.type = :type
           AND ri.mode = :mode
+          -- "Na hora": sem horário, ou horário até 60 min à frente. Um horário que JÁ
+          -- passou continua valendo enquanto a intenção não expira (antes: BETWEEN NOW()
+          -- e NOW()+60min, e a intenção sumia da busca logo depois do horário desejado).
           AND (
                 ri.desired_at IS NULL
-                OR ri.desired_at BETWEEN NOW()
-                                    AND NOW() + INTERVAL '60 minutes'
+                OR ri.desired_at <= NOW() + INTERVAL '60 minutes'
           )
           AND ri.origin_location IS NOT NULL
           AND ST_DWithin(
@@ -36,6 +38,7 @@ public interface RideIntentRepository extends JpaRepository<RideIntent, UUID> {
             ri.origin_location,
             ST_SetSRID(ST_MakePoint(:longitude, :latitude), 4326)::geography
         )
+        LIMIT 50
         """, nativeQuery = true)
     List<RideIntent> findNearby(
             @Param("type") String type,
@@ -66,6 +69,7 @@ public interface RideIntentRepository extends JpaRepository<RideIntent, UUID> {
                     ri.origin_location,
                     ST_SetSRID(ST_MakePoint(:longitude, :latitude), 4326)::geography
                  )
+        LIMIT 100
         """, nativeQuery = true)
     List<RideIntent> findBoard(
             @Param("type") String type,

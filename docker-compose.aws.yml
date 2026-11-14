@@ -5,7 +5,7 @@
 # Variáveis (arquivo .env gerado pelo scripts/aws/deploy.sh — NUNCA commitar):
 #   ECR_REGISTRY, ECR_REPOSITORY, IMAGE_TAG, BASE_PORT, KC_PORT,
 #   DB_URL, DB_USER, DB_PASSWORD, JWK_SET_URI, KEYCLOAK_ADMIN_CLIENT_SECRET,
-#   SPRING_PROFILES_ACTIVE, POSTGRES_DB
+#   SPRING_PROFILES_ACTIVE, POSTGRES_DB, PUBLIC_BASE_URL (URL pública do Kong)
 #
 # Requer Docker Compose >= 2.24 (tags !override/!reset).
 # =============================================================================
@@ -44,7 +44,33 @@ services:
       SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD obrigatório}
       SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: ${JWK_SET_URI:-http://keycloak:8080/realms/raiji/protocol/openid-connect/certs}
       RAIJI_KEYCLOAK_ADMIN_CLIENT_SECRET: ${KEYCLOAK_ADMIN_CLIENT_SECRET:?KEYCLOAK_ADMIN_CLIENT_SECRET obrigatório}
+      # --- verificação da CNH: S3 real (sem endpoint/chaves: role da EC2) ------
+      INFO_SIMPLES_KEY: ${INFO_SIMPLES_KEY:-}
+      INFOSIMPLES_GOVBR_CPF: ${INFOSIMPLES_GOVBR_CPF:-}
+      INFOSIMPLES_GOVBR_SENHA: ${INFOSIMPLES_GOVBR_SENHA:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      RESEND_FROM: ${RESEND_FROM:-}
+      DRIVER_DOCS_BUCKET: ${DRIVER_DOCS_BUCKET:-}
+      DRIVER_DOCS_S3_ENDPOINT: ""
+      DRIVER_DOCS_S3_PATH_STYLE: "false"
+      DRIVER_DOCS_S3_ACCESS_KEY: ""
+      DRIVER_DOCS_S3_SECRET_KEY: ""
     ports: !override []          # app acessível apenas via Kong
+
+  # S3 local (RustFS) só no desenvolvimento: na AWS usa-se o S3 de verdade
+  rustfs:
+    profiles: ["local-only"]
+    ports: !override []
+
+  rustfs-init:
+    profiles: ["local-only"]
+
+  rabbitmq:
+    container_name: ${COMPOSE_PROJECT_NAME:-raiji}-rabbitmq
+    ports: !override []          # broker e painel só na rede interna
+
+  kong-init:
+    container_name: ${COMPOSE_PROJECT_NAME:-raiji}-kong-init
 
   kong:
     container_name: ${COMPOSE_PROJECT_NAME:-raiji}-kong

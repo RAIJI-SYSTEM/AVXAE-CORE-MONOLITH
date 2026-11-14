@@ -27,6 +27,12 @@ spring:
         jwt:
           jwk-set-uri: http://localhost:8180/realms/raiji/protocol/openid-connect/certs
 
+  # Foto da CNH na verificação de motorista
+  servlet:
+    multipart:
+      max-file-size: 8MB
+      max-request-size: 9MB
+
 management:
   endpoints:
     web:
@@ -45,3 +51,32 @@ raiji:
   stripe:
     api-key: ${STRIPE_API_KEY:}
     webhook-secret: ${STRIPE_WEBHOOK_SECRET:}
+
+  # E-mails transacionais (Resend). Chave no .env da raiz; sem chave nada é enviado.
+  # RESEND_FROM: use um domínio verificado no Resend. O padrão (onboarding@resend.dev)
+  # só entrega para o e-mail do dono da conta Resend.
+  mail:
+    resend:
+      api-key: ${RESEND_API_KEY:}
+      base-url: ${RESEND_BASE_URL:https://api.resend.com}
+      from: ${RESEND_FROM:Raiji <onboarding@resend.dev>}
+
+  # Verificação da CNH para virar motorista (Infosimples: OCR + SENATRAN/Validar CNH).
+  # Segredos só por variável de ambiente (no .env da raiz, fora do git).
+  # Sem token => a verificação responde 503 (nada é chamado).
+  driver-verification:
+    infosimples:
+      base-url: ${INFOSIMPLES_BASE_URL:https://api.infosimples.com}
+      token: ${INFO_SIMPLES_KEY:}
+      govbr-cpf: ${INFOSIMPLES_GOVBR_CPF:}
+      govbr-password: ${INFOSIMPLES_GOVBR_SENHA:}
+      timeout-seconds: 120
+    # Foto da CNH: guardada só durante a verificação e apagada na decisão.
+    # Local: RustFS (127.0.0.1:9010). Produção: S3 (sem endpoint e sem chaves: role da EC2).
+    storage:
+      bucket: ${DRIVER_DOCS_BUCKET:raiji-driver-docs}
+      region: ${AWS_REGION:us-east-1}
+      endpoint: ${DRIVER_DOCS_S3_ENDPOINT:http://localhost:9010}
+      path-style: ${DRIVER_DOCS_S3_PATH_STYLE:true}
+      access-key: ${DRIVER_DOCS_S3_ACCESS_KEY:raiji}
+      secret-key: ${DRIVER_DOCS_S3_SECRET_KEY:raiji12345}

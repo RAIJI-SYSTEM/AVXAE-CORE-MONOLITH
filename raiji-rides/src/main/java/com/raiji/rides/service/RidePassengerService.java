@@ -96,6 +96,14 @@ public class RidePassengerService {
                         "Carona não encontrada."
                 ));
 
+        // A mesma conta pode ser motorista e passageira — mas não na mesma carona
+        if (ride.getDriverSub().equals(passengerSub)) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Você não pode pedir vaga na sua própria carona."
+            );
+        }
+
         if (ride.getStatus() != RideStatus.PLANNED) {
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,

@@ -1,0 +1,7 @@
+# Arquivos executados DENTRO de containers Linux precisam de LF,
+# mesmo quando o repositório é clonado no Windows (core.autocrlf=true).
+*.sh            text eol=lf
+kong/*          text eol=lf
+keycloak/*.json text eol=lf
+postgres/init/* text eol=lf
+Dockerfile*     text eol=lf
