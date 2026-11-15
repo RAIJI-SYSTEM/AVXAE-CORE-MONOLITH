@@ -6,21 +6,24 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 import com.raiji.common.enums.DeliveryStatus;
-import com.raiji.deliveries.domain.Delivery;
-import com.raiji.deliveries.domain.PackageDetails;
-import com.raiji.deliveries.domain.PackageSize;
+import com.raiji.deliveries.Delivery;
+import com.raiji.deliveries.PackageDetails;
+import com.raiji.deliveries.PackageSize;
 import com.raiji.rides.domain.Ride;
 import com.raiji.rides.geo.GeoSupport;
 import com.raiji.rides.pricing.PriceBreakdown;
 
 /**
- * Encomenda. {@code pickupCode} e {@code deliveryKeyword} só aparecem para quem
- * envia (e os membros da empresa); o motorista recebe null e digita o que ouvir.
+ * Encomenda.
+ * O trackingCode é público para os participantes da encomenda.
+ * pickupCode e deliveryKeyword só aparecem para quem envia
+ * (e membros da empresa); o motorista recebe null e digita o que ouvir.
  */
 public record DeliveryResponse(
         UUID id,
         UUID rideId,
         DeliveryStatus status,
+        String trackingCode,
         String senderSub,
         String senderName,
         UUID companyId,
@@ -68,15 +71,44 @@ public record DeliveryResponse(
     public static DeliveryResponse of(Delivery d, Ride ride, boolean showCodes) {
         PackageDetails p = d.getPkg();
         PriceBreakdown price = PriceBreakdown.of(d.getPrice(), d.getPlatformFeePercent());
-        return new DeliveryResponse(d.getId(), d.getRideId(), d.getStatus(), d.getSenderSub(), d.getSenderName(),
-                d.getCompanyId(), p.getSize(), p.getDescription(), p.getWeightKg(), p.getLengthCm(), p.getWidthCm(),
-                p.getHeightCm(), p.isFragile(), p.getDeclaredValue(), p.getRecipientName(), p.getRecipientPhone(),
-                GeoSupport.latitude(d.getPickupLocation()), GeoSupport.longitude(d.getPickupLocation()),
+
+        return new DeliveryResponse(
+                d.getId(),
+                d.getRideId(),
+                d.getStatus(),
+                d.getTrackingCode(),
+                d.getSenderSub(),
+                d.getSenderName(),
+                d.getCompanyId(),
+                p.getSize(),
+                p.getDescription(),
+                p.getWeightKg(),
+                p.getLengthCm(),
+                p.getWidthCm(),
+                p.getHeightCm(),
+                p.isFragile(),
+                p.getDeclaredValue(),
+                p.getRecipientName(),
+                p.getRecipientPhone(),
+                GeoSupport.latitude(d.getPickupLocation()),
+                GeoSupport.longitude(d.getPickupLocation()),
                 d.getPickupAddress(),
-                GeoSupport.latitude(d.getDropoffLocation()), GeoSupport.longitude(d.getDropoffLocation()),
-                d.getDropoffAddress(), d.isFullRoute(), price.price(), price.platformFee(), price.driverReceives(),
-                showCodes ? d.getPickupCode() : null, showCodes ? d.getDeliveryKeyword() : null,
-                d.getRequestedAt(), d.getConfirmedAt(), d.getPickedUpAt(), d.getDeliveredAt(), d.getCancelledAt(),
-                d.getCancellationReason(), RideSummary.of(ride));
+                GeoSupport.latitude(d.getDropoffLocation()),
+                GeoSupport.longitude(d.getDropoffLocation()),
+                d.getDropoffAddress(),
+                d.isFullRoute(),
+                price.price(),
+                price.platformFee(),
+                price.driverReceives(),
+                showCodes ? d.getPickupCode() : null,
+                showCodes ? d.getDeliveryKeyword() : null,
+                d.getRequestedAt(),
+                d.getConfirmedAt(),
+                d.getPickedUpAt(),
+                d.getDeliveredAt(),
+                d.getCancelledAt(),
+                d.getCancellationReason(),
+                RideSummary.of(ride)
+        );
     }
 }
