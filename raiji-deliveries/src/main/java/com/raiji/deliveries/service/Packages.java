@@ -1,7 +1,7 @@
 package com.raiji.deliveries.service;
 
-import com.raiji.deliveries.domain.PackageDetails;
-import com.raiji.deliveries.domain.PackageSize;
+import com.raiji.deliveries.PackageDetails;
+import com.raiji.deliveries.PackageSize;
 import com.raiji.deliveries.dto.PackageRequest;
 import com.raiji.rides.cargo.CargoLoad;
 import org.springframework.http.HttpStatus;
