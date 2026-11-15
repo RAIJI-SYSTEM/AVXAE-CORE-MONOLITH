@@ -4,8 +4,10 @@ import java.util.List;
 import java.util.UUID;
 
 import com.raiji.common.enums.DeliveryStatus;
-import com.raiji.deliveries.domain.Delivery;
+import com.raiji.deliveries.Delivery;
+import com.raiji.deliveries.DeliveryStatusHistory;
 import com.raiji.deliveries.repository.DeliveryRepository;
+import com.raiji.deliveries.repository.DeliveryStatusHistoryRepository;
 import com.raiji.rides.cargo.CargoLoad;
 import com.raiji.rides.cargo.RidePackageBookings;
 import org.springframework.stereotype.Component;
@@ -16,10 +18,14 @@ import org.springframework.transaction.annotation.Transactional;
 public class DeliveryRideBookings implements RidePackageBookings {
 
     private final DeliveryRepository deliveries;
+    private final DeliveryStatusHistoryRepository history;
     private final DeliveryNotifier notifier;
 
-    public DeliveryRideBookings(DeliveryRepository deliveries, DeliveryNotifier notifier) {
+    public DeliveryRideBookings(DeliveryRepository deliveries,
+                                DeliveryStatusHistoryRepository history,
+                                DeliveryNotifier notifier) {
         this.deliveries = deliveries;
+        this.history = history;
         this.notifier = notifier;
     }
 
@@ -55,8 +61,19 @@ public class DeliveryRideBookings implements RidePackageBookings {
 
     private void closeAll(UUID rideId, List<DeliveryStatus> statuses, String reason, String kind) {
         for (Delivery d : deliveries.findByRideIdAndStatusInAndDeletedAtIsNull(rideId, statuses)) {
+            DeliveryStatus previous = d.getStatus();
+
             d.cancel(reason);
-            deliveries.save(d);
+            d = deliveries.save(d);
+
+            history.save(new DeliveryStatusHistory(
+                    d.getId(),
+                    previous,
+                    DeliveryStatus.CANCELLED,
+                    null,
+                    reason
+            ));
+
             notifier.sender(d, kind, "Sua encomenda não vai nesta carona. Motivo: " + reason);
         }
     }
