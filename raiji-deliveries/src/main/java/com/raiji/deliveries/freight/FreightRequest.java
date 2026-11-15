@@ -6,7 +6,7 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 import com.raiji.common.base.AuditableEntity;
-import com.raiji.deliveries.domain.PackageDetails;
+import com.raiji.deliveries.PackageDetails;
 import jakarta.persistence.Column;
 import jakarta.persistence.Embedded;
 import jakarta.persistence.Entity;

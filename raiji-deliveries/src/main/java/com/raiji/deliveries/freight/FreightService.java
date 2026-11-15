@@ -9,17 +9,20 @@ import java.util.Locale;
 import java.util.UUID;
 
 import com.raiji.common.embeddable.CargoDetails;
-import com.raiji.deliveries.domain.Delivery;
-import com.raiji.deliveries.domain.PackageDetails;
+import com.raiji.deliveries.Delivery;
+import com.raiji.deliveries.DeliveryStatusHistory;
+import com.raiji.deliveries.PackageDetails;
 import com.raiji.deliveries.freight.FreightDtos.CreateFreightRequest;
 import com.raiji.deliveries.freight.FreightDtos.CreateOfferRequest;
 import com.raiji.deliveries.freight.FreightDtos.FreightPlace;
 import com.raiji.deliveries.freight.FreightDtos.FreightResponse;
 import com.raiji.deliveries.freight.FreightDtos.OfferResponse;
 import com.raiji.deliveries.repository.DeliveryRepository;
+import com.raiji.deliveries.repository.DeliveryStatusHistoryRepository;
 import com.raiji.deliveries.service.DeliveryCodes;
 import com.raiji.deliveries.service.DeliveryNotifier;
 import com.raiji.deliveries.service.Packages;
+import com.raiji.common.enums.DeliveryStatus;
 import com.raiji.rides.domain.Ride;
 import com.raiji.rides.geo.GeoSupport;
 import com.raiji.rides.geo.Place;
@@ -50,6 +53,7 @@ public class FreightService {
     private final FreightRequestRepository requests;
     private final FreightOfferRepository offers;
     private final DeliveryRepository deliveries;
+    private final DeliveryStatusHistoryRepository history;
     private final RideService rideService;
     private final CompanyMembership membership;
     private final KeycloakAdminService keycloak;
@@ -57,11 +61,14 @@ public class FreightService {
     private final Clock clock;
 
     public FreightService(FreightRequestRepository requests, FreightOfferRepository offers,
-                          DeliveryRepository deliveries, RideService rideService, CompanyMembership membership,
+                          DeliveryRepository deliveries,
+                          DeliveryStatusHistoryRepository history,
+                          RideService rideService, CompanyMembership membership,
                           KeycloakAdminService keycloak, DeliveryNotifier notifier, Clock clock) {
         this.requests = requests;
         this.offers = offers;
         this.deliveries = deliveries;
+        this.history = history;
         this.rideService = rideService;
         this.membership = membership;
         this.keycloak = keycloak;
@@ -81,7 +88,8 @@ public class FreightService {
         if (body.desiredDate().isAfter(agora.plusMonths(3))) {
             throw bad("A data desejada não pode passar de 3 meses.");
         }
-        String alvo = body.targetDriverSub() == null || body.targetDriverSub().isBlank() ? null : body.targetDriverSub().trim();
+        String alvo = body.targetDriverSub() == null || body.targetDriverSub().isBlank()
+                ? null : body.targetDriverSub().trim();
         if (alvo != null) {
             if (body.offeredPrice() == null) {
                 throw bad("Na proposta direta, informe o valor oferecido ao motorista.");
@@ -122,7 +130,8 @@ public class FreightService {
     /** Detalhe: membro da empresa vê tudo; motorista (alvo ou de pedido público aberto) vê o essencial. */
     @Transactional(readOnly = true)
     public FreightResponse get(UUID id, String viewerSub) {
-        FreightRequest f = requests.findById(id).filter(x -> x.getDeletedAt() == null).orElseThrow(this::naoEncontrado);
+        FreightRequest f = requests.findById(id).filter(x -> x.getDeletedAt() == null)
+                .orElseThrow(this::naoEncontrado);
         String nome = membership.displayName(f.getCompanyId());
         if (membership.isActiveMember(f.getCompanyId(), viewerSub)) {
             return view(f, nome, true, null);
@@ -139,14 +148,17 @@ public class FreightService {
 
     @Transactional(readOnly = true)
     public List<OfferResponse> offersFor(UUID id, String memberSub) {
-        FreightRequest f = requests.findById(id).filter(x -> x.getDeletedAt() == null).orElseThrow(this::naoEncontrado);
+        FreightRequest f = requests.findById(id).filter(x -> x.getDeletedAt() == null)
+                .orElseThrow(this::naoEncontrado);
         membership.requireActiveMember(f.getCompanyId(), memberSub);
-        return offers.findByRequestIdAndDeletedAtIsNullOrderByPriceAsc(id).stream().map(OfferResponse::of).toList();
+        return offers.findByRequestIdAndDeletedAtIsNullOrderByPriceAsc(id).stream()
+                .map(OfferResponse::of).toList();
     }
 
     @Transactional
     public FreightResponse cancel(UUID id, String memberSub) {
-        FreightRequest f = requests.findByIdForUpdate(id).filter(x -> x.getDeletedAt() == null).orElseThrow(this::naoEncontrado);
+        FreightRequest f = requests.findByIdForUpdate(id).filter(x -> x.getDeletedAt() == null)
+                .orElseThrow(this::naoEncontrado);
         Company company = membership.requireActiveMember(f.getCompanyId(), memberSub);
         exigirAberto(f);
         f.setStatus(FreightStatus.CANCELLED);
@@ -167,14 +179,16 @@ public class FreightService {
     /** A empresa escolhe uma oferta: fecha o frete; as outras ofertas são recusadas. */
     @Transactional
     public FreightResponse acceptOffer(UUID id, UUID offerId, String memberSub) {
-        FreightRequest f = requests.findByIdForUpdate(id).filter(x -> x.getDeletedAt() == null).orElseThrow(this::naoEncontrado);
+        FreightRequest f = requests.findByIdForUpdate(id).filter(x -> x.getDeletedAt() == null)
+                .orElseThrow(this::naoEncontrado);
         Company company = membership.requireActiveMember(f.getCompanyId(), memberSub);
         exigirAberto(f);
         FreightOffer offer = offers.findById(offerId)
                 .filter(o -> o.getRequestId().equals(id) && o.getStatus() == OfferStatus.PENDING)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Oferta não encontrada."));
 
-        fechar(f, company, offer.getDriverSub(), offer.getDriverName(), offer.getVehicleId(), offer.getPrice(), memberSub);
+        fechar(f, company, offer.getDriverSub(), offer.getDriverName(), offer.getVehicleId(),
+                offer.getPrice(), memberSub);
         offer.setStatus(OfferStatus.ACCEPTED);
         offers.save(offer);
         f.setAcceptedOfferId(offer.getId());
@@ -195,7 +209,8 @@ public class FreightService {
     /** Propostas diretas para mim, em aberto. */
     @Transactional(readOnly = true)
     public List<FreightResponse> forMe(String driverSub) {
-        return requests.findByTargetDriverSubAndStatusAndDeletedAtIsNullOrderByDesiredDateAsc(driverSub, FreightStatus.OPEN)
+        return requests.findByTargetDriverSubAndStatusAndDeletedAtIsNullOrderByDesiredDateAsc(
+                        driverSub, FreightStatus.OPEN)
                 .stream().map(f -> view(f, membership.displayName(f.getCompanyId()), false, driverSub)).toList();
     }
 
@@ -215,7 +230,8 @@ public class FreightService {
     /** Aceitar a proposta direta (escolhendo o veículo): vira viagem exclusiva + encomenda aceita. */
     @Transactional
     public FreightResponse acceptDirect(UUID id, String driverSub, String driverName, UUID vehicleId) {
-        FreightRequest f = requests.findByIdForUpdate(id).filter(x -> x.getDeletedAt() == null).orElseThrow(this::naoEncontrado);
+        FreightRequest f = requests.findByIdForUpdate(id).filter(x -> x.getDeletedAt() == null)
+                .orElseThrow(this::naoEncontrado);
         if (!driverSub.equals(f.getTargetDriverSub())) {
             throw naoEncontrado();
         }
@@ -229,7 +245,8 @@ public class FreightService {
 
     @Transactional
     public FreightResponse declineDirect(UUID id, String driverSub, String reason) {
-        FreightRequest f = requests.findByIdForUpdate(id).filter(x -> x.getDeletedAt() == null).orElseThrow(this::naoEncontrado);
+        FreightRequest f = requests.findByIdForUpdate(id).filter(x -> x.getDeletedAt() == null)
+                .orElseThrow(this::naoEncontrado);
         if (!driverSub.equals(f.getTargetDriverSub())) {
             throw naoEncontrado();
         }
@@ -246,7 +263,8 @@ public class FreightService {
     /** Oferecer-se para um pedido público. */
     @Transactional
     public OfferResponse offer(UUID id, String driverSub, String driverName, CreateOfferRequest body) {
-        FreightRequest f = requests.findByIdForUpdate(id).filter(x -> x.getDeletedAt() == null).orElseThrow(this::naoEncontrado);
+        FreightRequest f = requests.findByIdForUpdate(id).filter(x -> x.getDeletedAt() == null)
+                .orElseThrow(this::naoEncontrado);
         if (f.direct()) {
             throw naoEncontrado();
         }
@@ -284,7 +302,7 @@ public class FreightService {
     @Transactional(readOnly = true)
     public List<OfferResponse> myOffers(String driverSub) {
         return offers.findByDriverSubAndStatusInAndDeletedAtIsNullOrderByCreatedAtDesc(driverSub,
-                List.of(OfferStatus.PENDING, OfferStatus.ACCEPTED, OfferStatus.DECLINED)).stream()
+                        List.of(OfferStatus.PENDING, OfferStatus.ACCEPTED, OfferStatus.DECLINED)).stream()
                 .map(OfferResponse::of).toList();
     }
 
@@ -323,11 +341,21 @@ public class FreightService {
         d.setFullRoute(true);
         d.setPrice(price);
         d.setPlatformFeePercent(ride.getPlatformFeePercent());
+        d.setTrackingCode(DeliveryCodes.trackingCode());
         d.setPickupCode(DeliveryCodes.pickupCode());
         d.setDeliveryKeyword(DeliveryCodes.keyword());
         d.setFreightRequestId(f.getId());
+
         d.confirm();
         d = deliveries.save(d);
+
+        history.save(new DeliveryStatusHistory(
+                d.getId(),
+                DeliveryStatus.PENDING,
+                DeliveryStatus.CONFIRMED,
+                senderSub,
+                "Frete confirmado automaticamente."
+        ));
 
         f.setStatus(FreightStatus.ACCEPTED);
         f.setRideId(ride.getId());
@@ -340,8 +368,8 @@ public class FreightService {
         long pendentes = offers.countByRequestIdAndStatus(f.getId(), OfferStatus.PENDING);
         OfferResponse minha = driverSub == null ? null
                 : offers.findByRequestIdAndDeletedAtIsNullOrderByPriceAsc(f.getId()).stream()
-                        .filter(o -> o.getDriverSub().equals(driverSub) && o.getStatus() != OfferStatus.WITHDRAWN)
-                        .findFirst().map(OfferResponse::of).orElse(null);
+                .filter(o -> o.getDriverSub().equals(driverSub) && o.getStatus() != OfferStatus.WITHDRAWN)
+                .findFirst().map(OfferResponse::of).orElse(null);
         return FreightResponse.of(f, companyName, companyView, pendentes, minha);
     }
 
