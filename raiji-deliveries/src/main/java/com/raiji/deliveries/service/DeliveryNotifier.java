@@ -4,7 +4,7 @@ import java.util.Objects;
 import java.util.UUID;
 
 import com.raiji.common.notification.NotificationRequested;
-import com.raiji.deliveries.domain.Delivery;
+import com.raiji.deliveries.Delivery;
 import com.raiji.users.company.CompanyMembership;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
