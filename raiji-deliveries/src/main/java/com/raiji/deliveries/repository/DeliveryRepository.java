@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.UUID;
 
 import com.raiji.common.enums.DeliveryStatus;
-import com.raiji.deliveries.domain.Delivery;
+import com.raiji.deliveries.Delivery;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
