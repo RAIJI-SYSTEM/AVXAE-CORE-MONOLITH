@@ -5,8 +5,8 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
-import com.raiji.deliveries.domain.PackageDetails;
-import com.raiji.deliveries.domain.PackageSize;
+import com.raiji.deliveries.PackageDetails;
+import com.raiji.deliveries.PackageSize;
 import com.raiji.deliveries.dto.PackageRequest;
 import com.raiji.rides.geo.GeoSupport;
 import jakarta.validation.Valid;
