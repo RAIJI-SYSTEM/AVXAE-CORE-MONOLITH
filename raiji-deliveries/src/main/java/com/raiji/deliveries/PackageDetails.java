@@ -1,4 +1,4 @@
-package com.raiji.deliveries.domain;
+package com.raiji.deliveries;
 
 import java.math.BigDecimal;
 
