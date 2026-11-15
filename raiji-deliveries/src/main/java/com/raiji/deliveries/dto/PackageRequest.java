@@ -2,7 +2,7 @@ package com.raiji.deliveries.dto;
 
 import java.math.BigDecimal;
 
-import com.raiji.deliveries.domain.PackageSize;
+import com.raiji.deliveries.PackageSize;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotBlank;
