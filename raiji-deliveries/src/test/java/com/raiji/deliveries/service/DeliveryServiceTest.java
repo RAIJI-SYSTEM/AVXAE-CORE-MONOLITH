@@ -1,17 +1,4 @@
-
 package com.raiji.deliveries.service;
-
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
-
-import java.math.BigDecimal;
-import java.time.Clock;
-import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
 
 import com.raiji.common.enums.DeliveryStatus;
 import com.raiji.common.enums.RideStatus;
@@ -27,13 +14,32 @@ import com.raiji.rides.domain.Ride;
 import com.raiji.rides.domain.RideVisibility;
 import com.raiji.rides.repository.RideRepository;
 import com.raiji.users.company.CompanyMembership;
-
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.web.server.ResponseStatusException;
+import com.raiji.common.enums.RideType;
+import com.raiji.deliveries.dto.AvailableDeliveryResponse;
+import org.springframework.http.HttpStatus;
+
+import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
+
+import com.raiji.deliveries.dto.DeliveryRequest;
+import com.raiji.deliveries.dto.DeliverySummaryResponse;
+import org.mockito.ArgumentCaptor;
+import com.raiji.deliveries.DeliveryMode;
 
 @ExtendWith(MockitoExtension.class)
 class DeliveryServiceTest {
@@ -58,6 +64,9 @@ class DeliveryServiceTest {
 
     @Mock
     private Clock clock;
+
+    @Mock
+    private TrackingCodeGenerator trackingCodeGenerator;
 
     @InjectMocks
     private DeliveryService service;
@@ -713,6 +722,320 @@ class DeliveryServiceTest {
 
         assertFalse(service.podeVerComoRemetente(delivery, "outro-456"));
     }
+    // =========================================================
+// CRIAÇÃO DE ENTREGA INDEPENDENTE
+// =========================================================
+
+    @Test
+    void createComDadosValidosDeveCriarEntregaPendente() {
+        String senderSub = "remetente-123";
+        String tokenName = "Alan";
+
+        Instant agora = Instant.parse("2026-11-18T12:00:00Z");
+
+        DeliveryRequest request = new DeliveryRequest(
+                DeliveryMode.ON_ROUTE,
+                "Fortaleza",
+                "CE",
+                "Terminal Rodoviário, box 12",
+                "Sobral",
+                "CE",
+                "Rua das Flores, 100",
+                "Maria Souza",
+                "+5585999990000",
+                "Caixa com livros",
+                new BigDecimal("4.50"),
+                40,
+                30,
+                25
+        );
+
+        when(clock.instant()).thenReturn(agora);
+        when(trackingCodeGenerator.generate()).thenReturn("RM-ABC234-56");
+
+        when(deliveries.save(any(Delivery.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        DeliverySummaryResponse response =
+                service.create(senderSub, tokenName, request);
+
+        ArgumentCaptor<Delivery> captor =
+                ArgumentCaptor.forClass(Delivery.class);
+
+        verify(deliveries).save(captor.capture());
+
+        Delivery saved = captor.getValue();
+
+        assertNotNull(response);
+        assertEquals(DeliveryStatus.PENDING, response.status());
+        assertEquals("RM-ABC234-56", response.trackingCode());
+
+        assertEquals(senderSub, saved.getSenderSub());
+        assertEquals("RM-ABC234-56", saved.getTrackingCode());
+        assertNull(saved.getRideId());
+
+        assertEquals("Fortaleza", saved.getOriginCity());
+        assertEquals("Sobral", saved.getDestinationCity());
+
+        assertEquals(DeliveryStatus.PENDING, saved.getStatus());
+        assertEquals(agora, saved.getRequestedAt());
+
+        assertEquals("Caixa com livros", saved.getPkg().getDescription());
+        assertEquals(new BigDecimal("4.50"), saved.getPkg().getWeightKg());
+        assertEquals(40, saved.getPkg().getLengthCm());
+        assertEquals(30, saved.getPkg().getWidthCm());
+        assertEquals(25, saved.getPkg().getHeightCm());
+
+        verify(trackingCodeGenerator).generate();
+    }
+
+    // =========================================================
+    // AVAILABLE - ENTREGAS INDEPENDENTES COMPATIVEIS
+    // =========================================================
+
+    @Test
+    void availableComCaronaCompativelDeveRetornarEntrega() {
+        String driverSub = "motorista-123";
+        UUID rideId = UUID.randomUUID();
+
+        LocalDateTime partida = LocalDateTime.of(2026, 12, 10, 10, 0);
+        Instant agora = Instant.parse("2026-11-18T12:00:00Z");
+
+        Ride ride = mock(Ride.class);
+        Delivery delivery = criarEntregaIndependente();
+
+        // Configuração do relógio
+        when(clock.instant()).thenReturn(agora);
+        when(clock.getZone()).thenReturn(ZoneOffset.UTC);
+
+        // Configuração da carona
+        when(rides.findByDriverSubAndStatusInAndDeletedAtIsNullOrderByDepartureDateAsc(
+                eq(driverSub), eq(List.of(RideStatus.PLANNED))
+        )).thenReturn(List.of(ride));
+
+        when(ride.openForBookings()).thenReturn(true);
+        when(ride.getType()).thenReturn(RideType.CARGO);
+        when(ride.getDepartureDate()).thenReturn(partida);
+        when(ride.getOriginCity()).thenReturn("Fortaleza");
+        when(ride.getOriginState()).thenReturn("CE");
+        when(ride.getDestinationCity()).thenReturn("Sobral");
+        when(ride.getDestinationState()).thenReturn("CE");
+        when(ride.getId()).thenReturn(rideId);
+
+        // Configuração do pacote
+        PackageDetails pkg = prepararPacoteParaCapacidade(delivery);
+
+        when(pkg.getDescription()).thenReturn("Caixa de livros");
+        when(pkg.getRecipientName()).thenReturn("Maria Souza");
+
+        // Dados necessários para a resposta
+        when(delivery.getId()).thenReturn(UUID.randomUUID());
+        when(delivery.getTrackingCode()).thenReturn("RM-ABC234-56");
+        when(delivery.getStatus()).thenReturn(DeliveryStatus.PENDING);
+        when(delivery.getMode()).thenReturn(DeliveryMode.ON_ROUTE);
+        when(delivery.getOriginAddress()).thenReturn("Rua A");
+        when(delivery.getDestinationAddress()).thenReturn("Rua B");
+
+        // Entrega disponível
+        when(deliveries
+                .findByStatusAndRideIdIsNullAndDeletedAtIsNullOrderByRequestedAtDesc(
+                        DeliveryStatus.PENDING
+                )).thenReturn(List.of(delivery));
+
+        // Execução
+        List<AvailableDeliveryResponse> resultado = service.available(driverSub);
+
+        // Verificações
+        assertEquals(1, resultado.size());
+        assertEquals("RM-ABC234-56", resultado.get(0).trackingCode());
+        assertEquals(1, resultado.get(0).compatibleRides().size());
+        assertEquals(rideId, resultado.get(0).compatibleRides().get(0).id());
+
+        verify(capacity).assertItemDimensions(ride, 40, 30, 25);
+        verify(capacity).assertFits(eq(ride), any(), isNull());
+    }
+
+    @Test
+    void availableComCidadeDeOrigemDiferenteDeveRetornarListaVazia() {
+        String driverSub = "motorista-123";
+
+        Ride ride = mock(Ride.class);
+        Delivery delivery = mock(Delivery.class);
+
+        // Relógio
+        when(clock.instant())
+                .thenReturn(Instant.parse("2026-11-18T12:00:00Z"));
+        when(clock.getZone()).thenReturn(ZoneOffset.UTC);
+
+        // Carona
+        when(rides.findByDriverSubAndStatusInAndDeletedAtIsNullOrderByDepartureDateAsc(
+                eq(driverSub), eq(List.of(RideStatus.PLANNED))
+        )).thenReturn(List.of(ride));
+
+        when(ride.openForBookings()).thenReturn(true);
+        when(ride.getType()).thenReturn(RideType.CARGO);
+        when(ride.getDepartureDate())
+                .thenReturn(LocalDateTime.of(2026, 12, 10, 10, 0));
+        when(ride.getOriginCity()).thenReturn("Natal");
+
+        // Entrega: somente a cidade de origem é consultada
+        when(delivery.getOriginCity()).thenReturn("Fortaleza");
+
+        when(deliveries
+                .findByStatusAndRideIdIsNullAndDeletedAtIsNullOrderByRequestedAtDesc(
+                        DeliveryStatus.PENDING
+                )).thenReturn(List.of(delivery));
+
+        // Execução
+        List<AvailableDeliveryResponse> resultado = service.available(driverSub);
+
+        // Verificações
+        assertTrue(resultado.isEmpty());
+        verifyNoInteractions(capacity);
+    }
+
+    @Test
+    void availableComUfDeDestinoDiferenteDeveRetornarListaVazia() {
+        String driverSub = "motorista-123";
+
+        Ride ride = prepararCaronaDisponivel(
+                "Fortaleza", "CE", "Sobral", "RN"
+        );
+
+        Delivery delivery = criarEntregaIndependente();
+
+        prepararEntregasDisponiveis(driverSub, ride, delivery);
+
+        List<AvailableDeliveryResponse> resultado = service.available(driverSub);
+
+        assertTrue(resultado.isEmpty());
+        verifyNoInteractions(capacity);
+    }
+
+    @Test
+    void availableComCapacidadeInsuficienteDeveRetornarListaVazia() {
+        String driverSub = "motorista-123";
+
+        Ride ride = prepararCaronaDisponivel(
+                "Fortaleza", "CE", "Sobral", "CE"
+        );
+
+        Delivery delivery = criarEntregaIndependente();
+        prepararPacoteParaCapacidade(delivery);
+
+        prepararEntregasDisponiveis(driverSub, ride, delivery);
+
+        doThrow(new ResponseStatusException(
+                HttpStatus.CONFLICT, "Capacidade insuficiente"
+        )).when(capacity).assertFits(eq(ride), any(), isNull());
+
+        List<AvailableDeliveryResponse> resultado = service.available(driverSub);
+
+        assertTrue(resultado.isEmpty());
+
+        verify(capacity).assertItemDimensions(ride, 40, 30, 25);
+        verify(capacity).assertFits(eq(ride), any(), isNull());
+    }
+
+    @Test
+    void availableSemCaronasDoMotoristaDeveRetornarListaVazia() {
+        String driverSub = "motorista-123";
+
+        when(rides.findByDriverSubAndStatusInAndDeletedAtIsNullOrderByDepartureDateAsc(
+                eq(driverSub), eq(List.of(RideStatus.PLANNED))
+        )).thenReturn(List.of());
+
+        when(clock.instant()).thenReturn(Instant.parse("2026-11-18T12:00:00Z"));
+        when(clock.getZone()).thenReturn(ZoneOffset.UTC);
+
+        List<AvailableDeliveryResponse> resultado = service.available(driverSub);
+
+        assertTrue(resultado.isEmpty());
+
+        verify(deliveries, never())
+                .findByStatusAndRideIdIsNullAndDeletedAtIsNullOrderByRequestedAtDesc(
+                        any()
+                );
+    }
+
+    @Test
+    void availableComCaronaFechadaDeveRetornarListaVazia() {
+        String driverSub = "motorista-123";
+
+        Ride ride = mock(Ride.class);
+        when(ride.openForBookings()).thenReturn(false);
+
+        when(clock.instant()).thenReturn(Instant.parse("2026-11-18T12:00:00Z"));
+        when(clock.getZone()).thenReturn(ZoneOffset.UTC);
+
+        when(rides.findByDriverSubAndStatusInAndDeletedAtIsNullOrderByDepartureDateAsc(
+                eq(driverSub), eq(List.of(RideStatus.PLANNED))
+        )).thenReturn(List.of(ride));
+
+        List<AvailableDeliveryResponse> resultado = service.available(driverSub);
+
+        assertTrue(resultado.isEmpty());
+        verify(deliveries, never())
+                .findByStatusAndRideIdIsNullAndDeletedAtIsNullOrderByRequestedAtDesc(
+                        any()
+                );
+    }
+
+    // =========================================================
+    // HELPERS - AVAILABLE
+    // =========================================================
+
+    private Delivery criarEntregaIndependente() {
+        Delivery delivery = mock(Delivery.class);
+
+        when(delivery.getOriginCity()).thenReturn("Fortaleza");
+        when(delivery.getOriginState()).thenReturn("CE");
+        when(delivery.getDestinationCity()).thenReturn("Sobral");
+        when(delivery.getDestinationState()).thenReturn("CE");
+
+        return delivery;
+    }
+
+    private Ride prepararCaronaDisponivel(
+            String originCity,
+            String originState,
+            String destinationCity,
+            String destinationState
+    ) {
+        Ride ride = mock(Ride.class);
+
+        when(ride.openForBookings()).thenReturn(true);
+        when(ride.getType()).thenReturn(RideType.CARGO);
+        when(ride.getDepartureDate())
+                .thenReturn(LocalDateTime.of(2026, 12, 10, 10, 0));
+        when(ride.getOriginCity()).thenReturn(originCity);
+        when(ride.getOriginState()).thenReturn(originState);
+        when(ride.getDestinationCity()).thenReturn(destinationCity);
+        when(ride.getDestinationState()).thenReturn(destinationState);
+
+        return ride;
+    }
+
+    private void prepararEntregasDisponiveis(
+            String driverSub,
+            Ride ride,
+            Delivery delivery
+    ) {
+        when(clock.instant()).thenReturn(
+                Instant.parse("2026-11-18T12:00:00Z")
+        );
+        when(clock.getZone()).thenReturn(ZoneOffset.UTC);
+
+        when(rides.findByDriverSubAndStatusInAndDeletedAtIsNullOrderByDepartureDateAsc(
+                eq(driverSub), eq(List.of(RideStatus.PLANNED))
+        )).thenReturn(List.of(ride));
+
+        when(deliveries
+                .findByStatusAndRideIdIsNullAndDeletedAtIsNullOrderByRequestedAtDesc(
+                        DeliveryStatus.PENDING
+                )).thenReturn(List.of(delivery));
+    }
+
 
     // =========================================================
     // HELPERS
@@ -724,5 +1047,86 @@ class DeliveryServiceTest {
         when(ride.getDriverSub()).thenReturn(driverSub);
 
         return ride;
+    }
+    private PackageDetails prepararPacoteParaCapacidade(Delivery delivery) {
+        PackageDetails pkg = mock(PackageDetails.class);
+
+        when(delivery.getPkg()).thenReturn(pkg);
+
+        when(pkg.getWeightKg()).thenReturn(new BigDecimal("4.50"));
+        when(pkg.getLengthCm()).thenReturn(40);
+        when(pkg.getWidthCm()).thenReturn(30);
+        when(pkg.getHeightCm()).thenReturn(25);
+
+        return pkg;
+    }
+    @Test
+    void createDeveNormalizarEstadosParaMaiusculas() {
+        DeliveryRequest request = new DeliveryRequest(
+                DeliveryMode.ON_ROUTE,
+                "Fortaleza",
+                "ce",
+                "Rua A",
+                "Sobral",
+                "rn",
+                "Rua B",
+                "Maria Souza",
+                "+5585999990000",
+                "Caixa com livros",
+                new BigDecimal("4.50"),
+                40,
+                30,
+                25
+        );
+
+        when(clock.instant()).thenReturn(
+                Instant.parse("2026-11-18T12:00:00Z"));
+
+        when(trackingCodeGenerator.generate())
+                .thenReturn("RM-ABC234-56");
+
+        when(deliveries.save(any(Delivery.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.create("remetente-123", "Alan", request);
+
+        ArgumentCaptor<Delivery> captor =
+                ArgumentCaptor.forClass(Delivery.class);
+
+        verify(deliveries).save(captor.capture());
+
+        Delivery saved = captor.getValue();
+
+        assertEquals("CE", saved.getOriginState());
+        assertEquals("RN", saved.getDestinationState());
+    }
+    @Test
+    void createComOrigemIgualAoDestinoDeveRetornar400() {
+        DeliveryRequest request = new DeliveryRequest(
+                DeliveryMode.ON_ROUTE,
+                "Fortaleza",
+                "ce",
+                "Rua A, 100",
+                "FORTALEZA",
+                "CE",
+                "Rua A, 100",
+                "Maria Souza",
+                "+5585999990000",
+                "Caixa com livros",
+                new BigDecimal("4.50"),
+                40,
+                30,
+                25
+        );
+
+        ResponseStatusException exception = assertThrows(
+                ResponseStatusException.class,
+                () -> service.create("remetente-123", "Alan", request)
+        );
+
+        assertEquals(400, exception.getStatusCode().value());
+
+        verifyNoInteractions(trackingCodeGenerator);
+        verify(deliveries, never()).save(any(Delivery.class));
     }
 }
