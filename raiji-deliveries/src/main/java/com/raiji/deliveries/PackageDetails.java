@@ -12,7 +12,7 @@ import jakarta.persistence.Enumerated;
 public class PackageDetails {
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "package_size", nullable = false, length = 20)
+    @Column(name = "package_size", nullable = true, length = 20)
     private PackageSize size;
 
     @Column(nullable = false, length = 200)

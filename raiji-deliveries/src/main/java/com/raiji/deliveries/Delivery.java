@@ -32,8 +32,36 @@ public class Delivery extends AuditableEntity {
     @Column(name = "tracking_code", nullable = false, unique = true, length = 20)
     private String trackingCode;
 
-    @Column(name = "ride_id", nullable = false)
+    @Column(name = "ride_id")
     private UUID rideId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "mode", length = 20)
+    private DeliveryMode mode;
+
+    @Column(name = "origin_city",length = 100)
+    private String originCity;
+
+    @Column(name = "origin_state", length = 2)
+    private String originState;
+
+    @Column(name = "origin_address", length = 255)
+    private String originAddress;
+
+    @Column(name = "destination_city",length = 100)
+    private String destinationCity;
+
+    @Column(name = "destination_state", length = 2)
+    private String destinationState;
+
+    @Column(name = "destination_address", length = 255)
+    private String destinationAddress;
+
+    @Column(name = "distance_km", precision = 10, scale = 2)
+    private BigDecimal distanceKm;
+
+    @Column(name = "quoted_price_cents")
+    private Long quotedPriceCents;
 
     @Column(name = "sender_sub", nullable = false, length = 64)
     private String senderSub;
@@ -362,5 +390,80 @@ public class Delivery extends AuditableEntity {
 
     public String getCancellationReason() {
         return cancellationReason;
+    }
+
+    public DeliveryMode getMode() {
+        return mode;
+    }
+
+    public void setMode(DeliveryMode mode) {
+        this.mode = mode;
+    }
+
+    public String getOriginCity() {
+        return originCity;
+    }
+
+    public void setOriginCity(String originCity) {
+        this.originCity = originCity;
+    }
+
+    public String getOriginState() {
+        return originState;
+    }
+
+    public void setOriginState(String originState) {
+        this.originState = originState;
+    }
+
+    public String getOriginAddress() {
+        return originAddress;
+    }
+
+    public void setOriginAddress(String originAddress) {
+        this.originAddress = originAddress;
+    }
+
+    public String getDestinationCity() {
+        return destinationCity;
+    }
+
+    public void setDestinationCity(String destinationCity) {
+        this.destinationCity = destinationCity;
+    }
+
+    public String getDestinationState() {
+        return destinationState;
+    }
+
+    public void setDestinationState(String destinationState) {
+        this.destinationState = destinationState;
+    }
+
+    public String getDestinationAddress() {
+        return destinationAddress;
+    }
+
+    public void setDestinationAddress(String destinationAddress) {
+        this.destinationAddress = destinationAddress;
+    }
+
+    public BigDecimal getDistanceKm() {
+        return distanceKm;
+    }
+
+    public void setDistanceKm(BigDecimal distanceKm) {
+        this.distanceKm = distanceKm;
+    }
+
+    public Long getQuotedPriceCents() {
+        return quotedPriceCents;
+    }
+
+    public void setQuotedPriceCents(Long quotedPriceCents) {
+        this.quotedPriceCents = quotedPriceCents;
+    }
+    public void setRequestedAt(Instant requestedAt) {
+        this.requestedAt = requestedAt;
     }
 }
