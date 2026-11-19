@@ -1,20 +1,12 @@
 package com.raiji.deliveries.service;
 
-import java.time.LocalDateTime;
-import java.time.Clock;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
-import java.util.function.Function;
-import java.util.stream.Collectors;
-
 import com.raiji.common.enums.DeliveryStatus;
 import com.raiji.common.enums.RideStatus;
+import com.raiji.common.enums.RideType;
 import com.raiji.deliveries.Delivery;
 import com.raiji.deliveries.DeliveryStatusHistory;
 import com.raiji.deliveries.PackageDetails;
-import com.raiji.deliveries.dto.DeliveryCreateRequest;
-import com.raiji.deliveries.dto.DeliveryResponse;
+import com.raiji.deliveries.dto.*;
 import com.raiji.deliveries.repository.DeliveryRepository;
 import com.raiji.deliveries.repository.DeliveryStatusHistoryRepository;
 import com.raiji.rides.cargo.CargoCapacityService;
@@ -26,10 +18,21 @@ import com.raiji.rides.pricing.SegmentPricing;
 import com.raiji.rides.repository.RideRepository;
 import com.raiji.rides.repository.RideRouteMatch;
 import com.raiji.users.company.CompanyMembership;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
+
+import java.time.Clock;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.Locale;
 
 /**
  * Encomendas como espaço de carga numa carona.
@@ -49,6 +52,8 @@ public class DeliveryService {
     private final CompanyMembership membership;
     private final DeliveryNotifier notifier;
     private final Clock clock;
+    private final TrackingCodeGenerator trackingCodeGenerator;
+
 
     public DeliveryService(
             DeliveryRepository deliveries,
@@ -57,7 +62,8 @@ public class DeliveryService {
             CargoCapacityService capacity,
             CompanyMembership membership,
             DeliveryNotifier notifier,
-            Clock clock) {
+            Clock clock,
+            TrackingCodeGenerator trackingCodeGenerator) {
 
         this.deliveries = deliveries;
         this.history = history;
@@ -66,6 +72,7 @@ public class DeliveryService {
         this.membership = membership;
         this.notifier = notifier;
         this.clock = clock;
+        this.trackingCodeGenerator = trackingCodeGenerator;
     }
 
     // ---------------------------------------------------------
@@ -445,6 +452,16 @@ public class DeliveryService {
                 .filter(x -> x.getDeletedAt() == null)
                 .orElseThrow(this::naoEncontrada);
 
+        // Entregas independentes: somente o remetente.
+        if (d.getRideId() == null) {
+            if (!d.getSenderSub().equals(viewerSub)) {
+                throw naoEncontrada();
+            }
+
+            return DeliveryResponse.of(d, null, true);
+        }
+
+        // Entregas vinculadas a caronas: mantém as regras antigas.
         Ride ride = rides.findById(d.getRideId()).orElse(null);
 
         boolean remetente = podeVerComoRemetente(d, viewerSub);
@@ -727,5 +744,179 @@ public class DeliveryService {
         return new ResponseStatusException(
                 HttpStatus.NOT_FOUND,
                 "Encomenda não encontrada.");
+    }
+    // ---------------------------------------------------------
+// Criar entrega independente de carona
+// ---------------------------------------------------------
+    @Transactional
+    public DeliverySummaryResponse create(
+            String senderSub,
+            String tokenName,
+            DeliveryRequest body) {
+
+        String originCity = body.originCity().trim();
+        String originState = body.originState().trim().toUpperCase(Locale.ROOT);
+        String originAddress = body.originAddress().trim();
+
+        String destinationCity = body.destinationCity().trim();
+        String destinationState = body.destinationState().trim().toUpperCase(Locale.ROOT);
+        String destinationAddress = body.destinationAddress().trim();
+
+        // Impede uma entrega com origem e destino iguais.
+        if (originCity.equalsIgnoreCase(destinationCity)
+                && originState.equals(destinationState)
+                && originAddress.equalsIgnoreCase(destinationAddress)) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "A origem e o destino da entrega não podem ser iguais.");
+        }
+
+        PackageDetails pkg = new PackageDetails();
+
+        pkg.setSize(null);
+        pkg.setDescription(body.description());
+        pkg.setWeightKg(body.weightKg());
+        pkg.setLengthCm(body.lengthCm());
+        pkg.setWidthCm(body.widthCm());
+        pkg.setHeightCm(body.heightCm());
+        pkg.setFragile(false);
+        pkg.setDeclaredValue(null);
+        pkg.setRecipientName(body.recipientName());
+        pkg.setRecipientPhone(body.recipientContact());
+
+        Delivery delivery = new Delivery();
+
+        delivery.setTrackingCode(trackingCodeGenerator.generate());
+        delivery.setRequestedAt(clock.instant());
+
+        // Entrega independente: ainda não possui carona.
+        delivery.setRideId(null);
+        delivery.setMode(body.mode());
+
+        delivery.setOriginCity(originCity);
+        delivery.setOriginState(originState);
+        delivery.setOriginAddress(originAddress);
+
+        delivery.setDestinationCity(destinationCity);
+        delivery.setDestinationState(destinationState);
+        delivery.setDestinationAddress(destinationAddress);
+
+        delivery.setPickupAddress(originAddress);
+        delivery.setDropoffAddress(destinationAddress);
+
+        delivery.setSenderSub(senderSub);
+        delivery.setSenderName(nome(null, tokenName));
+        delivery.setPkg(pkg);
+
+        delivery.setPickupCode(DeliveryCodes.pickupCode());
+        delivery.setDeliveryKeyword(DeliveryCodes.keyword());
+
+        delivery.setPlatformFeePercent(java.math.BigDecimal.ZERO);
+        delivery.setFullRoute(true);
+
+        // Cotação será preenchida pela integração de distância e preço.
+        delivery.setDistanceKm(null);
+        delivery.setQuotedPriceCents(null);
+
+        delivery = deliveries.save(delivery);
+
+        registrarHistorico(
+                delivery,
+                null,
+                senderSub,
+                "Entrega independente solicitada.");
+
+        return DeliverySummaryResponse.of(delivery);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<DeliverySummaryResponse> mine(
+            String senderSub,
+            Pageable pageable) {
+
+        return deliveries
+                .findBySenderSubAndDeletedAtIsNullOrderByRequestedAtDesc(
+                        senderSub,
+                        pageable)
+                .map(DeliverySummaryResponse::of);
+    }
+    @Transactional(readOnly = true)
+    public List<AvailableDeliveryResponse> available(String driverSub) {
+
+        LocalDateTime now = LocalDateTime.now(clock);
+
+        List<Ride> driverRides = rides
+                .findByDriverSubAndStatusInAndDeletedAtIsNullOrderByDepartureDateAsc(
+                        driverSub,
+                        List.of(RideStatus.PLANNED))
+                .stream()
+                .filter(Ride::openForBookings)
+                .filter(ride -> ride.getType() == RideType.CARGO
+                        || ride.getType() == RideType.MIXED)
+                .filter(ride -> ride.getDepartureDate() != null
+                        && ride.getDepartureDate().isAfter(now))
+                .toList();
+
+        if (driverRides.isEmpty()) {
+            return List.of();
+        }
+
+        List<Delivery> pendingDeliveries = deliveries
+                .findByStatusAndRideIdIsNullAndDeletedAtIsNullOrderByRequestedAtDesc(
+                        DeliveryStatus.PENDING);
+
+        return pendingDeliveries.stream()
+                .map(delivery -> {
+                    List<AvailableDeliveryResponse.RideMatch> matches =
+                            driverRides.stream()
+                                    .filter(ride -> matchesRoute(delivery, ride))
+                                    .filter(ride -> fitsCapacity(delivery, ride))
+                                    .map(ride -> new AvailableDeliveryResponse.RideMatch(
+                                            ride.getId(),
+                                            ride.getOriginCity(),
+                                            ride.getOriginState(),
+                                            ride.getDestinationCity(),
+                                            ride.getDestinationState(),
+                                            ride.getDepartureDate()))
+                                    .toList();
+
+                    return matches.isEmpty()
+                            ? null
+                            : AvailableDeliveryResponse.of(delivery, matches);
+                })
+                .filter(java.util.Objects::nonNull)
+                .toList();
+    }
+
+    private boolean matchesRoute(Delivery delivery, Ride ride) {
+        return sameText(delivery.getOriginCity(), ride.getOriginCity())
+                && sameText(delivery.getOriginState(), ride.getOriginState())
+                && sameText(delivery.getDestinationCity(), ride.getDestinationCity())
+                && sameText(delivery.getDestinationState(), ride.getDestinationState());
+    }
+
+    private boolean sameText(String first, String second) {
+        return first != null
+                && second != null
+                && first.trim().equalsIgnoreCase(second.trim());
+    }
+
+    private boolean fitsCapacity(Delivery delivery, Ride ride) {
+        PackageDetails pkg = delivery.getPkg();
+
+        try {
+            capacity.assertItemDimensions(
+                    ride,
+                    pkg.getLengthCm(),
+                    pkg.getWidthCm(),
+                    pkg.getHeightCm());
+
+            capacity.assertFits(ride, Packages.load(pkg), null);
+
+            return true;
+        } catch (ResponseStatusException exception) {
+            return false;
+        }
     }
 }
