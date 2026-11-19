@@ -9,15 +9,26 @@ import com.raiji.deliveries.Delivery;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 public interface DeliveryRepository extends JpaRepository<Delivery, UUID> {
+
+    Page<Delivery> findBySenderSubAndDeletedAtIsNullOrderByRequestedAtDesc(
+            String senderSub,
+            Pageable pageable);
 
     List<Delivery> findByRideIdAndDeletedAtIsNull(UUID rideId);
 
     List<Delivery> findByRideIdAndStatusInAndDeletedAtIsNull(UUID rideId, Collection<DeliveryStatus> statuses);
 
+    List<Delivery> findByStatusAndRideIdIsNullAndDeletedAtIsNullOrderByRequestedAtDesc(
+            DeliveryStatus status);
+
     boolean existsByRideIdAndSenderSubAndStatusInAndDeletedAtIsNull(
             UUID rideId, String senderSub, Collection<DeliveryStatus> statuses);
+
+    boolean existsByTrackingCode(String trackingCode);
 
     /** Minhas encomendas: as que eu enviei e as das empresas de que participo. */
     @Query("select d from Delivery d where d.deletedAt is null and "
