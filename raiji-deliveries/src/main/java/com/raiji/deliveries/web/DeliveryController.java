@@ -1,4 +1,3 @@
-
 package com.raiji.deliveries.web;
 
 import java.util.List;
@@ -6,6 +5,8 @@ import java.util.UUID;
 
 import com.raiji.deliveries.dto.AvailableDeliveryResponse;
 import com.raiji.deliveries.dto.CodeRequest;
+import com.raiji.deliveries.dto.DeliveryAcceptanceRequest;
+import com.raiji.deliveries.dto.DeliveryAcceptanceResponse;
 import com.raiji.deliveries.dto.DeliveryCreateRequest;
 import com.raiji.deliveries.dto.DeliveryDecisionRequest;
 import com.raiji.deliveries.dto.DeliveryRequest;
@@ -37,6 +38,8 @@ import org.springframework.web.bind.annotation.RestController;
  * POST  /api/deliveries                         criar encomenda independente
  * POST  /api/rides/{rideId}/deliveries          solicitar espaço em uma carona
  * GET   /api/rides/{rideId}/deliveries          encomendas da carona
+ * POST  /api/deliveries/{id}/accept             aceitar encomenda independente
+ * POST  /api/deliveries/{id}/decline            recusar encomenda independente
  * PATCH /api/rides/{rideId}/deliveries/{id}     aceitar ou rejeitar encomenda
  * POST  /api/deliveries/{id}/pickup             registrar coleta
  * POST  /api/deliveries/{id}/deliver            registrar entrega
@@ -92,6 +95,39 @@ public class DeliveryController {
         return service.listForDriver(rideId, jwt.getSubject());
     }
 
+    /**
+     * Aceita uma encomenda independente.
+     *
+     * rideId preenchido: transporte junto a uma carona.
+     * rideId nulo: frete exclusivo utilizando o veículo informado.
+     */
+    @PostMapping("/api/deliveries/{id}/accept")
+    @PreAuthorize("hasRole('DRIVER')")
+    public DeliveryAcceptanceResponse accept(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable UUID id,
+            @Valid @RequestBody DeliveryAcceptanceRequest body) {
+
+        return service.accept(id, jwt.getSubject(), body);
+    }
+
+    /**
+     * Recusa uma encomenda independente.
+     * A encomenda permanece pendente e a recusa é registrada no histórico.
+     */
+    @PostMapping("/api/deliveries/{id}/decline")
+    @PreAuthorize("hasRole('DRIVER')")
+    public DeliveryAcceptanceResponse decline(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable UUID id,
+            @Valid @RequestBody ReasonRequest body) {
+
+        return service.decline(id, jwt.getSubject(), body.reason());
+    }
+
+    /**
+     * Mantém o contrato antigo de decisão de encomendas vinculadas a caronas.
+     */
     @PatchMapping("/api/rides/{rideId}/deliveries/{id}")
     @PreAuthorize("hasRole('DRIVER')")
     public DeliveryResponse decide(
@@ -141,8 +177,8 @@ public class DeliveryController {
     }
 
     /**
-     * Mantém o contrato antigo: retorna uma lista de encomendas,
-     * incluindo as encomendas das empresas às quais o remetente pertence.
+     * Retorna as encomendas do remetente,
+     * incluindo as encomendas das empresas às quais pertence.
      */
     @GetMapping("/api/deliveries/mine")
     public List<DeliveryResponse> mine(
