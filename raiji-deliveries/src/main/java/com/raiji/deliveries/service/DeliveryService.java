@@ -24,6 +24,10 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
+import com.raiji.deliveries.DeliveryMode;
+import com.raiji.rides.cargo.CargoLoad;
+import com.raiji.users.domain.Vehicle;
+import com.raiji.users.repository.VehicleRepository;
 
 import java.time.Clock;
 import java.time.LocalDateTime;
@@ -53,6 +57,7 @@ public class DeliveryService {
     private final DeliveryNotifier notifier;
     private final Clock clock;
     private final TrackingCodeGenerator trackingCodeGenerator;
+    private final VehicleRepository vehicles;
 
 
     public DeliveryService(
@@ -63,7 +68,8 @@ public class DeliveryService {
             CompanyMembership membership,
             DeliveryNotifier notifier,
             Clock clock,
-            TrackingCodeGenerator trackingCodeGenerator) {
+            TrackingCodeGenerator trackingCodeGenerator,
+            VehicleRepository vehicles) {
 
         this.deliveries = deliveries;
         this.history = history;
@@ -73,6 +79,7 @@ public class DeliveryService {
         this.notifier = notifier;
         this.clock = clock;
         this.trackingCodeGenerator = trackingCodeGenerator;
+        this.vehicles = vehicles;
     }
 
     // ---------------------------------------------------------
@@ -214,6 +221,9 @@ public class DeliveryService {
         if (accept) {
             capacity.assertFits(ride, Packages.load(d.getPkg()), null);
 
+            d.setDriverSub(driverSub);
+            d.setRideId(ride.getId());
+
             d.confirm();
 
             motivoHistorico = "Encomenda aceita pelo motorista.";
@@ -256,6 +266,189 @@ public class DeliveryService {
 
         return DeliveryResponse.of(d, ride, false);
     }
+    @Transactional
+    public DeliveryAcceptanceResponse accept(
+            UUID deliveryId,
+            String driverSub,
+            DeliveryAcceptanceRequest body) {
+
+        Delivery delivery = deliveries.findByIdForUpdate(deliveryId)
+                .filter(d -> d.getDeletedAt() == null)
+                .orElseThrow(this::naoEncontrada);
+
+        if (delivery.getStatus() != DeliveryStatus.PENDING) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Esta encomenda não está mais disponível.");
+        }
+
+        if (delivery.getSenderSub().equals(driverSub)) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "Você não pode aceitar sua própria encomenda.");
+        }
+
+        Ride ride = null;
+        Vehicle vehicle;
+        DeliveryMode mode;
+
+        if (body.rideId() != null) {
+            // Modalidade ON_ROUTE.
+            ride = rideDoMotorista(body.rideId(), driverSub, true);
+
+            if (ride.getStatus() != RideStatus.PLANNED
+                    || !ride.getDepartureDate().isAfter(LocalDateTime.now(clock))) {
+                throw new ResponseStatusException(
+                        HttpStatus.CONFLICT,
+                        "A carona já começou ou não está mais disponível.");
+            }
+
+            if (!ride.carriesPackages()) {
+                throw new ResponseStatusException(
+                        HttpStatus.CONFLICT,
+                        "Esta carona não está habilitada para transportar encomendas.");
+            }
+
+            if (!sameText(delivery.getOriginCity(), ride.getOriginCity())
+                    || !sameText(delivery.getOriginState(), ride.getOriginState())
+                    || !sameText(delivery.getDestinationCity(), ride.getDestinationCity())
+                    || !sameText(delivery.getDestinationState(), ride.getDestinationState())) {
+                throw new ResponseStatusException(
+                        HttpStatus.UNPROCESSABLE_ENTITY,
+                        "A origem e o destino da encomenda não correspondem à rota da carona.");
+            }
+
+            vehicle = veiculoDoMotorista(ride.getVehicleId(), driverSub);
+
+            if (body.vehicleId() != null && !body.vehicleId().equals(vehicle.getId())) {
+                throw new ResponseStatusException(
+                        HttpStatus.UNPROCESSABLE_ENTITY,
+                        "O veículo informado não é o veículo utilizado pela carona.");
+            }
+
+            try {
+                capacity.assertItemDimensions(
+                        ride,
+                        delivery.getPkg().getLengthCm(),
+                        delivery.getPkg().getWidthCm(),
+                        delivery.getPkg().getHeightCm());
+
+                capacity.assertFits(
+                        ride,
+                        Packages.load(delivery.getPkg()),
+                        null);
+            } catch (ResponseStatusException exception) {
+                throw new ResponseStatusException(
+                        HttpStatus.CONFLICT,
+                        exception.getReason() == null
+                                ? "A encomenda excede a capacidade disponível da carona."
+                                : exception.getReason(),
+                        exception);
+            }
+
+            mode = DeliveryMode.ON_ROUTE;
+
+        } else {
+            // Modalidade EXCLUSIVE.
+            if (body.vehicleId() == null) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "Informe o veículo para realizar o frete exclusivo.");
+            }
+
+            vehicle = veiculoDoMotorista(body.vehicleId(), driverSub);
+
+            Integer availableVolume = vehicle.getCargoVolumeLiters();
+
+            if (availableVolume == null || availableVolume <= 0) {
+                throw new ResponseStatusException(
+                        HttpStatus.CONFLICT,
+                        "O veículo não possui capacidade de carga cadastrada.");
+            }
+
+            CargoLoad packageLoad = Packages.load(delivery.getPkg());
+
+            if (packageLoad.volumeLiters().compareTo(
+                    java.math.BigDecimal.valueOf(availableVolume)) > 0) {
+                throw new ResponseStatusException(
+                        HttpStatus.CONFLICT,
+                        "O volume da encomenda ("
+                                + packageLoad.volumeLiters().stripTrailingZeros().toPlainString()
+                                + " L) excede a capacidade do veículo ("
+                                + availableVolume + " L).");
+            }
+
+            mode = DeliveryMode.EXCLUSIVE;
+        }
+
+        DeliveryStatus previousStatus = delivery.getStatus();
+
+        delivery.setDriverSub(driverSub);
+        delivery.setVehicleId(vehicle.getId());
+        delivery.setRideId(ride == null ? null : ride.getId());
+        delivery.setMode(mode);
+        delivery.setAcceptedAt(clock.instant());
+
+        delivery.confirm();
+
+        delivery = deliveries.save(delivery);
+
+        registrarHistorico(
+                delivery,
+                previousStatus,
+                driverSub,
+                mode == DeliveryMode.ON_ROUTE
+                        ? "Encomenda aceita para transporte junto a uma carona."
+                        : "Encomenda aceita para frete exclusivo.");
+
+        notifier.sender(
+                delivery,
+                "DELIVERY_ACCEPTED",
+                "Seu pedido foi aceito pelo motorista."
+                        + (mode == DeliveryMode.EXCLUSIVE
+                        ? " O transporte será realizado como frete exclusivo."
+                        : " O transporte será realizado junto a uma carona."));
+
+        return DeliveryAcceptanceResponse.of(delivery);
+    }
+
+    @Transactional
+    public DeliveryAcceptanceResponse decline(
+            UUID deliveryId,
+            String driverSub,
+            String reason) {
+
+        Delivery delivery = deliveries.findByIdForUpdate(deliveryId)
+                .filter(d -> d.getDeletedAt() == null)
+                .orElseThrow(this::naoEncontrada);
+
+        if (delivery.getStatus() != DeliveryStatus.PENDING) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Esta encomenda não está mais disponível.");
+        }
+
+        if (reason == null || reason.isBlank()) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Informe o motivo da recusa.");
+        }
+
+        String normalizedReason = reason.trim();
+
+        registrarHistorico(
+                delivery,
+                DeliveryStatus.PENDING,
+                driverSub,
+                "Pedido recusado pelo motorista: " + normalizedReason);
+
+        notifier.sender(
+                delivery,
+                "DELIVERY_REJECTED",
+                "Um motorista recusou sua encomenda. Motivo: " + normalizedReason);
+
+        return DeliveryAcceptanceResponse.of(delivery);
+    }
 
     // ---------------------------------------------------------
     // Coletar encomenda
@@ -276,19 +469,33 @@ public class DeliveryService {
                 .filter(x -> x.getDeletedAt() == null)
                 .orElseThrow(this::naoEncontrada);
 
-        Ride ride = rideDoMotorista(d.getRideId(), driverSub, false);
+        Ride ride = null;
+
+        if (d.getRideId() != null) {
+            // Encomenda vinculada a uma carona.
+            ride = rideDoMotorista(d.getRideId(), driverSub, false);
+
+            if (ride.getStatus() != RideStatus.PLANNED
+                    && ride.getStatus() != RideStatus.IN_PROGRESS) {
+                throw new ResponseStatusException(
+                        HttpStatus.CONFLICT,
+                        "Esta viagem não está ativa.");
+            }
+
+        } else {
+            // Encomenda de frete exclusivo.
+            if (d.getDriverSub() == null
+                    || !d.getDriverSub().equals(driverSub)) {
+                throw new ResponseStatusException(
+                        HttpStatus.FORBIDDEN,
+                        "Esta encomenda não pertence a este motorista.");
+            }
+        }
 
         if (d.getStatus() != DeliveryStatus.CONFIRMED) {
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
                     "Esta encomenda não está aguardando coleta.");
-        }
-
-        if (ride.getStatus() != RideStatus.PLANNED
-                && ride.getStatus() != RideStatus.IN_PROGRESS) {
-            throw new ResponseStatusException(
-                    HttpStatus.CONFLICT,
-                    "Esta viagem não está ativa.");
         }
 
         conferirCodigo(
@@ -312,9 +519,7 @@ public class DeliveryService {
         notifier.sender(
                 d,
                 "DELIVERY_PICKED_UP",
-                "Sua encomenda foi coletada por "
-                        + ride.getDriverName()
-                        + " e está a caminho.");
+                "Sua encomenda foi coletada pelo motorista e está a caminho.");
 
         return DeliveryResponse.of(d, ride, false);
     }
@@ -336,7 +541,21 @@ public class DeliveryService {
                 .filter(x -> x.getDeletedAt() == null)
                 .orElseThrow(this::naoEncontrada);
 
-        Ride ride = rideDoMotorista(d.getRideId(), driverSub, false);
+        Ride ride = null;
+
+        if (d.getRideId() != null) {
+            // Encomenda vinculada a uma carona.
+            ride = rideDoMotorista(d.getRideId(), driverSub, false);
+
+        } else {
+            // Encomenda de frete exclusivo.
+            if (d.getDriverSub() == null
+                    || !d.getDriverSub().equals(driverSub)) {
+                throw new ResponseStatusException(
+                        HttpStatus.FORBIDDEN,
+                        "Esta encomenda não pertence a este motorista.");
+            }
+        }
 
         if (d.getStatus() != DeliveryStatus.IN_TRANSIT) {
             throw new ResponseStatusException(
@@ -389,11 +608,22 @@ public class DeliveryService {
                 .filter(x -> x.getDeletedAt() == null)
                 .orElseThrow(this::naoEncontrada);
 
-        Ride ride = rides.findById(d.getRideId())
-                .orElseThrow(this::naoEncontrada);
+        Ride ride = null;
+
+        boolean motorista;
+
+        if (d.getRideId() != null) {
+            ride = rides.findById(d.getRideId())
+                    .orElseThrow(this::naoEncontrada);
+
+            motorista = ride.getDriverSub().equals(actorSub);
+
+        } else {
+            motorista = d.getDriverSub() != null
+                    && d.getDriverSub().equals(actorSub);
+        }
 
         boolean remetente = podeVerComoRemetente(d, actorSub);
-        boolean motorista = ride.getDriverSub().equals(actorSub);
 
         if (!remetente && !motorista) {
             throw naoEncontrada();
@@ -425,18 +655,23 @@ public class DeliveryService {
 
         if (motorista && !remetente) {
             notifier.sender(
-                    d,
-                    "DELIVERY_CANCELLED",
+                    d, "DELIVERY_CANCELLED",
                     "O motorista cancelou o transporte da sua encomenda."
                             + (motivo == null ? "" : " Motivo: " + motivo));
-        } else {
-            notifier.driver(
-                    ride.getDriverSub(),
-                    "DELIVERY_CANCELLED",
-                    ride.getId(),
-                    d.getId(),
-                    "Uma encomenda da sua carona foi cancelada pelo remetente."
-                            + (motivo == null ? "" : " Motivo: " + motivo));
+        } else if (remetente) {
+            String motoristaSub = d.getDriverSub() != null
+                    ? d.getDriverSub()
+                    : (ride != null ? ride.getDriverSub() : null);
+
+            if (motoristaSub != null) {
+                notifier.driver(
+                        motoristaSub,
+                        "DELIVERY_CANCELLED",
+                        d.getRideId(),
+                        d.getId(),
+                        "Uma encomenda do seu transporte foi cancelada pelo remetente."
+                                + (motivo == null ? "" : " Motivo: " + motivo));
+            }
         }
 
         return DeliveryResponse.of(d, ride, remetente);
@@ -744,6 +979,28 @@ public class DeliveryService {
         return new ResponseStatusException(
                 HttpStatus.NOT_FOUND,
                 "Encomenda não encontrada.");
+    }
+    private Vehicle veiculoDoMotorista(UUID vehicleId, String driverSub) {
+
+        Vehicle vehicle = vehicles.findByIdForUpdate(vehicleId)
+                .filter(v -> v.getDeletedAt() == null)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Veículo não encontrado."));
+
+        if (!vehicle.getOwnerSub().equals(driverSub)) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "Este veículo pertence a outro motorista.");
+        }
+
+        if (!vehicle.isActive()) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "O veículo está inativo.");
+        }
+
+        return vehicle;
     }
     // ---------------------------------------------------------
 // Criar entrega independente de carona
