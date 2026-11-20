@@ -18,6 +18,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import org.locationtech.jts.geom.Point;
 
+
 /**
  * Encomenda que viaja numa carona (pedido de espaço de carga).
  */
@@ -132,6 +133,15 @@ public class Delivery extends AuditableEntity {
 
     @Column(name = "cancellation_reason", columnDefinition = "TEXT")
     private String cancellationReason;
+
+    @Column(name = "driver_sub", length = 64)
+    private String driverSub;
+
+    @Column(name = "vehicle_id")
+    private UUID vehicleId;
+
+    @Column(name = "accepted_at")
+    private Instant acceptedAt;
 
     // ---------------------------------------------------------
     // Transições de estado
@@ -465,5 +475,28 @@ public class Delivery extends AuditableEntity {
     }
     public void setRequestedAt(Instant requestedAt) {
         this.requestedAt = requestedAt;
+    }
+
+    public String getDriverSub(){
+        return driverSub;
+    }
+
+    public void setDriverSub(String driverSub){
+        this.driverSub = driverSub;
+    }
+
+    public UUID getVehicleId(){
+        return vehicleId;
+    }
+
+    public void setVehicleId(UUID vehicleId){
+        this.vehicleId = vehicleId;
+    }
+
+    public Instant getAcceptedAt(){
+        return acceptedAt;
+    }
+    public void setAcceptedAt(Instant acceptedAt){
+        this.acceptedAt = acceptedAt;
     }
 }
