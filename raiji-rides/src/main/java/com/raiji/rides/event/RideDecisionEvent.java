@@ -19,6 +19,8 @@ public record RideDecisionEvent(
         String passengerName,
         RideDecision decision,
         String reason,
-        Instant decidedAt
+        Instant decidedAt,
+        /** A vaga tem preço: depois do aceite o passageiro paga pelo app */
+        boolean paymentRequired
 ) {
 }

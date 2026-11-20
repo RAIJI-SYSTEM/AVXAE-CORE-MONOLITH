@@ -49,15 +49,18 @@ public class DeliveryService {
     private final CargoCapacityService capacity;
     private final CompanyMembership membership;
     private final DeliveryNotifier notifier;
+    private final DeliveryRefunds refunds;
     private final Clock clock;
 
     public DeliveryService(DeliveryRepository deliveries, RideRepository rides, CargoCapacityService capacity,
-                           CompanyMembership membership, DeliveryNotifier notifier, Clock clock) {
+                           CompanyMembership membership, DeliveryNotifier notifier, DeliveryRefunds refunds,
+                           Clock clock) {
         this.deliveries = deliveries;
         this.rides = rides;
         this.capacity = capacity;
         this.membership = membership;
         this.notifier = notifier;
+        this.refunds = refunds;
         this.clock = clock;
     }
 
@@ -125,7 +128,9 @@ public class DeliveryService {
             d.confirm();
             notifier.sender(d, "DELIVERY_ACCEPTED",
                     ride.getDriverName() + " aceitou levar sua encomenda para " + d.getPkg().getRecipientName()
-                            + ". Na coleta, mostre o código " + d.getPickupCode() + ".");
+                            + ". Na coleta, mostre o código " + d.getPickupCode() + "."
+                            + (d.getPrice() != null && d.getPrice().signum() > 0
+                                    ? " Pague pelo app (Encomendas) para confirmar o envio." : ""));
         } else {
             if (reason == null || reason.isBlank()) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Informe o motivo da recusa.");
@@ -195,6 +200,7 @@ public class DeliveryService {
         }
         String motivo = reason == null || reason.isBlank() ? null : reason.trim();
         d.cancel(motivo);
+        refunds.refundIfPaid(d, actorSub); // cancelou depois de pagar: devolve o valor
         if (motorista && !remetente) {
             notifier.sender(d, "DELIVERY_CANCELLED",
                     "O motorista cancelou o transporte da sua encomenda." + (motivo == null ? "" : " Motivo: " + motivo));

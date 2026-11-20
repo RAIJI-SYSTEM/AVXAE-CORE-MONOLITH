@@ -37,6 +37,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import com.raiji.common.enums.PaymentStatus;
 
 @WebMvcTest(controllers = RideRequestController.class)
 @AutoConfigureMockMvc
@@ -67,7 +68,8 @@ class RideRequestControllerTest {
                         BaggageType.MALA, 1, 60, 40, 30, null, "Mala de bordo")),
                 List.of(), true, null,
                 null, null, null, null, null, null,
-                null, null, null
+                null, null, null,
+                PaymentStatus.NOT_REQUIRED, null
         );
     }
 

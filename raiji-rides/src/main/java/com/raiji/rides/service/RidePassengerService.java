@@ -359,7 +359,8 @@ public class RidePassengerService {
                         saved.getPassengerName(),
                         decision,
                         decision == RideDecision.REJECT ? reason.trim() : null,
-                        decidedAt
+                        decidedAt,
+                        hasPrice(saved)
                 )
         );
 
@@ -692,7 +693,12 @@ public class RidePassengerService {
 
     private void publicarDecisao(Ride ride, RidePassenger p, RideDecision decision, String reason, Instant at) {
         eventPublisher.publishEvent(new RideDecisionEvent(ride.getId(), p.getId(), ride.getDriverSub(),
-                ride.getDriverName(), p.getPassengerSub(), p.getPassengerName(), decision, reason, at));
+                ride.getDriverName(), p.getPassengerSub(), p.getPassengerName(), decision, reason, at, hasPrice(p)));
+    }
+
+    /** Reserva com preço (as gratuitas não têm o que pagar). */
+    private static boolean hasPrice(RidePassenger p) {
+        return p.getPrice() != null && p.getPrice().signum() > 0;
     }
 
     /** Embarque/desembarque no meio do caminho: confere a rota e calcula o preço do trecho. */

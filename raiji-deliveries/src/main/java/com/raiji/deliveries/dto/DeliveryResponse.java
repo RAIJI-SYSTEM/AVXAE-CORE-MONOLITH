@@ -12,6 +12,8 @@ import com.raiji.deliveries.domain.PackageSize;
 import com.raiji.rides.domain.Ride;
 import com.raiji.rides.geo.GeoSupport;
 import com.raiji.rides.pricing.PriceBreakdown;
+import com.raiji.common.enums.PaymentStatus;
+import com.raiji.rides.payment.PaymentService;
 
 /**
  * Encomenda. {@code pickupCode} e {@code deliveryKeyword} só aparecem para quem
@@ -52,7 +54,10 @@ public record DeliveryResponse(
         Instant deliveredAt,
         Instant cancelledAt,
         String cancellationReason,
-        RideSummary ride
+        RideSummary ride,
+        /** NOT_REQUIRED (gratuita), UNPAID, PROCESSING (Pix aguardando), PAID ou REFUNDED */
+        PaymentStatus paymentStatus,
+        Instant paidAt
 ) {
     /** Resumo da carona em que a encomenda viaja. */
     public record RideSummary(UUID id, String driverSub, String driverName, String originCity, String originState,
@@ -77,6 +82,7 @@ public record DeliveryResponse(
                 d.getDropoffAddress(), d.isFullRoute(), price.price(), price.platformFee(), price.driverReceives(),
                 showCodes ? d.getPickupCode() : null, showCodes ? d.getDeliveryKeyword() : null,
                 d.getRequestedAt(), d.getConfirmedAt(), d.getPickedUpAt(), d.getDeliveredAt(), d.getCancelledAt(),
-                d.getCancellationReason(), RideSummary.of(ride));
+                d.getCancellationReason(), RideSummary.of(ride),
+                PaymentService.statusOf(d, PaymentService.toCents(d.getPrice())), d.getPaidAt());
     }
 }

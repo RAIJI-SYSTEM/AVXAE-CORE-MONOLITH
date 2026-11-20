@@ -111,6 +111,7 @@ public class NotificationService {
         String message = event.decision() == RideDecision.ACCEPT
                 ? "Sua solicitação de carona com " + event.driverName()
                         + " foi ACEITA."
+                        + (event.paymentRequired() ? " Pague pelo app para garantir a vaga." : "")
                 : "Sua solicitação de carona com " + event.driverName()
                         + " foi RECUSADA. Motivo: " + event.reason();
 

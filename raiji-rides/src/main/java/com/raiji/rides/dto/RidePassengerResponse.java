@@ -9,6 +9,8 @@ import com.raiji.common.enums.RidePassengerStatus;
 import com.raiji.rides.domain.Baggage;
 import com.raiji.rides.domain.RidePassenger;
 import com.raiji.rides.geo.GeoSupport;
+import com.raiji.common.enums.PaymentStatus;
+import com.raiji.rides.payment.PaymentService;
 
 /**
  * Pedido de vaga. Inclui a bagagem declarada — o motorista a vê ANTES de
@@ -34,7 +36,10 @@ public record RidePassengerResponse(
         String dropoffAddress,
         Instant confirmedAt,
         Instant cancelledAt,
-        String cancellationReason
+        String cancellationReason,
+        /** NOT_REQUIRED (gratuita), UNPAID, PROCESSING (Pix aguardando), PAID ou REFUNDED */
+        PaymentStatus paymentStatus,
+        Instant paidAt
 ) {
 
     public static RidePassengerResponse from(RidePassenger p) {
@@ -57,7 +62,9 @@ public record RidePassengerResponse(
                 p.getDropoffAddress(),
                 p.getConfirmedAt(),
                 p.getCancelledAt(),
-                p.getCancellationReason()
+                p.getCancellationReason(),
+                PaymentService.statusOf(p, PaymentService.toCents(p.getPrice())),
+                p.getPaidAt()
         );
     }
 

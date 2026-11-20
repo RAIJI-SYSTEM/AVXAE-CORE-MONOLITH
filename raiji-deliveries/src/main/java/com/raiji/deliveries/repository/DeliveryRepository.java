@@ -9,6 +9,7 @@ import com.raiji.deliveries.domain.Delivery;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import java.util.Optional;
 
 public interface DeliveryRepository extends JpaRepository<Delivery, UUID> {
 
@@ -26,4 +27,7 @@ public interface DeliveryRepository extends JpaRepository<Delivery, UUID> {
 
     @Query("select d from Delivery d where d.deletedAt is null and d.rideId in :rideIds order by d.requestedAt desc")
     List<Delivery> findByRideIds(@Param("rideIds") Collection<UUID> rideIds);
+
+    /** Encomenda dona da cobrança (webhook do Stripe). */
+    Optional<Delivery> findByPaymentIntentId(String paymentIntentId);
 }

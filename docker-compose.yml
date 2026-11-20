@@ -76,6 +76,9 @@
         RAIJI_DRIVER_VERIFICATION_SKIP: ${RAIJI_DRIVER_VERIFICATION_SKIP:-false}
         # Comissão da plataforma (%) e regra CNPJ/MEI intermunicipal (desligada)
         RAIJI_PLATFORM_FEE_PERCENT: ${RAIJI_PLATFORM_FEE_PERCENT:-1.5}
+        # Pagamentos (Stripe): chave secreta sk_test_... e segredo do webhook, do .env da raiz
+        STRIPE_API_KEY: ${STRIPE_API_KEY:-}
+        STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
         RAIJI_INTERMUNICIPAL_REQUIRES_BUSINESS: ${RAIJI_INTERMUNICIPAL_REQUIRES_BUSINESS:-false}
         # Foto da CNH (temporária): RustFS local
         DRIVER_DOCS_BUCKET: raiji-driver-docs

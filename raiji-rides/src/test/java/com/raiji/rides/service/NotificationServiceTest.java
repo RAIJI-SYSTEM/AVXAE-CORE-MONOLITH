@@ -57,7 +57,7 @@ class NotificationServiceTest {
     void decisaoVaiParaOModoPassageiro() {
         service.handleRideDecision(new RideDecisionEvent(
                 RIDE, UUID.randomUUID(), DRIVER, "Carlos", PASSENGER, "Ana",
-                RideDecision.ACCEPT, null, Instant.now()));
+                RideDecision.ACCEPT, null, Instant.now(), true));
 
         Notification n = saved();
         assertEquals(PASSENGER, n.getRecipientSub());

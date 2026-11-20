@@ -23,6 +23,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.test.util.ReflectionTestUtils;
+import com.raiji.common.enums.PaymentStatus;
 
 /**
  * S2-05 / RN04 — testes unitários do {@link RideRefundService}.
@@ -56,6 +57,10 @@ class RideRefundServiceTest {
         RidePassenger p = new RidePassenger();
         ReflectionTestUtils.setField(p, "id", UUID.randomUUID());
         p.setPaymentIntentId(paymentIntentId);
+        // reserva com cobrança = paga (o Stripe já confirmou)
+        if (paymentIntentId != null) {
+            p.setPaymentStatus(PaymentStatus.PAID);
+        }
         return p;
     }
 
@@ -71,6 +76,7 @@ class RideRefundServiceTest {
 
         assertTrue(tentou);
         verify(stripeService).refund("pi_1", 5000L);
+        assertEquals(PaymentStatus.REFUNDED, p.getPaymentStatus());
 
         ArgumentCaptor<String> action = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<String> details = ArgumentCaptor.forClass(String.class);
@@ -129,6 +135,33 @@ class RideRefundServiceTest {
         assertFalse(tentou);
         verifyNoInteractions(stripeService);
         verifyNoInteractions(auditLogService);
+    }
+
+    @Test
+    @DisplayName("cobrança iniciada mas NÃO paga => não estorna")
+    void naoDeveEstornarCobrancaNaoPaga() {
+        Ride ride = ride("20.00");
+        RidePassenger p = reserva("pi_4");
+        p.setPaymentStatus(PaymentStatus.UNPAID);
+
+        boolean tentou = service.refundIfApplicable(ride, p, "actor-sub");
+
+        assertFalse(tentou);
+        verifyNoInteractions(stripeService);
+        verifyNoInteractions(auditLogService);
+    }
+
+    @Test
+    @DisplayName("estorna o valor recebido pelo Stripe (preço do trecho), não o preço cheio")
+    void deveEstornarValorRecebido() {
+        Ride ride = ride("50.00");
+        RidePassenger p = reserva("pi_5");
+        p.setPaidAmountCents(3250L);
+        when(stripeService.refund("pi_5", 3250L)).thenReturn(StripeRefundResult.success("re_5"));
+
+        service.refundIfApplicable(ride, p, "actor-sub");
+
+        verify(stripeService).refund("pi_5", 3250L);
     }
 
     @Test

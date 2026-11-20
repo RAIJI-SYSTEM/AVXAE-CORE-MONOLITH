@@ -8,7 +8,9 @@ import com.raiji.deliveries.dto.DeliveryCreateRequest;
 import com.raiji.deliveries.dto.DeliveryDecisionRequest;
 import com.raiji.deliveries.dto.DeliveryResponse;
 import com.raiji.deliveries.dto.ReasonRequest;
+import com.raiji.deliveries.service.DeliveryPaymentService;
 import com.raiji.deliveries.service.DeliveryService;
+import com.raiji.rides.payment.PaymentResponse;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -32,15 +34,29 @@ import org.springframework.web.bind.annotation.RestController;
  * GET   /api/deliveries/mine                        minhas encomendas (e das minhas empresas)
  * GET   /api/deliveries/driving                     (motorista) encomendas que eu levo
  * GET   /api/deliveries/{id}
+ * POST  /api/deliveries/{id}/payment              remetente inicia o pagamento (após o aceite)
+ * GET   /api/deliveries/{id}/payment              situação do pagamento (remetente ou motorista)
  */
 @RestController
 @PreAuthorize("isAuthenticated()")
 public class DeliveryController {
 
     private final DeliveryService service;
+    private final DeliveryPaymentService payments;
 
-    public DeliveryController(DeliveryService service) {
+    public DeliveryController(DeliveryService service, DeliveryPaymentService payments) {
         this.service = service;
+        this.payments = payments;
+    }
+
+    @PostMapping("/api/deliveries/{id}/payment")
+    public PaymentResponse startPayment(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id) {
+        return payments.start(id, jwt.getSubject());
+    }
+
+    @GetMapping("/api/deliveries/{id}/payment")
+    public PaymentResponse paymentStatus(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id) {
+        return payments.status(id, jwt.getSubject());
     }
 
     @PostMapping("/api/rides/{rideId}/deliveries")

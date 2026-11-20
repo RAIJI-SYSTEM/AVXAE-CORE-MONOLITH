@@ -7,6 +7,7 @@ import java.util.UUID;
 import com.raiji.common.enums.RidePassengerStatus;
 import com.raiji.rides.domain.RidePassenger;
 import org.springframework.data.jpa.repository.JpaRepository;
+import java.util.Optional;
 
 public interface RidePassengerRepository extends JpaRepository<RidePassenger, UUID> {
 
@@ -26,4 +27,7 @@ public interface RidePassengerRepository extends JpaRepository<RidePassenger, UU
     );
 
     List<RidePassenger> findByRideIdAndDeletedAtIsNull(UUID rideId);
+
+    /** Reserva dona da cobrança (webhook do Stripe). */
+    Optional<RidePassenger> findByPaymentIntentId(String paymentIntentId);
 }

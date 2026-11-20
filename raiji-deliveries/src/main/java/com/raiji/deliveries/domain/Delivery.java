@@ -16,11 +16,13 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import org.locationtech.jts.geom.Point;
+import com.raiji.common.enums.PaymentStatus;
+import com.raiji.rides.payment.Payable;
 
 /** Encomenda que viaja numa carona (pedido de "espaço de carga"). */
 @Entity
 @Table(name = "deliveries")
-public class Delivery extends AuditableEntity {
+public class Delivery extends AuditableEntity implements Payable {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -80,6 +82,17 @@ public class Delivery extends AuditableEntity {
 
     @Column(name = "payment_intent_id", length = 100)
     private String paymentIntentId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_status", nullable = false, length = 20)
+    private PaymentStatus paymentStatus = PaymentStatus.UNPAID;
+
+    /** Valor recebido pelo Stripe, em centavos (usado no estorno). */
+    @Column(name = "paid_amount_cents")
+    private Long paidAmountCents;
+
+    @Column(name = "paid_at")
+    private Instant paidAt;
 
     @Column(name = "requested_at", nullable = false)
     private Instant requestedAt = Instant.now();
@@ -162,6 +175,12 @@ public class Delivery extends AuditableEntity {
     public void setFreightRequestId(UUID v) { this.freightRequestId = v; }
     public String getPaymentIntentId() { return paymentIntentId; }
     public void setPaymentIntentId(String v) { this.paymentIntentId = v; }
+    @Override public PaymentStatus getPaymentStatus() { return paymentStatus; }
+    @Override public void setPaymentStatus(PaymentStatus v) { this.paymentStatus = v; }
+    @Override public Long getPaidAmountCents() { return paidAmountCents; }
+    @Override public void setPaidAmountCents(Long v) { this.paidAmountCents = v; }
+    @Override public Instant getPaidAt() { return paidAt; }
+    @Override public void setPaidAt(Instant v) { this.paidAt = v; }
     public Instant getRequestedAt() { return requestedAt; }
     public Instant getConfirmedAt() { return confirmedAt; }
     public Instant getPickedUpAt() { return pickedUpAt; }

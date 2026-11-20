@@ -17,10 +17,12 @@ public class DeliveryRideBookings implements RidePackageBookings {
 
     private final DeliveryRepository deliveries;
     private final DeliveryNotifier notifier;
+    private final DeliveryRefunds refunds;
 
-    public DeliveryRideBookings(DeliveryRepository deliveries, DeliveryNotifier notifier) {
+    public DeliveryRideBookings(DeliveryRepository deliveries, DeliveryNotifier notifier, DeliveryRefunds refunds) {
         this.deliveries = deliveries;
         this.notifier = notifier;
+        this.refunds = refunds;
     }
 
     @Override
@@ -56,6 +58,7 @@ public class DeliveryRideBookings implements RidePackageBookings {
     private void closeAll(UUID rideId, List<DeliveryStatus> statuses, String reason, String kind) {
         for (Delivery d : deliveries.findByRideIdAndStatusInAndDeletedAtIsNull(rideId, statuses)) {
             d.cancel(reason);
+            refunds.refundIfPaid(d, null); // a viagem foi cancelada: devolve o que já foi pago
             deliveries.save(d);
             notifier.sender(d, kind, "Sua encomenda não vai nesta carona. Motivo: " + reason);
         }
