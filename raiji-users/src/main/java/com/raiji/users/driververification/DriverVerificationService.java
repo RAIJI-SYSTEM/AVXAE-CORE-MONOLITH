@@ -47,6 +47,12 @@ public class DriverVerificationService {
     private final ApplicationEventPublisher events;
     private final DriverApprovalMailer approvalMailer;
     private final Clock clock;
+    /**
+     * MODO DE TESTES (RAIJI_DRIVER_VERIFICATION_SKIP=true): aprova o pedido na hora, sem
+     * chamar a Infosimples, sem guardar foto e sem e-mail. Desligado (padrão), vale a
+     * verificação real. NUNCA ligar em produção.
+     */
+    private final boolean skipVerification;
 
     public DriverVerificationService(
             DriverApplicationRepository repository,
@@ -56,6 +62,24 @@ public class DriverVerificationService {
             ApplicationEventPublisher events,
             DriverApprovalMailer approvalMailer,
             ObjectProvider<Clock> clock) {
+        this(repository, storage, infosimples, capabilities, events, approvalMailer, clock, false);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public DriverVerificationService(
+            DriverApplicationRepository repository,
+            CnhImageStorage storage,
+            InfosimplesClient infosimples,
+            UserCapabilitiesService capabilities,
+            ApplicationEventPublisher events,
+            DriverApprovalMailer approvalMailer,
+            ObjectProvider<Clock> clock,
+            @org.springframework.beans.factory.annotation.Value("${raiji.driver-verification.skip:false}") boolean skipVerification) {
+        this.skipVerification = skipVerification;
+        if (skipVerification) {
+            log.warn("VERIFICAÇÃO DE CNH DESLIGADA (modo de testes): todo pedido de motorista é aprovado sem conferir a CNH. "
+                    + "Desligue RAIJI_DRIVER_VERIFICATION_SKIP antes de ir para produção.");
+        }
         this.repository = repository;
         this.storage = storage;
         this.infosimples = infosimples;
@@ -67,6 +91,9 @@ public class DriverVerificationService {
 
     @Transactional
     public DriverApplicationResponse submit(Jwt jwt, MultipartFile image, String securityCode) {
+        if (skipVerification) {
+            return approveWithoutVerification(jwt);
+        }
         if (!infosimples.configured()) {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
                     "A verificação de CNH está indisponível no momento.");
@@ -110,6 +137,22 @@ public class DriverVerificationService {
         // Processado depois do commit, em segundo plano (DriverApplicationProcessor)
         events.publishEvent(new DriverApplicationSubmittedEvent(application.getId(), code));
         return DriverApplicationResponse.from(application);
+    }
+
+    /** Modo de testes: aprova na hora (sem Infosimples, sem foto, sem e-mail). */
+    private DriverApplicationResponse approveWithoutVerification(Jwt jwt) {
+        DriverApplication application = new DriverApplication();
+        application.setSub(jwt.getSubject());
+        application.setAccountName(accountName(jwt));
+        application.setStatus(DriverApplicationStatus.APPROVED);
+        application.setReason("Aprovado sem conferir a CNH (modo de testes).");
+        application.setCategoria("B");
+        application.setValidade(LocalDate.now(clock).plusYears(5));
+        application.setDecidedAt(Instant.now(clock));
+        capabilities.grantVerifiedDriver(jwt.getSubject());
+        repository.save(application);
+        log.info("CNH NÃO conferida (modo de testes): conta {} aprovada como motorista", jwt.getSubject());
+        return DriverApplicationResponse.from(application).withTestMode(true);
     }
 
     /** Executado em segundo plano. Nunca relança: todo desfecho vira um status. */
@@ -200,7 +243,8 @@ public class DriverVerificationService {
                     }
                     return DriverApplicationResponse.from(application);
                 })
-                .orElseGet(DriverApplicationResponse::none);
+                .orElseGet(DriverApplicationResponse::none)
+                .withTestMode(skipVerification);
     }
 
     private static String accountName(Jwt jwt) {

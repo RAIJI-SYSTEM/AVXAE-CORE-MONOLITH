@@ -31,6 +31,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /** Infosimples e armazenamento simulados (mocks): nenhuma chamada real. */
@@ -246,5 +247,20 @@ class DriverVerificationServiceTest {
                 .isInstanceOf(ResponseStatusException.class)
                 .extracting(e -> ((ResponseStatusException) e).getStatusCode())
                 .isEqualTo(status);
+    }
+
+    @Test
+    void modoDeTestesAprovaNaHoraSemInfosimplesNemFoto() {
+        ObjectProvider<Clock> clock = mock(ObjectProvider.class);
+        when(clock.getIfAvailable(any())).thenReturn(CLOCK);
+        DriverVerificationService pulando = new DriverVerificationService(
+                repository, storage, infosimples, capabilities, events, mailer, clock, true);
+
+        DriverApplicationResponse resp = pulando.submit(jwt(), null, null);
+
+        assertThat(resp.status()).isEqualTo("APPROVED");
+        assertThat(resp.testMode()).isTrue();
+        verify(capabilities).grantVerifiedDriver(SUB);
+        verifyNoInteractions(infosimples, storage, mailer, events);
     }
 }

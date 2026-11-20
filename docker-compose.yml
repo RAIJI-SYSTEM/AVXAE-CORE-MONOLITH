@@ -72,6 +72,8 @@
         # E-mails transacionais (Resend), também do .env da raiz
         RESEND_API_KEY: ${RESEND_API_KEY:-}
         RESEND_FROM: ${RESEND_FROM:-Raiji <onboarding@resend.dev>}
+        # true = aprova motorista sem conferir a CNH (só para testes locais)
+        RAIJI_DRIVER_VERIFICATION_SKIP: ${RAIJI_DRIVER_VERIFICATION_SKIP:-false}
         # Comissão da plataforma (%) e regra CNPJ/MEI intermunicipal (desligada)
         RAIJI_PLATFORM_FEE_PERCENT: ${RAIJI_PLATFORM_FEE_PERCENT:-1.5}
         RAIJI_INTERMUNICIPAL_REQUIRES_BUSINESS: ${RAIJI_INTERMUNICIPAL_REQUIRES_BUSINESS:-false}

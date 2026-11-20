@@ -85,6 +85,9 @@ raiji:
   # Segredos só por variável de ambiente (no .env da raiz, fora do git).
   # Sem token => a verificação responde 503 (nada é chamado).
   driver-verification:
+    # MODO DE TESTES: true = aprova o motorista sem conferir a CNH (não chama a Infosimples).
+    # Deixe false (padrão) para a verificação real. Nunca ligue em produção.
+    skip: ${RAIJI_DRIVER_VERIFICATION_SKIP:false}
     infosimples:
       base-url: ${INFOSIMPLES_BASE_URL:https://api.infosimples.com}
       token: ${INFO_SIMPLES_KEY:}

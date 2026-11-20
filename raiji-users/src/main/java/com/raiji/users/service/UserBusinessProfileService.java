@@ -6,6 +6,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
+import java.util.Optional;
 
 @Service
 public class UserBusinessProfileService {
@@ -15,6 +16,12 @@ public class UserBusinessProfileService {
     public UserBusinessProfileService(
             UserBusinessProfileRepository repository) {
         this.repository = repository;
+    }
+
+    /** Telefone e foto já salvos (vazio se o usuário ainda não salvou nada). */
+    @Transactional(readOnly = true)
+    public Optional<UserBusinessProfile> find(String sub) {
+        return repository.findById(sub);
     }
 
     @Transactional

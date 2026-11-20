@@ -16,10 +16,16 @@ public record DriverApplicationResponse(
         String categoria,
         LocalDate validade,
         Instant createdAt,
-        Instant decidedAt) {
+        Instant decidedAt,
+        /** Modo de testes: a CNH não é conferida (RAIJI_DRIVER_VERIFICATION_SKIP=true) */
+        boolean testMode) {
 
     public static DriverApplicationResponse none() {
-        return new DriverApplicationResponse(null, "NONE", null, null, null, null, null);
+        return new DriverApplicationResponse(null, "NONE", null, null, null, null, null, false);
+    }
+
+    public DriverApplicationResponse withTestMode(boolean value) {
+        return new DriverApplicationResponse(id, status, reason, categoria, validade, createdAt, decidedAt, value);
     }
 
     public static DriverApplicationResponse from(DriverApplication application) {
@@ -30,6 +36,7 @@ public record DriverApplicationResponse(
                 application.getCategoria(),
                 application.getValidade(),
                 application.getCreatedAt(),
-                application.getDecidedAt());
+                application.getDecidedAt(),
+                false);
     }
 }

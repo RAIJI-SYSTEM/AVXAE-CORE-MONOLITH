@@ -50,6 +50,8 @@ services:
       INFOSIMPLES_GOVBR_SENHA: ${INFOSIMPLES_GOVBR_SENHA:-}
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       RESEND_FROM: ${RESEND_FROM:-}
+      # Na AWS a verificação real da CNH é obrigatória (o modo de testes fica desligado)
+      RAIJI_DRIVER_VERIFICATION_SKIP: "false"
       RAIJI_PLATFORM_FEE_PERCENT: ${RAIJI_PLATFORM_FEE_PERCENT:-1.5}
       RAIJI_INTERMUNICIPAL_REQUIRES_BUSINESS: ${RAIJI_INTERMUNICIPAL_REQUIRES_BUSINESS:-false}
       # Origens extras do app (além de localhost/capacitor), separadas por vírgula
