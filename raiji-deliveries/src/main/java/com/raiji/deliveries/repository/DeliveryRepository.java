@@ -3,6 +3,7 @@ package com.raiji.deliveries.repository;
 import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
+import java.util.Optional;
 
 import com.raiji.common.enums.DeliveryStatus;
 import com.raiji.deliveries.Delivery;
@@ -11,6 +12,9 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import jakarta.persistence.LockModeType;
+import org.springframework.data.jpa.repository.Lock;
+
 
 public interface DeliveryRepository extends JpaRepository<Delivery, UUID> {
 
@@ -25,6 +29,10 @@ public interface DeliveryRepository extends JpaRepository<Delivery, UUID> {
     List<Delivery> findByStatusAndRideIdIsNullAndDeletedAtIsNullOrderByRequestedAtDesc(
             DeliveryStatus status);
 
+    List<Delivery> findByVehicleIdAndStatusInAndDeletedAtIsNull(
+            UUID vehicleId,
+            Collection<DeliveryStatus> statuses);
+
     boolean existsByRideIdAndSenderSubAndStatusInAndDeletedAtIsNull(
             UUID rideId, String senderSub, Collection<DeliveryStatus> statuses);
 
@@ -37,4 +45,8 @@ public interface DeliveryRepository extends JpaRepository<Delivery, UUID> {
 
     @Query("select d from Delivery d where d.deletedAt is null and d.rideId in :rideIds order by d.requestedAt desc")
     List<Delivery> findByRideIds(@Param("rideIds") Collection<UUID> rideIds);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT d FROM Delivery d WHERE d.id = :id")
+    Optional<Delivery> findByIdForUpdate(@Param("id") UUID id);
 }
