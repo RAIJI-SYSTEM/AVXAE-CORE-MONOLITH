@@ -524,6 +524,8 @@ class DeliveryServiceTest {
         Delivery delivery = mock(Delivery.class);
         Ride ride = prepararMotorista(rideId, "motorista-123");
 
+        when(ride.getStatus()).thenReturn(RideStatus.PLANNED);
+
         when(deliveries.findById(deliveryId)).thenReturn(Optional.of(delivery));
         when(delivery.getDeletedAt()).thenReturn(null);
         when(delivery.getRideId()).thenReturn(rideId);

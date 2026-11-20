@@ -83,6 +83,14 @@
                             <goal>prepare-agent</goal>
                         </goals>
                     </execution>
+
+                    <execution>
+                        <id>relatorio</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                    </execution>
                 </executions>
             </plugin>
         </plugins>
