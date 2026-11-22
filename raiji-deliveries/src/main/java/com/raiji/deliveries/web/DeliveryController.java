@@ -1,8 +1,10 @@
 package com.raiji.deliveries.web;
 
 import java.util.List;
+import java.time.Instant;
 import java.util.UUID;
 
+import com.raiji.common.enums.DeliveryStatus;
 import com.raiji.deliveries.dto.AvailableDeliveryResponse;
 import com.raiji.deliveries.dto.CodeRequest;
 import com.raiji.deliveries.dto.DeliveryAcceptanceRequest;
@@ -14,6 +16,8 @@ import com.raiji.deliveries.dto.DeliveryResponse;
 import com.raiji.deliveries.dto.DeliverySummaryResponse;
 import com.raiji.deliveries.dto.ReasonRequest;
 import com.raiji.deliveries.service.DeliveryService;
+import com.raiji.deliveries.dto.DeliveryConfirmationRequest;
+import com.raiji.deliveries.dto.DeliveryTimelineResponse;
 
 import jakarta.validation.Valid;
 
@@ -31,6 +35,8 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.web.bind.annotation.RequestParam;
 
 /**
  * Endpoints de gerenciamento de encomendas.
@@ -154,15 +160,24 @@ public class DeliveryController {
         return service.pickUp(id, jwt.getSubject(), body.code());
     }
 
-    @PostMapping("/api/deliveries/{id}/deliver")
+    @PostMapping("/api/deliveries/{id}/confirm")
     @PreAuthorize("hasRole('DRIVER')")
-    public DeliveryResponse deliver(
+    public DeliveryResponse confirm(
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable UUID id,
-            @Valid @RequestBody CodeRequest body) {
+            @Valid @RequestBody DeliveryConfirmationRequest body) {
 
-        return service.deliver(id, jwt.getSubject(), body.code());
+        return service.confirm(id, jwt.getSubject(), body);
     }
+
+    @PostMapping("/api/deliveries/{id}/resend-code")
+    public void resendCode(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable UUID id) {
+
+        service.resendCode(id, jwt.getSubject());
+    }
+
 
     @PostMapping("/api/deliveries/{id}/cancel")
     public DeliveryResponse cancel(
@@ -185,6 +200,14 @@ public class DeliveryController {
             @AuthenticationPrincipal Jwt jwt) {
 
         return service.mine(jwt.getSubject());
+    }
+
+    @GetMapping("/api/deliveries/{id}/timeline")
+    public List<DeliveryTimelineResponse> timeline(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable UUID id) {
+
+        return service.timeline(id, jwt.getSubject());
     }
 
     /**
@@ -220,5 +243,47 @@ public class DeliveryController {
             @AuthenticationPrincipal Jwt jwt) {
 
         return service.available(jwt.getSubject());
+    }
+    @GetMapping("/api/deliveries/driver/history")
+    @PreAuthorize("hasRole('DRIVER')")
+    public Page<DeliverySummaryResponse> driverHistory(
+            @AuthenticationPrincipal Jwt jwt,
+            @RequestParam(required = false) DeliveryStatus status,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+            Instant startDate,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+            Instant endDate,
+            @PageableDefault(size = 20) Pageable pageable) {
+
+        return service.driverHistory(
+                jwt.getSubject(),
+                status,
+                startDate,
+                endDate,
+                pageable
+        );
+    }
+
+    @GetMapping("/api/deliveries/sender/history")
+    public Page<DeliverySummaryResponse> senderHistory(
+            @AuthenticationPrincipal Jwt jwt,
+            @RequestParam(required = false) DeliveryStatus status,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+            Instant startDate,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+            Instant endDate,
+            @PageableDefault(size = 20) Pageable pageable) {
+
+        return service.senderHistory(
+                jwt.getSubject(),
+                status,
+                startDate,
+                endDate,
+                pageable
+        );
     }
 }

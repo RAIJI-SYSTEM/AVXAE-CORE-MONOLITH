@@ -14,10 +14,22 @@ public record DeliverySummaryResponse(
         String mode,
         BigDecimal distanceKm,
         Long quotedPriceCents,
-        Instant createdAt
+        Instant createdAt,
+        String confirmationCode
 ) {
 
     public static DeliverySummaryResponse of(Delivery delivery) {
+        return from(delivery, delivery.getConfirmationCode());
+    }
+
+    public static DeliverySummaryResponse forDriver(Delivery delivery) {
+        return from(delivery, null);
+    }
+
+    private static DeliverySummaryResponse from(
+            Delivery delivery,
+            String confirmationCode
+    ) {
         return new DeliverySummaryResponse(
                 delivery.getId(),
                 delivery.getTrackingCode(),
@@ -27,7 +39,8 @@ public record DeliverySummaryResponse(
                         : null,
                 delivery.getDistanceKm(),
                 delivery.getQuotedPriceCents(),
-                delivery.getRequestedAt()
+                delivery.getRequestedAt(),
+                confirmationCode
         );
     }
 }
