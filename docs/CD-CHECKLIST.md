@@ -12,7 +12,9 @@ credenciais/configuração, não por bug de aplicação.
 > implementas as correções nos arquivos (fase APPLY), conecta na AWS, roda o
 > bootstrap dos dois ambientes e cria TODOS os secrets/variables no GitHub
 > via `gh`, depois imprime a lista do que ainda falta você fazer ou enviar.
-> Com `--push-develop` ele também dispara o Deploy DEV e com `--sync-main`
+> Por padrão ele NÃO publica develop/main — atua só na branch atual (ex.:
+> fix/cd-deploy-hardening). Para publicar e disparar o Deploy DEV:
+> `--push-develop --watch` (pede confirmação; `--yes` pula). Com `--sync-main`
 > registra os workflows no branch default (HOMOLOG). Detalhes:
 > `./cd-setup-all.sh --help`.
 
