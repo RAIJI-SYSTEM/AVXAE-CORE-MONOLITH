@@ -4,6 +4,7 @@ import com.raiji.common.enums.DeliveryStatus;
 import com.raiji.deliveries.Delivery;
 import com.raiji.deliveries.service.IllegalDeliveryStateException;
 import org.junit.jupiter.api.Test;
+import java.time.Instant;
 
 import java.util.UUID;
 
@@ -38,8 +39,8 @@ class DeliveryTest {
         Delivery delivery = new Delivery();
 
         delivery.confirm();
-        delivery.pickUp();
-        delivery.deliver();
+        delivery.startTransit(Instant.now());
+        delivery.deliver(Instant.now(), 0L);
 
         assertFalse(delivery.active());
     }
@@ -79,7 +80,7 @@ class DeliveryTest {
         Delivery delivery = new Delivery();
 
         delivery.confirm();
-        delivery.pickUp();
+        delivery.startTransit(Instant.now());
         delivery.cancel("Motivo");
 
         assertEquals(DeliveryStatus.CANCELLED, delivery.getStatus());
@@ -90,8 +91,8 @@ class DeliveryTest {
         Delivery delivery = new Delivery();
 
         delivery.confirm();
-        delivery.pickUp();
-        delivery.deliver();
+        delivery.startTransit(Instant.now());
+        delivery.deliver(Instant.now(), 0L);
 
         assertThrows(
                 IllegalDeliveryStateException.class,
@@ -139,7 +140,7 @@ class DeliveryTest {
 
         assertThrows(
                 IllegalDeliveryStateException.class,
-                delivery::deliver
+                () -> delivery.deliver(Instant.now(), 0L)
         );
     }
 
