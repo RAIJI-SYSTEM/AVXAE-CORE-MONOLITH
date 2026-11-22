@@ -4,39 +4,43 @@ import com.raiji.common.enums.DeliveryStatus;
 import com.raiji.common.enums.RideStatus;
 import com.raiji.common.enums.RideType;
 import com.raiji.deliveries.Delivery;
+import com.raiji.deliveries.DeliveryMode;
 import com.raiji.deliveries.DeliveryStatusHistory;
 import com.raiji.deliveries.PackageDetails;
 import com.raiji.deliveries.dto.*;
+import com.raiji.deliveries.event.DeliveryDeliveredEvent;
 import com.raiji.deliveries.repository.DeliveryRepository;
 import com.raiji.deliveries.repository.DeliveryStatusHistoryRepository;
 import com.raiji.rides.cargo.CargoCapacityService;
+import com.raiji.rides.cargo.CargoLoad;
 import com.raiji.rides.domain.Ride;
 import com.raiji.rides.domain.RideVisibility;
 import com.raiji.rides.geo.GeoSupport;
 import com.raiji.rides.geo.Place;
+import com.raiji.rides.pricing.PriceBreakdown;
 import com.raiji.rides.pricing.SegmentPricing;
 import com.raiji.rides.repository.RideRepository;
 import com.raiji.rides.repository.RideRouteMatch;
 import com.raiji.users.company.CompanyMembership;
+import com.raiji.users.domain.Vehicle;
+import com.raiji.users.repository.VehicleRepository;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
-import com.raiji.deliveries.DeliveryMode;
-import com.raiji.rides.cargo.CargoLoad;
-import com.raiji.users.domain.Vehicle;
-import com.raiji.users.repository.VehicleRepository;
 
 import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.Locale;
 
 /**
  * Encomendas como espaço de carga numa carona.
@@ -58,6 +62,8 @@ public class DeliveryService {
     private final Clock clock;
     private final TrackingCodeGenerator trackingCodeGenerator;
     private final VehicleRepository vehicles;
+    private final ApplicationEventPublisher events;
+    private final RecipientNotificationSimulator recipientNotificationSimulator;
 
 
     public DeliveryService(
@@ -69,7 +75,9 @@ public class DeliveryService {
             DeliveryNotifier notifier,
             Clock clock,
             TrackingCodeGenerator trackingCodeGenerator,
-            VehicleRepository vehicles) {
+            VehicleRepository vehicles,
+            ApplicationEventPublisher events,
+            RecipientNotificationSimulator recipientNotificationSimulator) {
 
         this.deliveries = deliveries;
         this.history = history;
@@ -80,6 +88,43 @@ public class DeliveryService {
         this.clock = clock;
         this.trackingCodeGenerator = trackingCodeGenerator;
         this.vehicles = vehicles;
+        this.events = events;
+        this.recipientNotificationSimulator = recipientNotificationSimulator;
+    }
+    @Transactional(readOnly = true)
+    public List<DeliveryTimelineResponse> timeline(UUID deliveryId, String viewerSub) {
+        Delivery d = deliveries.findById(deliveryId)
+                .filter(x -> x.getDeletedAt() == null)
+                .orElseThrow(this::naoEncontrada);
+
+        boolean remetente = podeVerComoRemetente(d, viewerSub);
+        boolean motorista = false;
+
+        if (d.getRideId() != null) {
+            Ride ride = rides.findById(d.getRideId()).orElse(null);
+            motorista = ride != null
+                    && ride.getDriverSub().equals(viewerSub);
+        } else {
+            motorista = viewerSub.equals(d.getDriverSub());
+        }
+
+        if (!remetente && !motorista) {
+            throw naoEncontrada();
+        }
+
+        return history.findByDeliveryIdOrderByCreatedAtAsc(deliveryId)
+                .stream()
+                .map(h -> new DeliveryTimelineResponse(
+                        h.getFromStatus(),
+                        h.getToStatus(),
+                        h.getCreatedAt(),
+                        h.getChangedBy() == null
+                                ? "SYSTEM"
+                                : h.getChangedBy().equals(d.getSenderSub())
+                                ? "SENDER"
+                                : "DRIVER"
+                ))
+                .toList();
     }
 
     // ---------------------------------------------------------
@@ -146,6 +191,7 @@ public class DeliveryService {
 
         d.setPickupCode(DeliveryCodes.pickupCode());
         d.setDeliveryKeyword(DeliveryCodes.keyword());
+        d.setConfirmationCode(DeliveryCodes.confirmationCode());
 
         // Salva primeiro para obter o ID da encomenda.
         d = deliveries.save(d);
@@ -257,6 +303,12 @@ public class DeliveryService {
         }
 
         d = deliveries.save(d);
+
+        recipientNotificationSimulator.sendConfirmationCode(
+                d.getId(),
+                d.getPkg().getRecipientPhone(),
+                d.getConfirmationCode()
+        );
 
         registrarHistorico(
                 d,
@@ -393,6 +445,12 @@ public class DeliveryService {
 
         delivery = deliveries.save(delivery);
 
+        recipientNotificationSimulator.sendConfirmationCode(
+                delivery.getId(),
+                delivery.getPkg().getRecipientPhone(),
+                delivery.getConfirmationCode()
+        );
+
         registrarHistorico(
                 delivery,
                 previousStatus,
@@ -528,64 +586,147 @@ public class DeliveryService {
     // Entregar encomenda
     // ---------------------------------------------------------
 
+    // ---------------------------------------------------------
+// Confirmar entrega com código do destinatário
+// ---------------------------------------------------------
+
     /**
-     * O motorista informa a palavra-chave do destinatário.
+     * O motorista confirma a entrega usando o código de seis dígitos.
+     *
+     * Após cinco tentativas incorretas, a sexta tentativa é bloqueada
+     * com HTTP 423. As tentativas incorretas são persistidas.
      */
     @Transactional(noRollbackFor = ResponseStatusException.class)
-    public DeliveryResponse deliver(
+    public DeliveryResponse confirm(
             UUID deliveryId,
             String driverSub,
-            String keyword) {
+            DeliveryConfirmationRequest body) {
 
-        Delivery d = deliveries.findById(deliveryId)
+        Delivery d = deliveries.findByIdForUpdate(deliveryId)
                 .filter(x -> x.getDeletedAt() == null)
                 .orElseThrow(this::naoEncontrada);
 
         Ride ride = null;
 
         if (d.getRideId() != null) {
-            // Encomenda vinculada a uma carona.
             ride = rideDoMotorista(d.getRideId(), driverSub, false);
+        } else if (d.getDriverSub() == null
+                || !d.getDriverSub().equals(driverSub)) {
 
-        } else {
-            // Encomenda de frete exclusivo.
-            if (d.getDriverSub() == null
-                    || !d.getDriverSub().equals(driverSub)) {
-                throw new ResponseStatusException(
-                        HttpStatus.FORBIDDEN,
-                        "Esta encomenda não pertence a este motorista.");
-            }
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "Esta encomenda não pertence a este motorista.");
         }
 
-        if (d.getStatus() != DeliveryStatus.IN_TRANSIT) {
+        boolean freteExclusivo =
+                d.getMode() == DeliveryMode.EXCLUSIVE;
+
+        /*
+         * Frete exclusivo pode ser concluído diretamente de CONFIRMED,
+         * mas exige justificativa registrada na observação.
+         */
+        if (freteExclusivo
+                && d.getStatus() == DeliveryStatus.CONFIRMED) {
+
+            if (body.observation() == null
+                    || body.observation().isBlank()) {
+
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "Informe uma justificativa para concluir o frete exclusivo.");
+            }
+
+        } else if (d.getStatus() != DeliveryStatus.IN_TRANSIT) {
+
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
-                    "Esta encomenda não está em trânsito.");
+                    "A encomenda precisa estar em trânsito para ser entregue.");
         }
 
-        conferirCodigo(
-                d,
-                d.getDeliveryKeyword(),
-                keyword,
-                "Palavra-chave incorreta.");
+        // Após cinco códigos incorretos, bloqueia novas tentativas.
+        if (d.getConfirmationAttempts()
+                >= DeliveryCodes.MAX_FAILED_ATTEMPTS) {
 
-        DeliveryStatus statusAnterior = d.getStatus();
+            throw new ResponseStatusException(
+                    HttpStatus.LOCKED,
+                    "Limite de tentativas atingido. Procure o suporte.");
+        }
 
-        d.deliver();
+        // Valida o código de confirmação do destinatário.
+        if (!DeliveryCodes.matches(
+                d.getConfirmationCode(),
+                body.confirmationCode())) {
+
+            d.registerConfirmationAttempt();
+            deliveries.saveAndFlush(d);
+
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Código de confirmação incorreto.");
+        }
+
+        Instant confirmedAt = clock.instant();
+
+        // Guarda os dados de quem efetivamente recebeu a encomenda.
+        d.setConfirmedRecipientName(body.recipientName().trim());
+
+        d.setDeliveryObservation(
+                body.observation() == null
+                        ? null
+                        : body.observation().trim());
+
+        /*
+         * Frete exclusivo: registra também a transição
+         * CONFIRMED -> IN_TRANSIT antes de concluir.
+         */
+        if (d.getStatus() == DeliveryStatus.CONFIRMED) {
+            DeliveryStatus previousStatus = d.getStatus();
+
+            d.startTransit(confirmedAt);
+
+            registrarHistorico(
+                    d,
+                    previousStatus,
+                    driverSub,
+                    "Início do transporte registrado na confirmação do frete exclusivo.");
+        }
+
+        // Calcula a remuneração efetiva do motorista.
+        PriceBreakdown breakdown = PriceBreakdown.of(
+                d.getPrice(),
+                d.getPlatformFeePercent());
+
+        long rewardCents = breakdown.driverReceives() == null
+                ? 0L
+                : breakdown.driverReceives()
+                .movePointRight(2)
+                .longValueExact();
+
+        DeliveryStatus previousStatus = d.getStatus();
+
+        d.deliver(confirmedAt, rewardCents);
 
         d = deliveries.save(d);
 
         registrarHistorico(
                 d,
-                statusAnterior,
+                previousStatus,
                 driverSub,
-                "Entrega confirmada pelo motorista.");
+                "Entrega confirmada pelo código do destinatário.");
+        events.publishEvent(new DeliveryDeliveredEvent(
+                d.getId(),
+                d.getRideId(),
+                d.getSenderSub(),
+                driverSub,
+                d.getRewardCents(),
+                confirmedAt
+        ));
 
         notifier.sender(
                 d,
                 "DELIVERY_DELIVERED",
                 "Sua encomenda foi entregue para "
-                        + d.getPkg().getRecipientName() + ".");
+                        + d.getConfirmedRecipientName() + ".");
 
         return DeliveryResponse.of(d, ride, false);
     }
@@ -711,6 +852,56 @@ public class DeliveryService {
     }
 
     // ---------------------------------------------------------
+    // Reenviar código de confirmação ao destinatário
+    // ---------------------------------------------------------
+
+    @Transactional
+    public void resendCode(UUID deliveryId, String senderSub) {
+
+        Delivery d = deliveries.findByIdForUpdate(deliveryId)
+                .filter(x -> x.getDeletedAt() == null)
+                .orElseThrow(this::naoEncontrada);
+
+        // Somente remetente ou membro ativo da empresa.
+        if (!podeVerComoRemetente(d, senderSub)) {
+            throw naoEncontrada();
+        }
+
+        // Não permite reenvio após conclusão ou cancelamento.
+        if (d.getStatus() == DeliveryStatus.DELIVERED
+                || d.getStatus() == DeliveryStatus.CANCELLED) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Não é possível reenviar o código de uma entrega concluída ou cancelada.");
+        }
+
+        PackageDetails pkg = d.getPkg();
+
+        if (pkg == null || pkg.getRecipientPhone() == null
+                || pkg.getRecipientPhone().isBlank()) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "A entrega não possui telefone válido para o destinatário.");
+        }
+
+        // Reenvia o mesmo código, sem gerar outro.
+        recipientNotificationSimulator.sendConfirmationCode(
+                d.getId(),
+                pkg.getRecipientPhone(),
+                d.getConfirmationCode()
+        );
+
+        notifier.sender(
+                d,
+                "DELIVERY_CODE_RESENT",
+                "O código de confirmação da sua entrega foi reenviado ao destinatário."
+        );
+    }
+
+
+    // ---------------------------------------------------------
     // Minhas encomendas
     // ---------------------------------------------------------
 
@@ -735,6 +926,60 @@ public class DeliveryService {
                         porId.get(d.getRideId()),
                         true))
                 .toList();
+    }
+    @Transactional(readOnly = true)
+    public Page<DeliverySummaryResponse> driverHistory(
+            String driverSub,
+            DeliveryStatus status,
+            Instant startDate,
+            Instant endDate,
+            Pageable pageable) {
+
+        validarPeriodo(startDate, endDate);
+
+        return deliveries.findDriverHistory(
+                driverSub,
+                status,
+                startDate,
+                endDate,
+                pageable
+        ).map(DeliverySummaryResponse::forDriver);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<DeliverySummaryResponse> senderHistory(
+            String senderSub,
+            DeliveryStatus status,
+            Instant startDate,
+            Instant endDate,
+            Pageable pageable) {
+
+        validarPeriodo(startDate, endDate);
+
+        List<UUID> companyIds = membership.companyIdsOf(senderSub);
+
+        if (companyIds.isEmpty()) {
+            companyIds = List.of(new UUID(0, 0));
+        }
+
+        return deliveries.findSenderHistory(
+                senderSub,
+                companyIds,
+                status,
+                startDate,
+                endDate,
+                pageable
+        ).map(DeliverySummaryResponse::of);
+    }
+
+    private void validarPeriodo(Instant startDate, Instant endDate) {
+        if (startDate != null && endDate != null
+                && startDate.isAfter(endDate)) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "A data inicial não pode ser posterior à data final."
+            );
+        }
     }
 
     // ---------------------------------------------------------
@@ -1068,6 +1313,7 @@ public class DeliveryService {
 
         delivery.setPickupCode(DeliveryCodes.pickupCode());
         delivery.setDeliveryKeyword(DeliveryCodes.keyword());
+        delivery.setConfirmationCode(DeliveryCodes.confirmationCode());
 
         delivery.setPlatformFeePercent(java.math.BigDecimal.ZERO);
         delivery.setFullRoute(true);

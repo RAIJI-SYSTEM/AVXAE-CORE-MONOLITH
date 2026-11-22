@@ -73,8 +73,14 @@ public class RideLifecycleService {
     /** Usado também pelo scheduler no horário de partida. */
     public void iniciar(Ride ride) {
         ride.setStatus(RideStatus.IN_PROGRESS);
-        ride.setStartedAt(Instant.now(clock));
+
+        Instant startedAt = Instant.now(clock);
+        ride.setStartedAt(startedAt);
+
         rejeitarPendentes(ride, MOTIVO_INICIADA);
+
+        // Encomendas confirmadas entram em trânsito quando a carona começa.
+        packages.forEach(p -> p.startConfirmed(ride.getId(), startedAt));
     }
 
     @Transactional

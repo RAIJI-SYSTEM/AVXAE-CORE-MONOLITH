@@ -344,6 +344,7 @@ public class FreightService {
         d.setTrackingCode(DeliveryCodes.trackingCode());
         d.setPickupCode(DeliveryCodes.pickupCode());
         d.setDeliveryKeyword(DeliveryCodes.keyword());
+        d.setConfirmationCode(DeliveryCodes.confirmationCode());
         d.setFreightRequestId(f.getId());
 
         d.confirm();
