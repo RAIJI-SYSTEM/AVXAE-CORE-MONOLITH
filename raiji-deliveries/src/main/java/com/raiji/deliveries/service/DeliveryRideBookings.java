@@ -10,6 +10,7 @@ import com.raiji.deliveries.repository.DeliveryRepository;
 import com.raiji.deliveries.repository.DeliveryStatusHistoryRepository;
 import com.raiji.rides.cargo.CargoLoad;
 import com.raiji.rides.cargo.RidePackageBookings;
+import java.time.Instant;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -44,6 +45,28 @@ public class DeliveryRideBookings implements RidePackageBookings {
     @Transactional
     public void rejectPending(UUID rideId, String reason) {
         closeAll(rideId, List.of(DeliveryStatus.PENDING), reason, "DELIVERY_REJECTED");
+    }
+
+    @Override
+    @Transactional
+    public void startConfirmed(UUID rideId, Instant startedAt) {
+        for (Delivery d : deliveries.findByRideIdAndStatusInAndDeletedAtIsNull(
+                rideId,
+                List.of(DeliveryStatus.CONFIRMED))) {
+
+            DeliveryStatus previous = d.getStatus();
+
+            d.startTransit(startedAt);
+            d = deliveries.save(d);
+
+            history.save(new DeliveryStatusHistory(
+                    d.getId(),
+                    previous,
+                    DeliveryStatus.IN_TRANSIT,
+                    null,
+                    "Carona iniciada. Encomenda automaticamente colocada em trânsito."
+            ));
+        }
     }
 
     @Override
