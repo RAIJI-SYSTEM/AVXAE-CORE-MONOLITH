@@ -1,7 +1,7 @@
 # =============================================================================
 # CD DEV — push na branch `develop` atualiza o ambiente de DESENVOLVIMENTO (dev)
 # na AWS. Região/portas definidos em infra/aws/aws-config.env.
-# Segredos/variáveis: ver docs/DEPLOY.md (Settings -> Environments -> dev).
+# Segredos/variáveis: ver docs/CD-CHECKLIST.md e docs/DEPLOY.md.
 # =============================================================================
 name: Deploy DEV (develop -> AWS dev)
 
@@ -14,8 +14,44 @@ permissions:
   contents: read
 
 jobs:
+  # ---------------------------------------------------------------------------
+  # Falha CEDO e com mensagem clara quando falta configuração no GitHub.
+  # Sem isso o erro aparece lá no `configure-aws-credentials` como
+  # "Credentials could not be loaded" — difícil de diagnosticar.
+  # ---------------------------------------------------------------------------
+  preflight:
+    name: Pré-requisitos (dev)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: dev
+    steps:
+      - name: Validar secrets e variables do GitHub
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          EC2_HOST: ${{ vars.AWS_EC2_HOST_DEV }}
+          SSH_PRIVATE_KEY: ${{ secrets.AWS_SSH_KEY_DEV }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD_DEV }}
+          KEYCLOAK_ADMIN_CLIENT_SECRET: ${{ secrets.KEYCLOAK_ADMIN_CLIENT_SECRET_DEV }}
+        run: |
+          missing=0
+          check() {
+            if [[ -z "${!1}" ]]; then
+              echo "::error::$2"
+              missing=1
+            fi
+          }
+          check AWS_ACCESS_KEY_ID      "Secret AWS_ACCESS_KEY_ID vazio (Settings -> Secrets and variables -> Actions -> Secrets)."
+          check AWS_SECRET_ACCESS_KEY  "Secret AWS_SECRET_ACCESS_KEY vazio (Settings -> Secrets and variables -> Actions -> Secrets)."
+          check EC2_HOST               "Variable AWS_EC2_HOST_DEV vazia (Settings -> Secrets and variables -> Actions -> Variables). Rode ./scripts/aws/bootstrap-aws.sh --env dev."
+          check SSH_PRIVATE_KEY        "Secret AWS_SSH_KEY_DEV vazio. Crie como secret de REPOSITÓRIO (Settings -> Secrets and variables -> Actions -> Secrets, conteúdo da .pem do bootstrap) ou no Environment 'dev'."
+          check DB_PASSWORD            "Secret DB_PASSWORD_DEV vazio. Crie como secret de REPOSITÓRIO ou no Environment 'dev'."
+          check KEYCLOAK_ADMIN_CLIENT_SECRET "Secret KEYCLOAK_ADMIN_CLIENT_SECRET_DEV vazio. Crie como secret de REPOSITÓRIO ou no Environment 'dev' (use exatamente o segredo do client raiji-admin)."
+          exit "$missing"
+
   deploy-dev:
     name: dev
+    needs: preflight
     uses: ./.github/workflows/deploy.yml
     with:
       environment: dev
@@ -28,3 +64,15 @@ jobs:
       KEYCLOAK_ADMIN_CLIENT_SECRET: ${{ secrets.KEYCLOAK_ADMIN_CLIENT_SECRET_DEV }}
       SMOKE_USERNAME: ${{ secrets.SMOKE_USERNAME_DEV }}
       SMOKE_PASSWORD: ${{ secrets.SMOKE_PASSWORD_DEV }}
+      # Opcionais: funcionalidades da aplicação (vazio = desligado)
+      INFO_SIMPLES_KEY: ${{ secrets.INFO_SIMPLES_KEY }}
+      INFOSIMPLES_GOVBR_CPF: ${{ secrets.INFOSIMPLES_GOVBR_CPF }}
+      INFOSIMPLES_GOVBR_SENHA: ${{ secrets.INFOSIMPLES_GOVBR_SENHA }}
+      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+      RESEND_FROM: ${{ secrets.RESEND_FROM }}
+      STRIPE_API_KEY: ${{ secrets.STRIPE_API_KEY }}
+      STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+      RAIJI_CORS_ALLOWED_ORIGINS: ${{ secrets.RAIJI_CORS_ALLOWED_ORIGINS }}
+      DRIVER_DOCS_BUCKET: ${{ secrets.DRIVER_DOCS_BUCKET }}
+      RAIJI_PLATFORM_FEE_PERCENT: ${{ secrets.RAIJI_PLATFORM_FEE_PERCENT }}
+      RAIJI_TIME_ZONE: ${{ secrets.RAIJI_TIME_ZONE }}

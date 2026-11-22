@@ -48,6 +48,53 @@ on:
         required: false
       SMOKE_PASSWORD:
         required: false
+      # --- Escopo duplo (fallback): se o caller passar vazio (secret só no
+      # Environment), os jobs que declaram `environment` resolvem direto o
+      # secret com sufixo do ambiente. Declaração opcional: nem sempre o
+      # caller os passa.
+      AWS_SSH_KEY_DEV:
+        required: false
+      AWS_SSH_KEY_HOMOLOG:
+        required: false
+      DB_PASSWORD_DEV:
+        required: false
+      DB_PASSWORD_HOMOLOG:
+        required: false
+      KEYCLOAK_ADMIN_CLIENT_SECRET_DEV:
+        required: false
+      KEYCLOAK_ADMIN_CLIENT_SECRET_HOMOLOG:
+        required: false
+      SMOKE_USERNAME_DEV:
+        required: false
+      SMOKE_PASSWORD_DEV:
+        required: false
+      SMOKE_USERNAME_HOMOLOG:
+        required: false
+      SMOKE_PASSWORD_HOMOLOG:
+        required: false
+      # --- Opcionais: funcionalidades da aplicação (vazio = desligado) --------
+      INFO_SIMPLES_KEY:
+        required: false
+      INFOSIMPLES_GOVBR_CPF:
+        required: false
+      INFOSIMPLES_GOVBR_SENHA:
+        required: false
+      RESEND_API_KEY:
+        required: false
+      RESEND_FROM:
+        required: false
+      STRIPE_API_KEY:
+        required: false
+      STRIPE_WEBHOOK_SECRET:
+        required: false
+      RAIJI_CORS_ALLOWED_ORIGINS:
+        required: false
+      DRIVER_DOCS_BUCKET:
+        required: false
+      RAIJI_PLATFORM_FEE_PERCENT:
+        required: false
+      RAIJI_TIME_ZONE:
+        required: false
 
 concurrency:
   group: deploy-${{ inputs.environment }}
@@ -68,6 +115,7 @@ jobs:
   config:
     name: Config AWS (aws-config.env)
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
       aws-region: ${{ steps.cfg.outputs.aws-region }}
       base-port: ${{ steps.cfg.outputs.base-port }}
@@ -99,6 +147,7 @@ jobs:
   tests:
     name: Testes rápidos (unitários)
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -121,12 +170,29 @@ jobs:
     name: Build & push ECR (${{ inputs.environment }})
     needs: [config, tests]
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     environment: ${{ inputs.environment }}
     outputs:
       registry: ${{ steps.ecr.outputs.registry }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Validar credenciais AWS
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: |
+          missing=0
+          [[ -n "$AWS_ACCESS_KEY_ID" ]] || {
+            echo "::error::Secret AWS_ACCESS_KEY_ID está vazio. Configure em Settings -> Secrets and variables -> Actions (repositório)."
+            missing=1
+          }
+          [[ -n "$AWS_SECRET_ACCESS_KEY" ]] || {
+            echo "::error::Secret AWS_SECRET_ACCESS_KEY está vazio. Configure em Settings -> Secrets and variables -> Actions (repositório)."
+            missing=1
+          }
+          exit "$missing"
 
       - name: Credenciais AWS
         uses: aws-actions/configure-aws-credentials@v4
@@ -173,10 +239,28 @@ jobs:
     name: Deploy EC2 (${{ inputs.environment }})
     needs: [build-push, config]
     runs-on: ubuntu-latest
+    timeout-minutes: 40
     environment: ${{ inputs.environment }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Validar segredos do ambiente
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          KEYCLOAK_ADMIN_CLIENT_SECRET: ${{ secrets.KEYCLOAK_ADMIN_CLIENT_SECRET }}
+        run: |
+          missing=0
+          for name in AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY SSH_PRIVATE_KEY DB_PASSWORD KEYCLOAK_ADMIN_CLIENT_SECRET; do
+            if [[ -z "${!name}" ]]; then
+              echo "::error::Segredo $name está vazio. Veja docs/CD-CHECKLIST.md (seção 'GitHub')."
+              missing=1
+            fi
+          done
+          exit "$missing"
 
       - name: Credenciais AWS
         uses: aws-actions/configure-aws-credentials@v4
@@ -190,12 +274,28 @@ jobs:
           ENVIRONMENT: ${{ inputs.environment }}
           EC2_HOST: ${{ inputs.ec2-host }}
           EC2_USER: ${{ inputs.ec2-user }}
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          # Escopo duplo (fallback): o secret passado pelo caller (REPOSITÓRIO)
+          # tem prioridade; se vier vazio (secret só no Environment), os jobs
+          # daqui — que declaram `environment` — resolvem direto o secret com
+          # sufixo do ambiente (AWS_SSH_KEY_DEV / AWS_SSH_KEY_HOMOLOG, ...).
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY || secrets.AWS_SSH_KEY_DEV || secrets.AWS_SSH_KEY_HOMOLOG }}
           AWS_REGION_NAME: ${{ needs.config.outputs.aws-region }}
           BASE_PORT: ${{ needs.config.outputs.base-port }}
           KC_PORT: ${{ needs.config.outputs.kc-port }}
-          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
-          KEYCLOAK_ADMIN_CLIENT_SECRET: ${{ secrets.KEYCLOAK_ADMIN_CLIENT_SECRET }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD || secrets.DB_PASSWORD_DEV || secrets.DB_PASSWORD_HOMOLOG }}
+          KEYCLOAK_ADMIN_CLIENT_SECRET: ${{ secrets.KEYCLOAK_ADMIN_CLIENT_SECRET || secrets.KEYCLOAK_ADMIN_CLIENT_SECRET_DEV || secrets.KEYCLOAK_ADMIN_CLIENT_SECRET_HOMOLOG }}
+          # Funcionalidades opcionais (vazio = recurso desligado)
+          INFO_SIMPLES_KEY: ${{ secrets.INFO_SIMPLES_KEY }}
+          INFOSIMPLES_GOVBR_CPF: ${{ secrets.INFOSIMPLES_GOVBR_CPF }}
+          INFOSIMPLES_GOVBR_SENHA: ${{ secrets.INFOSIMPLES_GOVBR_SENHA }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          RESEND_FROM: ${{ secrets.RESEND_FROM }}
+          STRIPE_API_KEY: ${{ secrets.STRIPE_API_KEY }}
+          STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+          RAIJI_CORS_ALLOWED_ORIGINS: ${{ secrets.RAIJI_CORS_ALLOWED_ORIGINS }}
+          DRIVER_DOCS_BUCKET: ${{ secrets.DRIVER_DOCS_BUCKET }}
+          RAIJI_PLATFORM_FEE_PERCENT: ${{ secrets.RAIJI_PLATFORM_FEE_PERCENT }}
+          RAIJI_TIME_ZONE: ${{ secrets.RAIJI_TIME_ZONE }}
         run: ./scripts/aws/deploy.sh
 
   # ---------------------------------------------------------------------------
@@ -211,6 +311,8 @@ jobs:
     name: Smoke · ${{ matrix.check }}
     needs: [deploy, config]
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: ${{ inputs.environment }}
     env:
       BASE_URL: http://${{ inputs.ec2-host }}:${{ needs.config.outputs.base-port }}
     strategy:
@@ -224,8 +326,8 @@ jobs:
       - name: Smoke check '${{ matrix.check }}' em ${{ env.BASE_URL }}
         env:
           BASE_URL: ${{ env.BASE_URL }}
-          SMOKE_USERNAME: ${{ secrets.SMOKE_USERNAME || 'teste' }}
-          SMOKE_PASSWORD: ${{ secrets.SMOKE_PASSWORD || 'teste123' }}
+          SMOKE_USERNAME: ${{ secrets.SMOKE_USERNAME || secrets.SMOKE_USERNAME_DEV || secrets.SMOKE_USERNAME_HOMOLOG || 'teste' }}
+          SMOKE_PASSWORD: ${{ secrets.SMOKE_PASSWORD || secrets.SMOKE_PASSWORD_DEV || secrets.SMOKE_PASSWORD_HOMOLOG || 'teste123' }}
         run: ./scripts/smoke-test.sh --check "${{ matrix.check }}" --retries 18 --retry-delay 10
 
   # ---------------------------------------------------------------------------
@@ -236,6 +338,7 @@ jobs:
     needs: [build-push, deploy, smoke, config]
     if: success()
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     environment: ${{ inputs.environment }}
     steps:
       - name: Publicar URL do ambiente
@@ -262,6 +365,7 @@ jobs:
     needs: [deploy, smoke, release, config]
     if: failure() && needs.deploy.result != 'skipped'
     runs-on: ubuntu-latest
+    timeout-minutes: 40
     environment: ${{ inputs.environment }}
     env:
       BASE_URL: http://${{ inputs.ec2-host }}:${{ needs.config.outputs.base-port }}
@@ -281,10 +385,10 @@ jobs:
           ENVIRONMENT: ${{ inputs.environment }}
           EC2_HOST: ${{ inputs.ec2-host }}
           EC2_USER: ${{ inputs.ec2-user }}
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY || secrets.AWS_SSH_KEY_DEV || secrets.AWS_SSH_KEY_HOMOLOG }}
           AWS_REGION_NAME: ${{ needs.config.outputs.aws-region }}
           BASE_PORT: ${{ needs.config.outputs.base-port }}
           BASE_URL: ${{ env.BASE_URL }}
-          SMOKE_USERNAME: ${{ secrets.SMOKE_USERNAME || 'teste' }}
-          SMOKE_PASSWORD: ${{ secrets.SMOKE_PASSWORD || 'teste123' }}
+          SMOKE_USERNAME: ${{ secrets.SMOKE_USERNAME || secrets.SMOKE_USERNAME_DEV || secrets.SMOKE_USERNAME_HOMOLOG || 'teste' }}
+          SMOKE_PASSWORD: ${{ secrets.SMOKE_PASSWORD || secrets.SMOKE_PASSWORD_DEV || secrets.SMOKE_PASSWORD_HOMOLOG || 'teste123' }}
         run: ./scripts/aws/rollback.sh --auto

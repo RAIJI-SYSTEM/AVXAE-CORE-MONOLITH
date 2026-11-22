@@ -103,6 +103,11 @@ precedência sobre o arquivo (útil para teste pontual).
 
 ## 4) Configuração no GitHub (uma vez)
 
+> **Atalho:** `docs/CD-CHECKLIST.md` tem o passo a passo enxuto e
+> `./scripts/aws/check-github-config.sh` (com `gh` autenticado) lista o que
+> falta. O `main` atual **não tem os workflows**: sincronize-o (seção 4.4)
+> para que `Deploy HOMOLOG`, `Rollback` e `Guardian` apareçam.
+
 ### 4.1 Bootstrap da infra AWS
 
 ```bash
@@ -111,8 +116,10 @@ precedência sobre o arquivo (útil para teste pontual).
 ./scripts/aws/bootstrap-aws.sh --env homolog
 ```
 
-O script cria ECR (`raiji-app`), security group, key pair, IAM role (pull ECR)
-e a instância EC2 com Docker instalado, e **imprime no final exatamente os
+O script cria ECR (`raiji-app`), bucket S3 privado da CNH, security group,
+key pair, IAM role (pull ECR + S3), IAM user do Actions (`raiji-actions`,
+access key em `~/.ssh/raiji-actions-access-key.json`), Elastic IP e a
+instância EC2 com Docker instalado, e **imprime no final exatamente os
 valores** para configurar no GitHub.
 
 ### 4.2 Secrets e Variables do repositório
@@ -131,18 +138,41 @@ valores** para configurar no GitHub.
 | `AWS_ACCESS_KEY_ID` | chave do usuário IAM usado pelo Actions (ECR push/retag) |
 | `AWS_SECRET_ACCESS_KEY` | idem |
 
-**Secrets por Environment** (Settings → Environments → `dev` / `homolog`):
+**Secrets por ambiente — REPOSITÓRIO (recomendado)** (aba *Secrets*):
 
-| Segredo | Environment `dev` | Environment `homolog` | Valor |
-|---|---|---|---|
-| Chave SSH da EC2 | `AWS_SSH_KEY_DEV` | `AWS_SSH_KEY_HOMOLOG` | conteúdo da `.pem` gerada no bootstrap |
-| Senha do banco | `DB_PASSWORD_DEV` | `DB_PASSWORD_HOMOLOG` | senha forte do Postgres/Keycloak |
-| Segredo do client admin | `KEYCLOAK_ADMIN_CLIENT_SECRET_DEV` | `KEYCLOAK_ADMIN_CLIENT_SECRET_HOMOLOG` | segredo do client `raiji-admin` |
-| Usuário do smoke (opcional) | `SMOKE_USERNAME_DEV` | `SMOKE_USERNAME_HOMOLOG` | padrão: `teste` |
-| Senha do smoke (opcional) | `SMOKE_PASSWORD_DEV` | `SMOKE_PASSWORD_HOMOLOG` | padrão do realm: `teste123` — **troque em homolog** |
+| Segredo | Valor |
+|---|---|
+| `AWS_SSH_KEY_DEV` / `AWS_SSH_KEY_HOMOLOG` | conteúdo da `.pem` gerada no bootstrap |
+| `DB_PASSWORD_DEV` / `DB_PASSWORD_HOMOLOG` | senha forte do Postgres/Keycloak |
+| `KEYCLOAK_ADMIN_CLIENT_SECRET_DEV` / `_HOMOLOG` | segredo do client `raiji-admin` (`raiji-admin-secret`) |
+| `SMOKE_USERNAME_DEV` / `SMOKE_PASSWORD_DEV` | padrão: `teste` / `teste123` (opcionais) |
+| `SMOKE_USERNAME_HOMOLOG` / `SMOKE_PASSWORD_HOMOLOG` | idem — **troque em homolog** |
 
-> Dica: no Environment `homolog`, ative **Required reviewers** para exigir
-> aprovação manual antes do deploy do sistema.
+> **Por quê no repositório:** o job que chama o workflow reutilizável não
+> pode declarar `environment:` (limitação do GitHub), então um secret que
+> exista só no Environment chegaria vazio ali. O `deploy.yml` tem fallback
+> que também resolve Environment secrets (os jobs internos declaram
+> `environment`), mas o repositório funciona em todos os caminhos.
+
+**Environments `dev` e `homolog` (opcional — aprovação/auditoria)**:
+
+- No `homolog`, ative **Required reviewers** para exigir aprovação manual
+  antes do deploy do sistema.
+- *Environment secrets* com os mesmos nomes também funcionam (fallback),
+  mas não duplique valores diferentes nos dois escopos.
+
+**Secrets opcionais do repositório** (funcionalidades da aplicação — vazio =
+recurso desligado):
+
+| Segredo | Recurso |
+|---|---|
+| `INFO_SIMPLES_KEY`, `INFOSIMPLES_GOVBR_CPF`, `INFOSIMPLES_GOVBR_SENHA` | verificação de CNH (Infosimples/gov.br) |
+| `RESEND_API_KEY`, `RESEND_FROM` | e-mails transacionais |
+| `STRIPE_API_KEY`, `STRIPE_WEBHOOK_SECRET` | caronas pagas / estorno |
+| `RAIJI_CORS_ALLOWED_ORIGINS` | origens web extras (separadas por vírgula) |
+
+> Esses valores são **repository secrets**: o job que chama o workflow
+> reutilizável não pode declarar `environment:` (limitação do GitHub).
 
 ### 4.3 Permissões do usuário IAM do Actions (mínimas)
 
@@ -159,6 +189,23 @@ valores** para configurar no GitHub.
   ]
 }
 ```
+
+> O `bootstrap-aws.sh` já cria esse usuário e aplica a policy automaticamente.
+
+### 4.4 Sincronizar o branch `main` (obrigatório uma vez)
+
+O `main` atual está atrás do `develop` e **não contém `.github/workflows`**.
+Enquanto isso, só `CI` e `Deploy DEV` aparecem no GitHub. Depois de
+configurar os secrets/variables (4.2):
+
+```bash
+git fetch origin
+git push origin origin/develop:main   # fast-forward (main é ancestral de develop)
+```
+
+> Isso dispara o `Deploy HOMOLOG`. Se quiser evitar o deploy imediato, faça o
+> push com o environment `homolog` sem required reviewers apenas após o
+> bootstrap, ou use `workflow_dispatch` depois.
 
 ---
 
@@ -177,6 +224,16 @@ Geradas automaticamente pelo deploy em `/opt/raiji/<env>/.env` (umask 077,
 | `JWK_SET_URI` | `http://keycloak:8080/realms/raiji/protocol/openid-connect/certs` | validação de JWT |
 | `IMAGE_TAG` | `<env>-current` | imagem do ECR em execução |
 | `BASE_PORT` / `KC_PORT` | vindos do `aws-config.env` | portas públicas |
+| `PUBLIC_BASE_URL` | `http://<host>:<BASE_PORT>` | issuer do Keycloak/Kong |
+| `DRIVER_DOCS_BUCKET` | `raiji-driver-docs-<conta>-<env>` | bucket S3 da CNH (criado no bootstrap) |
+| `INFO_SIMPLES_KEY`, `INFOSIMPLES_GOVBR_*` | vazio | verificação de CNH |
+| `RESEND_API_KEY`, `RESEND_FROM` | vazio | e-mails |
+| `STRIPE_API_KEY`, `STRIPE_WEBHOOK_SECRET` | vazio | pagamentos |
+| `RAIJI_CORS_ALLOWED_ORIGINS` | vazio | CORS extra |
+| `RAIJI_PLATFORM_FEE_PERCENT`, `RAIJI_TIME_ZONE` | `1.5`, `America/Sao_Paulo` | regras de negócio |
+
+> O `.env` é gravado com aspas seguras (`deploy.sh`), então senhas com `$`,
+> espaços ou aspas não quebram o Compose.
 
 O override `docker-compose.aws.yml` traduz `DB_URL/DB_USER/DB_PASSWORD/JWK_SET_URI`
 para as propriedades Spring (`SPRING_DATASOURCE_*`,
@@ -321,6 +378,11 @@ ausência de segredos commitados, idempotência do `setup-cicd.sh` e o
 **comportamento real** do `smoke-test.sh` contra um servidor mock (cenários
 de sucesso e de falha).
 
+> O `scripts/setup-cicd.sh` **não gera mais arquivos**: ele apenas verifica a
+> presença dos arquivos de CI/CD. Antes ele sobrescrevia workflows/scripts com
+> uma versão antiga e destruía correções (ex.: `build: !reset`). Rodar
+> `tests/cicd/run-all.sh` agora é seguro.
+
 ---
 
 ## 11) Limitações do ambiente experimental
@@ -333,9 +395,9 @@ de sucesso e de falha).
   `AWS_EC2_HOST_*` para o mesmo IP.
 * **Sem HTTPS/domínio:** o acesso é por `http://IP:porta`. Para HTTPS, aponte
   um domínio + ALB/CloudFront com ACM (fora do escopo da S1-03).
-* **Instância única por ambiente:** sem HA; IP público pode mudar em stop/start
-  (atualize a variable `AWS_EC2_HOST_<ENV>`; use Elastic IP para fixar). O
-  resize (mudança de tipo) também exige parar/religar a instância.
+* **Instância única por ambiente:** sem HA. O `bootstrap-aws.sh` aloca e
+  associa um **Elastic IP** por ambiente, então o host não muda em
+  stop/start (a variable do GitHub continua válida).
 * **Banco na própria instância** (container + volume): aceitável para
   homologação; em produção usar RDS.
 * **SSH aberto (porta 22) para 0.0.0.0/0** no bootstrap — restrinja o CIDR do
@@ -353,6 +415,8 @@ de sucesso e de falha).
 - [ ] Variables `AWS_EC2_HOST_DEV` / `AWS_EC2_HOST_HOMOLOG` criadas
 - [ ] Secrets de repositório (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`) criados
 - [ ] Environments `dev` e `homolog` com seus secrets (`AWS_SSH_KEY_*`, `DB_PASSWORD_*`, `KEYCLOAK_ADMIN_CLIENT_SECRET_*`, `SMOKE_*`)
+- [ ] `git push origin origin/develop:main` (workflows no branch default)
+- [ ] `./scripts/aws/check-github-config.sh` sem itens FALTA
 - [ ] (Opcional) Required reviewers no environment `homolog`
 - [ ] (Recomendado) Branch protection em `main`/`develop` exigindo o status `CI`
 - [ ] Push em `develop` → workflow **Deploy DEV** verde → smoke OK

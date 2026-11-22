@@ -60,10 +60,36 @@ KEY_NAME="raiji-${ENVIRONMENT}-key"
 REPO="raiji-app"
 ROLE="raiji-ec2-ecr-${ENVIRONMENT}"
 SG_NAME="raiji-${ENVIRONMENT}-sg"
+ACTIONS_USER="raiji-actions"
 log() { echo "[bootstrap:$ENVIRONMENT] $*"; }
 
 command -v aws >/dev/null || { echo "aws cli não encontrado" >&2; exit 1; }
-log "configuração: região=$REGION tipo=$INSTANCE_TYPE portas=$BASE_PORT/$KC_PORT"
+ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)" \
+  || { echo "aws sts falhou — confira suas credenciais" >&2; exit 1; }
+# Bucket do S3 para a foto da CNH (nome único por conta+ambiente).
+DRIVER_DOCS_BUCKET="raiji-driver-docs-${ACCOUNT_ID}-${ENVIRONMENT}"
+log "configuração: conta=$ACCOUNT_ID região=$REGION tipo=$INSTANCE_TYPE portas=$BASE_PORT/$KC_PORT"
+log "bucket CNH: $DRIVER_DOCS_BUCKET"
+
+# --- S3: bucket privado para a foto da CNH (idempotente) ------------------------
+if aws s3api head-bucket --bucket "$DRIVER_DOCS_BUCKET" >/dev/null 2>&1; then
+  log "bucket S3 $DRIVER_DOCS_BUCKET já existe."
+else
+  log "criando bucket S3 $DRIVER_DOCS_BUCKET ..."
+  if [[ "$REGION" == "us-east-1" ]]; then
+    aws s3api create-bucket --bucket "$DRIVER_DOCS_BUCKET" --region "$REGION" >/dev/null
+  else
+    aws s3api create-bucket --bucket "$DRIVER_DOCS_BUCKET" --region "$REGION" \
+      --create-bucket-configuration LocationConstraint="$REGION" >/dev/null
+  fi
+fi
+# Sempre reaplica as proteções (barato e idempotente).
+aws s3api put-public-access-block --bucket "$DRIVER_DOCS_BUCKET" \
+  --public-access-block-configuration \
+  BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true >/dev/null
+aws s3api put-bucket-encryption --bucket "$DRIVER_DOCS_BUCKET" \
+  --server-side-encryption-configuration \
+  '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}' >/dev/null 2>&1 || true
 
 # --- ECR (idempotente) ----------------------------------------------------------
 if ! aws ecr describe-repositories --region "$REGION" --repository-names "$REPO" >/dev/null 2>&1; then
@@ -74,28 +100,75 @@ else
   log "ECR $REPO já existe."
 fi
 
-# --- IAM role para a EC2 puxar imagens ------------------------------------------
+# --- IAM role da EC2: pull do ECR + S3 da CNH -----------------------------------
 if ! aws iam get-role --role-name "$ROLE" >/dev/null 2>&1; then
   log "criando IAM role $ROLE ..."
   aws iam create-role --role-name "$ROLE" \
     --assume-role-policy-document '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Service":"ec2.amazonaws.com"},"Action":"sts:AssumeRole"}]}' >/dev/null
-  aws iam put-role-policy --role-name "$ROLE" --policy-name ecr-pull --policy-document "{
-    \"Version\": \"2012-10-17\",
-    \"Statement\": [{
-      \"Effect\": \"Allow\",
-      \"Action\": [\"ecr:GetAuthorizationToken\"],
-      \"Resource\": \"*\"
-    }, {
-      \"Effect\": \"Allow\",
-      \"Action\": [\"ecr:BatchCheckLayerAvailability\",\"ecr:GetDownloadUrlForLayer\",\"ecr:BatchGetImage\"],
-      \"Resource\": \"arn:aws:ecr:${REGION}:*:repository/${REPO}\"
-    }]
-  }"
+else
+  log "IAM role $ROLE já existe."
+fi
+# Reaplica a policy sempre: assim roles antigas ganham S3 sem recriar a instância.
+aws iam put-role-policy --role-name "$ROLE" --policy-name ecr-pull --policy-document "{
+  \"Version\": \"2012-10-17\",
+  \"Statement\": [{
+    \"Effect\": \"Allow\",
+    \"Action\": [\"ecr:GetAuthorizationToken\"],
+    \"Resource\": \"*\"
+  }, {
+    \"Effect\": \"Allow\",
+    \"Action\": [\"ecr:BatchCheckLayerAvailability\",\"ecr:GetDownloadUrlForLayer\",\"ecr:BatchGetImage\"],
+    \"Resource\": \"arn:aws:ecr:${REGION}:${ACCOUNT_ID}:repository/${REPO}\"
+  }, {
+    \"Effect\": \"Allow\",
+    \"Action\": [\"s3:ListBucket\"],
+    \"Resource\": \"arn:aws:s3:::${DRIVER_DOCS_BUCKET}\"
+  }, {
+    \"Effect\": \"Allow\",
+    \"Action\": [\"s3:PutObject\",\"s3:GetObject\",\"s3:DeleteObject\"],
+    \"Resource\": \"arn:aws:s3:::${DRIVER_DOCS_BUCKET}/*\"
+  }]
+}"
+if ! aws iam get-instance-profile --instance-profile-name "$ROLE" >/dev/null 2>&1; then
   aws iam create-instance-profile --instance-profile-name "$ROLE" >/dev/null
   aws iam add-role-to-instance-profile --instance-profile-name "$ROLE" --role-name "$ROLE"
   sleep 10
+fi
+
+# --- IAM user do GitHub Actions: push/retag no ECR + STS ------------------------
+if ! aws iam get-user --user-name "$ACTIONS_USER" >/dev/null 2>&1; then
+  log "criando IAM user $ACTIONS_USER (usado pelo GitHub Actions) ..."
+  aws iam create-user --user-name "$ACTIONS_USER" >/dev/null
 else
-  log "IAM role $ROLE já existe."
+  log "IAM user $ACTIONS_USER já existe."
+fi
+aws iam put-user-policy --user-name "$ACTIONS_USER" --policy-name raiji-actions-ecr --policy-document "{
+  \"Version\": \"2012-10-17\",
+  \"Statement\": [{
+    \"Effect\": \"Allow\",
+    \"Action\": [\"ecr:GetAuthorizationToken\"],
+    \"Resource\": \"*\"
+  }, {
+    \"Effect\": \"Allow\",
+    \"Action\": [
+      \"ecr:BatchCheckLayerAvailability\",\"ecr:GetDownloadUrlForLayer\",\"ecr:BatchGetImage\",
+      \"ecr:PutImage\",\"ecr:InitiateLayerUpload\",\"ecr:UploadLayerPart\",
+      \"ecr:CompleteLayerUpload\",\"ecr:DescribeImages\"
+    ],
+    \"Resource\": \"arn:aws:ecr:${REGION}:${ACCOUNT_ID}:repository/${REPO}\"
+  }, {
+    \"Effect\": \"Allow\",
+    \"Action\": [\"sts:GetCallerIdentity\"],
+    \"Resource\": \"*\"
+  }]
+}"
+ACTIONS_KEY_FILE="$HOME/.ssh/raiji-actions-access-key.json"
+if [[ "$(aws iam list-access-keys --user-name "$ACTIONS_USER" --query 'length(AccessKeyMetadata)' --output text)" == "0" ]]; then
+  log "criando access key para $ACTIONS_USER -> $ACTIONS_KEY_FILE"
+  mkdir -p "$HOME/.ssh"
+  (umask 077; aws iam create-access-key --user-name "$ACTIONS_USER" --output json > "$ACTIONS_KEY_FILE")
+else
+  log "access key de $ACTIONS_USER já existe (não é possível exibir a secret de novo)."
 fi
 
 # --- Security group (cria e garante as portas do config) --------------------------
@@ -159,6 +232,7 @@ if [[ -n "$EXISTING" && "$EXISTING" != "None" ]]; then
   STATE="$(aws ec2 describe-instances --region "$REGION" --instance-ids "$EXISTING" \
     --query 'Reservations[0].Instances[0].State.Name' --output text)"
   log "instância existente: $EXISTING ($CURRENT_TYPE, $STATE)"
+  ID="$EXISTING"
 
   if [[ "$CURRENT_TYPE" != "$INSTANCE_TYPE" ]]; then
     log "ALTERANDO tipo de máquina: $CURRENT_TYPE -> $INSTANCE_TYPE ..."
@@ -173,9 +247,6 @@ if [[ -n "$EXISTING" && "$EXISTING" != "None" ]]; then
     aws ec2 wait instance-running --region "$REGION" --instance-ids "$EXISTING"
     log "resize concluído: $INSTANCE_TYPE"
   fi
-
-  IP="$(aws ec2 describe-instances --region "$REGION" --instance-ids "$EXISTING" \
-    --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)"
 else
   log "lançando instância $INSTANCE_TYPE (AMI $AMI) ..."
   ID="$(aws ec2 run-instances --region "$REGION" --image-id "$AMI" \
@@ -186,9 +257,27 @@ else
     --query 'Instances[0].InstanceId' --output text)"
   log "aguardando a instância $ID ficar running ..."
   aws ec2 wait instance-running --region "$REGION" --instance-ids "$ID"
-  IP="$(aws ec2 describe-instances --region "$REGION" --instance-ids "$ID" \
-    --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)"
 fi
+
+# --- Elastic IP: o host não muda em stop/start (variável do GitHub estável) ------
+EIP_ALLOC="$(aws ec2 describe-addresses --region "$REGION" \
+  --filters "Name=tag:RaijiEnv,Values=$ENVIRONMENT" \
+  --query 'Addresses[0].AllocationId' --output text 2>/dev/null || true)"
+if [[ -z "$EIP_ALLOC" || "$EIP_ALLOC" == "None" ]]; then
+  log "alocando Elastic IP para $ENVIRONMENT ..."
+  EIP_ALLOC="$(aws ec2 allocate-address --region "$REGION" --domain vpc \
+    --query 'AllocationId' --output text)"
+  aws ec2 create-tags --region "$REGION" --resources "$EIP_ALLOC" \
+    --tags "Key=Name,Value=raiji-$ENVIRONMENT-eip" "Key=RaijiEnv,Value=$ENVIRONMENT"
+else
+  log "Elastic IP já existe: $EIP_ALLOC"
+fi
+aws ec2 associate-address --region "$REGION" --instance-id "$ID" \
+  --allocation-id "$EIP_ALLOC" >/dev/null 2>&1 \
+  && log "Elastic IP associado à instância $ID" \
+  || log "Elastic IP já associado (ou associação pendente)"
+IP="$(aws ec2 describe-addresses --region "$REGION" --allocation-ids "$EIP_ALLOC" \
+  --query 'Addresses[0].PublicIp' --output text)"
 
 SUFIXO="$SUFFIX"
 cat <<FIM
@@ -200,22 +289,36 @@ cat <<FIM
  máquina/região/portas e rerode este script).
 
  URL do ambiente: http://$IP:$BASE_PORT
+ Bucket S3 da CNH: $DRIVER_DOCS_BUCKET
 
  Configure no GitHub (Settings -> Secrets and variables -> Actions):
 
  [Variables] (aba Variables)
    AWS_EC2_HOST_$SUFIXO = $IP
 
- [Secrets] (aba Secrets — repositório)
-   AWS_ACCESS_KEY_ID               = <IAM user p/ Actions>
-   AWS_SECRET_ACCESS_KEY           = <IAM user p/ Actions>
-
- [Secrets] (Environment '$ENVIRONMENT' — Settings -> Environments)
+ [Secrets] (aba Secrets — REPOSITÓRIO; é o local recomendado)
+   AWS_ACCESS_KEY_ID               = <AccessKeyId de $ACTIONS_KEY_FILE>
+   AWS_SECRET_ACCESS_KEY           = <SecretAccessKey de $ACTIONS_KEY_FILE>
    AWS_SSH_KEY_$SUFIXO             = conteúdo de $KEY_FILE
    DB_PASSWORD_$SUFIXO             = <senha forte do banco>
    KEYCLOAK_ADMIN_CLIENT_SECRET_$SUFIXO = <segredo do client raiji-admin>
    SMOKE_USERNAME_$SUFIXO          = teste            (opcional)
    SMOKE_PASSWORD_$SUFIXO          = <senha do usuário de smoke> (opcional)
+
+ [Environment '$ENVIRONMENT' — OPCIONAL, só para aprovação]
+   Settings -> Environments -> New environment '$ENVIRONMENT'.
+   No homolog, ative "Required reviewers" para aprovação manual.
+   Secrets de Environment TAMBÉM funcionam (os workflows declaram
+   environment e resolvem os dois escopos) — mas não duplique valores
+   diferentes no repositório e no environment.
+
+ [Secrets opcionais] (repositório — funcionalidades da aplicação)
+   INFO_SIMPLES_KEY, INFOSIMPLES_GOVBR_CPF, INFOSIMPLES_GOVBR_SENHA,
+   RESEND_API_KEY, RESEND_FROM, STRIPE_API_KEY, STRIPE_WEBHOOK_SECRET,
+   RAIJI_CORS_ALLOWED_ORIGINS
+
+ Credenciais do IAM user do Actions (NÃO commitar):
+   $ACTIONS_KEY_FILE
 
  A instância nova precisa de ~2-5 min para instalar Docker (user-data).
  Teste: ssh -i $KEY_FILE ubuntu@$IP 'docker --version'

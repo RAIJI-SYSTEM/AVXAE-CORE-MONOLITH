@@ -19,3 +19,6 @@ data/
 .tools/
 __pycache__/
 *.pyc
+
+# --- CD (cd-setup-all.sh) ---
+.cd-secrets-local/

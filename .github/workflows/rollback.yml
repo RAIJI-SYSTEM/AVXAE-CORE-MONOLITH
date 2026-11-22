@@ -70,7 +70,11 @@ jobs:
       - name: Rollback (retag da imagem anterior + redeploy + smoke)
         env:
           EC2_USER: ubuntu
-          SSH_PRIVATE_KEY: ${{ inputs.environment == 'dev' && secrets.AWS_SSH_KEY_DEV || secrets.AWS_SSH_KEY_HOMOLOG }}
-          SMOKE_USERNAME: ${{ inputs.environment == 'dev' && secrets.SMOKE_USERNAME_DEV || secrets.SMOKE_USERNAME_HOMOLOG }}
-          SMOKE_PASSWORD: ${{ inputs.environment == 'dev' && secrets.SMOKE_PASSWORD_DEV || secrets.SMOKE_PASSWORD_HOMOLOG }}
+          # NÃO usar 'a && b || c': se o segredo do ambiente estiver vazio, o
+          # formato abaixo devolve vazio (o rollback.sh falha com mensagem
+          # clara, ou o smoke usa o padrão teste/teste123) em vez de vazear
+          # silenciosamente a chave/credencial do OUTRO ambiente.
+          SSH_PRIVATE_KEY: ${{ (inputs.environment == 'dev' && secrets.AWS_SSH_KEY_DEV) || (inputs.environment != 'dev' && secrets.AWS_SSH_KEY_HOMOLOG) }}
+          SMOKE_USERNAME: ${{ (inputs.environment == 'dev' && secrets.SMOKE_USERNAME_DEV) || (inputs.environment != 'dev' && secrets.SMOKE_USERNAME_HOMOLOG) }}
+          SMOKE_PASSWORD: ${{ (inputs.environment == 'dev' && secrets.SMOKE_PASSWORD_DEV) || (inputs.environment != 'dev' && secrets.SMOKE_PASSWORD_HOMOLOG) }}
         run: ./scripts/aws/rollback.sh
