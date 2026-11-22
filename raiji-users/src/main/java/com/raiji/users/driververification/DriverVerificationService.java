@@ -25,7 +25,8 @@ import org.springframework.web.server.ResponseStatusException;
  * Verificação da CNH para virar motorista:
  * <ol>
  *   <li>recebe a foto + código de segurança; guarda a foto (temporária) — 202</li>
- *   <li>em segundo plano: OCR da foto -> validação no SENATRAN -> regras ({@link CnhDecision})</li>
+ *   <li>em segundo plano: OCR da foto -> validação no SENATRAN -> regras ({@link CnhDecision}).
+ *       Com {@code raiji.driver-verification.check=photo}, decide só pela foto (sem SENATRAN).</li>
  *   <li>aprovado: a conta recebe a role DRIVER e um e-mail (Resend). Em qualquer
  *       desfecho a foto é apagada.</li>
  * </ol>
@@ -53,6 +54,11 @@ public class DriverVerificationService {
      * verificação real. NUNCA ligar em produção.
      */
     private final boolean skipVerification;
+    /**
+     * true = confere no SENATRAN (exige conta de empresa na Infosimples e o código de segurança).
+     * false (check=photo) = decide só pelo que foi lido na foto: validade e nome.
+     */
+    private final boolean senatranCheck;
 
     public DriverVerificationService(
             DriverApplicationRepository repository,
@@ -65,6 +71,18 @@ public class DriverVerificationService {
         this(repository, storage, infosimples, capabilities, events, approvalMailer, clock, false);
     }
 
+    public DriverVerificationService(
+            DriverApplicationRepository repository,
+            CnhImageStorage storage,
+            InfosimplesClient infosimples,
+            UserCapabilitiesService capabilities,
+            ApplicationEventPublisher events,
+            DriverApprovalMailer approvalMailer,
+            ObjectProvider<Clock> clock,
+            boolean skipVerification) {
+        this(repository, storage, infosimples, capabilities, events, approvalMailer, clock, skipVerification, "senatran");
+    }
+
     @org.springframework.beans.factory.annotation.Autowired
     public DriverVerificationService(
             DriverApplicationRepository repository,
@@ -74,8 +92,14 @@ public class DriverVerificationService {
             ApplicationEventPublisher events,
             DriverApprovalMailer approvalMailer,
             ObjectProvider<Clock> clock,
-            @org.springframework.beans.factory.annotation.Value("${raiji.driver-verification.skip:false}") boolean skipVerification) {
+            @org.springframework.beans.factory.annotation.Value("${raiji.driver-verification.skip:false}") boolean skipVerification,
+            @org.springframework.beans.factory.annotation.Value("${raiji.driver-verification.check:photo}") String check) {
         this.skipVerification = skipVerification;
+        this.senatranCheck = "senatran".equalsIgnoreCase(check == null ? "" : check.trim());
+        if (!skipVerification && !senatranCheck) {
+            log.warn("Verificação de CNH SÓ PELA FOTO (sem SENATRAN): confere validade e nome, "
+                    + "mas não a autenticidade nem suspensão/cassação.");
+        }
         if (skipVerification) {
             log.warn("VERIFICAÇÃO DE CNH DESLIGADA (modo de testes): todo pedido de motorista é aprovado sem conferir a CNH. "
                     + "Desligue RAIJI_DRIVER_VERIFICATION_SKIP antes de ir para produção.");
@@ -107,7 +131,7 @@ public class DriverVerificationService {
                     "Formato não aceito: envie a foto em JPG, PNG ou WebP.");
         }
         String code = securityCode == null ? "" : securityCode.replaceAll("\\s", "");
-        if (!SECURITY_CODE.matcher(code).matches()) {
+        if ((senatranCheck || !code.isEmpty()) && !SECURITY_CODE.matcher(code).matches()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "Código de segurança da CNH inválido: informe apenas os números.");
         }
@@ -136,7 +160,7 @@ public class DriverVerificationService {
 
         // Processado depois do commit, em segundo plano (DriverApplicationProcessor)
         events.publishEvent(new DriverApplicationSubmittedEvent(application.getId(), code));
-        return DriverApplicationResponse.from(application);
+        return DriverApplicationResponse.from(application).withMode(false, senatranCheck);
     }
 
     /** Modo de testes: aprova na hora (sem Infosimples, sem foto, sem e-mail). */
@@ -203,6 +227,7 @@ public class DriverVerificationService {
 
         InfosimplesClient.Response ocr = infosimples.ocrCnh(image);
         application.setOcrCode(ocr.code());
+        log.info("Leitura da CNH (pedido {}): campos {}", application.getId(), CnhDecision.ocrFieldNames(ocr));
         CnhDecision.OcrOutcome read = CnhDecision.readOcr(ocr);
         if (!read.ok()) {
             return read.failure();
@@ -212,6 +237,9 @@ public class DriverVerificationService {
         application.setRegistro(data.registro());
         application.setCnhName(data.nome());
 
+        if (!senatranCheck) {
+            return CnhDecision.decideFromPhoto(data, application.getAccountName(), LocalDate.now(clock));
+        }
         InfosimplesClient.Response validation =
                 infosimples.validarCnh(data.cpf(), data.registro(), securityCode, data.nome());
         application.setValidationCode(validation.code());
@@ -244,7 +272,7 @@ public class DriverVerificationService {
                     return DriverApplicationResponse.from(application);
                 })
                 .orElseGet(DriverApplicationResponse::none)
-                .withTestMode(skipVerification);
+                .withMode(skipVerification, senatranCheck);
     }
 
     private static String accountName(Jwt jwt) {

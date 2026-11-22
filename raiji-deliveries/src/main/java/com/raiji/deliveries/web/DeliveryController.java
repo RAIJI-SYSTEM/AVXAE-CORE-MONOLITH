@@ -11,6 +11,7 @@ import com.raiji.deliveries.dto.ReasonRequest;
 import com.raiji.deliveries.service.DeliveryPaymentService;
 import com.raiji.deliveries.service.DeliveryService;
 import com.raiji.rides.payment.PaymentResponse;
+import com.raiji.rides.rewards.CouponChoice;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -49,9 +50,11 @@ public class DeliveryController {
         this.payments = payments;
     }
 
+    /** Corpo opcional: {"coupon": "<id do cupom>"} ou {"coupon": "none"}; sem corpo mantém o cupom atual */
     @PostMapping("/api/deliveries/{id}/payment")
-    public PaymentResponse startPayment(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id) {
-        return payments.start(id, jwt.getSubject());
+    public PaymentResponse startPayment(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id,
+                                        @RequestBody(required = false) CouponChoice.Body body) {
+        return payments.start(id, jwt.getSubject(), CouponChoice.from(body));
     }
 
     @GetMapping("/api/deliveries/{id}/payment")

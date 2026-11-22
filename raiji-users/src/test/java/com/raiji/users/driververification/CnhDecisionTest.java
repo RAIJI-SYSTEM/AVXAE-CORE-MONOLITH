@@ -147,4 +147,36 @@ class CnhDecisionTest {
         assertThat(CnhDecision.decide(resposta(605, null), OCR, "Maria", HOJE).outcome()).isEqualTo(Outcome.ERROR);
         assertThat(CnhDecision.decide(resposta(618, null), OCR, "Maria", HOJE).outcome()).isEqualTo(Outcome.ERROR);
     }
+
+    // ---------------------------------------------------- Verificação por foto
+
+    @Test
+    @DisplayName("OCR: lê categoria e validade quando vierem (nomes de campo variados, dd/MM/aaaa ou ISO)")
+    void ocrCategoriaValidade() {
+        CnhDecision.OcrOutcome r = CnhDecision.readOcr(ocr("cnh_frente", Map.of(
+                "nome", campo("MARIA DA SILVA SOUZA", 0.9),
+                "cpf", campo("123.456.789-01", 0.9),
+                "registro", campo("98765432100", 0.9),
+                "categoria_habilitacao", campo("ab", 0.9),
+                "data_validade", campo("10/11/2030", 0.9))));
+
+        assertThat(r.data().categoria()).isEqualTo("AB");
+        assertThat(r.data().validade()).isEqualTo(LocalDate.of(2030, 11, 10));
+        assertThat(CnhDecision.parseDate("2030-11-10")).isEqualTo(LocalDate.of(2030, 11, 10));
+    }
+
+    @Test
+    @DisplayName("só pela foto: aprova no prazo e com o nome da conta; recusa vencida, sem validade ou outro nome")
+    void decidePelaFoto() {
+        var ok = new CnhDecision.OcrData("MARIA DA SILVA SOUZA", "12345678901", "98765432100", "B", LocalDate.of(2030, 1, 1));
+        CnhDecision.Result aprovado = CnhDecision.decideFromPhoto(ok, "Maria Souza", HOJE);
+        assertThat(aprovado.outcome()).isEqualTo(Outcome.APPROVED);
+        assertThat(aprovado.categoria()).isEqualTo("B");
+
+        var vencida = new CnhDecision.OcrData("MARIA DA SILVA SOUZA", "1", "2", "B", LocalDate.of(2026, 1, 1));
+        assertThat(CnhDecision.decideFromPhoto(vencida, "Maria Souza", HOJE).reason()).contains("venceu");
+
+        assertThat(CnhDecision.decideFromPhoto(OCR, "Maria Souza", HOJE).reason()).contains("validade");
+        assertThat(CnhDecision.decideFromPhoto(ok, "João Pereira", HOJE).reason()).contains("nome");
+    }
 }

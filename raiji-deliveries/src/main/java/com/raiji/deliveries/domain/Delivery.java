@@ -94,6 +94,14 @@ public class Delivery extends AuditableEntity implements Payable {
     @Column(name = "paid_at")
     private Instant paidAt;
 
+    /** Cupom usado neste pagamento (o desconto é pago pela plataforma) */
+    @Column(name = "coupon_id")
+    private java.util.UUID couponId;
+
+    /** Desconto do cupom, em centavos: o valor cobrado é o preço menos isto */
+    @Column(name = "discount_cents")
+    private Long discountCents;
+
     @Column(name = "requested_at", nullable = false)
     private Instant requestedAt = Instant.now();
 
@@ -179,6 +187,10 @@ public class Delivery extends AuditableEntity implements Payable {
     @Override public void setPaymentStatus(PaymentStatus v) { this.paymentStatus = v; }
     @Override public Long getPaidAmountCents() { return paidAmountCents; }
     @Override public void setPaidAmountCents(Long v) { this.paidAmountCents = v; }
+    @Override public java.util.UUID getCouponId() { return couponId; }
+    @Override public void setCouponId(java.util.UUID v) { this.couponId = v; }
+    @Override public Long getDiscountCents() { return discountCents; }
+    @Override public void setDiscountCents(Long v) { this.discountCents = v; }
     @Override public Instant getPaidAt() { return paidAt; }
     @Override public void setPaidAt(Instant v) { this.paidAt = v; }
     public Instant getRequestedAt() { return requestedAt; }

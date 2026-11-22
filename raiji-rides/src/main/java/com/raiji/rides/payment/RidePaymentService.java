@@ -11,6 +11,8 @@ import com.raiji.rides.domain.Ride;
 import com.raiji.rides.domain.RidePassenger;
 import com.raiji.rides.repository.RidePassengerRepository;
 import com.raiji.rides.repository.RideRepository;
+import com.raiji.rides.rewards.CouponChoice;
+import com.raiji.rides.rewards.CouponService;
 
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.event.EventListener;
@@ -30,18 +32,20 @@ public class RidePaymentService {
     private final RidePassengerRepository passengers;
     private final PaymentService payments;
     private final ApplicationEventPublisher events;
+    private final CouponService coupons;
 
     public RidePaymentService(RideRepository rides, RidePassengerRepository passengers,
-                              PaymentService payments, ApplicationEventPublisher events) {
+                              PaymentService payments, ApplicationEventPublisher events, CouponService coupons) {
         this.rides = rides;
         this.passengers = passengers;
         this.payments = payments;
         this.events = events;
+        this.coupons = coupons;
     }
 
-    /** Passageiro inicia (ou retoma) o pagamento da reserva aceita. */
+    /** Passageiro inicia (ou retoma) o pagamento da reserva aceita, com ou sem cupom. */
     @Transactional
-    public PaymentResponse start(UUID rideId, UUID requestId, String passengerSub) {
+    public PaymentResponse start(UUID rideId, UUID requestId, String passengerSub, CouponChoice coupon) {
         RidePassenger p = reserva(rideId, requestId);
         Ride ride = carona(rideId);
         if (!p.getPassengerSub().equals(passengerSub)) {
@@ -54,7 +58,8 @@ public class RidePaymentService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Esta reserva não está ativa para pagamento.");
         }
         boolean pagaAntes = p.getPaymentStatus() == PaymentStatus.PAID;
-        PaymentResponse response = payments.start(p, valor(ride, p),
+        long amount = coupons.amountToCharge(p, passengerSub, coupon, valor(ride, p));
+        PaymentResponse response = payments.start(p, amount,
                 "Raiji · vaga " + ride.getOriginCity() + " → " + ride.getDestinationCity(),
                 Map.of("type", "RIDE_BOOKING", "rideId", rideId.toString(),
                         "requestId", requestId.toString(), "payerSub", passengerSub),
@@ -63,7 +68,7 @@ public class RidePaymentService {
         if (!pagaAntes && p.getPaymentStatus() == PaymentStatus.PAID) {
             avisarMotorista(ride, p); // o Stripe confirmou agora, ao retomar o pagamento
         }
-        return response;
+        return response.withCoupon(p);
     }
 
     /** Situação do pagamento, conferida no Stripe. Visível ao passageiro e ao motorista. */
@@ -78,7 +83,7 @@ public class RidePaymentService {
             passengers.save(p);
             avisarMotorista(ride, p);
         }
-        return payments.view(p, valor(ride, p));
+        return payments.view(p, cobrado(ride, p)).withCoupon(p);
     }
 
     /** Webhook do Stripe: atualiza a reserva dona da cobrança (se houver). */
@@ -99,6 +104,11 @@ public class RidePaymentService {
     static long valor(Ride ride, RidePassenger p) {
         BigDecimal price = p.getPrice() != null ? p.getPrice() : ride.getPricePerPassenger();
         return PaymentService.toCents(price);
+    }
+
+    /** Valor cobrado do passageiro: o preço menos o cupom */
+    static long cobrado(Ride ride, RidePassenger p) {
+        return valor(ride, p) - (p.getDiscountCents() == null ? 0 : p.getDiscountCents());
     }
 
     private void avisarMotorista(Ride ride, RidePassenger p) {

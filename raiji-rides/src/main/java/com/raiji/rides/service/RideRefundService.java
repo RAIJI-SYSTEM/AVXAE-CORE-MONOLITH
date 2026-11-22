@@ -13,6 +13,8 @@ import com.raiji.rides.service.stripe.StripeService;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import com.raiji.rides.rewards.CouponService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 /**
@@ -44,6 +46,13 @@ public class RideRefundService {
 
     private final StripeService stripeService;
     private final AuditLogService auditLogService;
+    /** Estornou: o cupom volta a valer (opcional nos testes) */
+    private CouponService coupons;
+
+    @Autowired(required = false)
+    void setCoupons(CouponService coupons) {
+        this.coupons = coupons;
+    }
 
     public RideRefundService(StripeService stripeService,
                              AuditLogService auditLogService) {
@@ -87,6 +96,7 @@ public class RideRefundService {
 
         if (result.ok()) {
             payable.setPaymentStatus(PaymentStatus.REFUNDED);
+            if (coupons != null) coupons.onRefunded(payable);
             auditLogService.record(
                     ACTION_SUCESSO,
                     entityType,

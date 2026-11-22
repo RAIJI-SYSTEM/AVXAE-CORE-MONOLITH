@@ -52,6 +52,7 @@ services:
       RESEND_FROM: ${RESEND_FROM:-}
       # Na AWS a verificação real da CNH é obrigatória (o modo de testes fica desligado)
       RAIJI_DRIVER_VERIFICATION_SKIP: "false"
+      RAIJI_DRIVER_VERIFICATION_CHECK: ${RAIJI_DRIVER_VERIFICATION_CHECK:-photo}
       RAIJI_PLATFORM_FEE_PERCENT: ${RAIJI_PLATFORM_FEE_PERCENT:-1.5}
       # Pagamentos (Stripe): chave secreta sk_test_... e segredo do webhook, do .env da raiz
       STRIPE_API_KEY: ${STRIPE_API_KEY:-}

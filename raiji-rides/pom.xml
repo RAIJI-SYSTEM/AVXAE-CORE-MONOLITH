@@ -58,6 +58,19 @@
             <version>34.1.0</version>
         </dependency>
 
+        <!-- Mensageria: grupos de carona no chat e mensagens novas para o push -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-amqp</artifactId>
+        </dependency>
+
+        <!-- Push (Firebase Cloud Messaging, API HTTP v1): só o token OAuth da conta de serviço -->
+        <dependency>
+            <groupId>com.google.auth</groupId>
+            <artifactId>google-auth-library-oauth2-http</artifactId>
+            <version>1.23.0</version>
+        </dependency>
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>

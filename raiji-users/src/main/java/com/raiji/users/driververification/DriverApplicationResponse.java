@@ -18,14 +18,21 @@ public record DriverApplicationResponse(
         Instant createdAt,
         Instant decidedAt,
         /** Modo de testes: a CNH não é conferida (RAIJI_DRIVER_VERIFICATION_SKIP=true) */
-        boolean testMode) {
+        boolean testMode,
+        /** O código de segurança só é pedido quando a CNH é conferida no SENATRAN */
+        boolean securityCodeRequired) {
 
     public static DriverApplicationResponse none() {
-        return new DriverApplicationResponse(null, "NONE", null, null, null, null, null, false);
+        return new DriverApplicationResponse(null, "NONE", null, null, null, null, null, false, true);
     }
 
     public DriverApplicationResponse withTestMode(boolean value) {
-        return new DriverApplicationResponse(id, status, reason, categoria, validade, createdAt, decidedAt, value);
+        return withMode(value, securityCodeRequired);
+    }
+
+    public DriverApplicationResponse withMode(boolean testMode, boolean securityCodeRequired) {
+        return new DriverApplicationResponse(id, status, reason, categoria, validade, createdAt, decidedAt,
+                testMode, securityCodeRequired);
     }
 
     public static DriverApplicationResponse from(DriverApplication application) {
@@ -37,6 +44,7 @@ public record DriverApplicationResponse(
                 application.getValidade(),
                 application.getCreatedAt(),
                 application.getDecidedAt(),
-                false);
+                false,
+                true);
     }
 }

@@ -1,0 +1,41 @@
+# =============================================================================
+# Armazenamento no S3 da AWS (em vez do RustFS local).
+#
+# Ligar: no .env da raiz, acrescente
+#   COMPOSE_FILE=docker-compose.yml:docker-compose.s3.yml
+#   AWS_S3_REGION=sa-east-1
+#   AWS_S3_ACCESS_KEY_ID=AKIA...
+#   AWS_S3_SECRET_ACCESS_KEY=...
+#   S3_MEDIA_BUCKET=raiji-media-<sufixo>
+#   S3_DOCS_BUCKET=raiji-driver-docs-<sufixo>
+# e rode uma vez: ./scripts/s3-aws-setup.sh  (cria os buckets já configurados).
+# Depois: docker compose --profile chat up -d   (o COMPOSE_FILE inclui este arquivo sozinho)
+#
+# Desligar: apague a linha COMPOSE_FILE e suba de novo (volta ao RustFS).
+#
+# O que vai para o S3:
+#   - mídia do chat (fotos, áudios, documentos): bucket de mídia, apagada após 24 h;
+#   - foto da CNH na verificação: bucket de documentos, apagada na decisão (e em 1 dia, no pior caso).
+# Os arquivos nunca ficam públicos: o app usa links assinados que expiram.
+# =============================================================================
+services:
+  app:
+    environment:
+      AWS_REGION: ${AWS_S3_REGION:?defina AWS_S3_REGION no .env}
+      DRIVER_DOCS_BUCKET: ${S3_DOCS_BUCKET:?defina S3_DOCS_BUCKET no .env}
+      # Vazio = endpoint padrão da AWS
+      DRIVER_DOCS_S3_ENDPOINT: ""
+      DRIVER_DOCS_S3_PATH_STYLE: "false"
+      DRIVER_DOCS_S3_ACCESS_KEY: ${AWS_S3_ACCESS_KEY_ID:?defina AWS_S3_ACCESS_KEY_ID no .env}
+      DRIVER_DOCS_S3_SECRET_KEY: ${AWS_S3_SECRET_ACCESS_KEY:?defina AWS_S3_SECRET_ACCESS_KEY no .env}
+
+  chat:
+    environment:
+      S3_BUCKET: ${S3_MEDIA_BUCKET:?defina S3_MEDIA_BUCKET no .env}
+      AWS_REGION: ${AWS_S3_REGION:?defina AWS_S3_REGION no .env}
+      # Vazios = o app envia e baixa direto do S3 (links assinados em https://<bucket>.s3.<região>.amazonaws.com)
+      S3_ENDPOINT: ""
+      S3_PUBLIC_ENDPOINT: ""
+      S3_FORCE_PATH_STYLE: "false"
+      AWS_ACCESS_KEY_ID: ${AWS_S3_ACCESS_KEY_ID:?defina AWS_S3_ACCESS_KEY_ID no .env}
+      AWS_SECRET_ACCESS_KEY: ${AWS_S3_SECRET_ACCESS_KEY:?defina AWS_S3_SECRET_ACCESS_KEY no .env}

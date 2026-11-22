@@ -263,4 +263,36 @@ class DriverVerificationServiceTest {
         verify(capabilities).grantVerifiedDriver(SUB);
         verifyNoInteractions(infosimples, storage, mailer, events);
     }
+
+    // ------------------------------------------------------- só pela foto
+
+    @Test
+    @SuppressWarnings("unchecked")
+    @DisplayName("check=photo: código de segurança opcional, aprova pela foto e NÃO consulta o SENATRAN")
+    void soPelaFoto() {
+        ObjectProvider<Clock> clock = mock(ObjectProvider.class);
+        when(clock.getIfAvailable(any())).thenReturn(CLOCK);
+        DriverVerificationService foto = new DriverVerificationService(
+                repository, storage, infosimples, capabilities, events, mailer, clock, false, "photo");
+
+        DriverApplicationResponse envio = foto.submit(jwt(), foto("image/jpeg"), "");
+        assertThat(envio.status()).isEqualTo("PROCESSING");
+        assertThat(envio.securityCodeRequired()).isFalse();
+
+        DriverApplication app = emAnalise();
+        when(infosimples.ocrCnh(any())).thenReturn(new InfosimplesClient.Response(200, "ok", List.of(Map.of(
+                "tipo", "cnh_frente", "campos", Map.of(
+                        "nome", Map.of("valor", "MARIA DA SILVA SOUZA", "score", 0.9),
+                        "cpf", Map.of("valor", "123.456.789-01", "score", 0.9),
+                        "registro", Map.of("valor", "98765432100", "score", 0.9),
+                        "categoria", Map.of("valor", "B", "score", 0.9),
+                        "validade", Map.of("valor", "10/11/2030", "score", 0.9)))), List.of(), true));
+
+        foto.process(app.getId(), "");
+
+        assertThat(app.getStatus()).isEqualTo(DriverApplicationStatus.APPROVED);
+        assertThat(app.getValidade()).isEqualTo(java.time.LocalDate.of(2030, 11, 10));
+        verify(infosimples, never()).validarCnh(any(), any(), any(), any());
+        verify(capabilities).grantVerifiedDriver(SUB);
+    }
 }

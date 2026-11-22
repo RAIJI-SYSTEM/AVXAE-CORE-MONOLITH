@@ -34,7 +34,7 @@ class NotificationServiceTest {
     @BeforeEach
     void setUp() {
         repository = mock(NotificationRepository.class);
-        service = new NotificationService(repository);
+        service = new NotificationService(repository, event -> { });
     }
 
     private Notification saved() {

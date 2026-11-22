@@ -2,11 +2,13 @@ package com.raiji.rides.payment;
 
 import java.util.UUID;
 
+import com.raiji.rides.rewards.CouponChoice;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -27,10 +29,12 @@ public class RidePaymentController {
         this.service = service;
     }
 
+    /** Corpo opcional: {"coupon": "<id do cupom>"} ou {"coupon": "none"}; sem corpo mantém o cupom atual */
     @PostMapping
     public PaymentResponse start(@PathVariable UUID rideId, @PathVariable UUID requestId,
+                                 @RequestBody(required = false) CouponChoice.Body body,
                                  @AuthenticationPrincipal Jwt jwt) {
-        return service.start(rideId, requestId, jwt.getSubject());
+        return service.start(rideId, requestId, jwt.getSubject(), CouponChoice.from(body));
     }
 
     @GetMapping

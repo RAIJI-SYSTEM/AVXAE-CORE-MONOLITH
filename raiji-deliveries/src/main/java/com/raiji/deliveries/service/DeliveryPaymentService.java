@@ -12,6 +12,8 @@ import com.raiji.rides.payment.PaymentIntentChanged;
 import com.raiji.rides.payment.PaymentResponse;
 import com.raiji.rides.payment.PaymentService;
 import com.raiji.rides.repository.RideRepository;
+import com.raiji.rides.rewards.CouponChoice;
+import com.raiji.rides.rewards.CouponService;
 
 import org.springframework.context.event.EventListener;
 import org.springframework.http.HttpStatus;
@@ -32,9 +34,11 @@ public class DeliveryPaymentService {
     private final DeliveryService deliveryService;
     private final PaymentService payments;
     private final DeliveryNotifier notifier;
+    private final CouponService coupons;
 
     public DeliveryPaymentService(DeliveryRepository deliveries, RideRepository rides, DeliveryService deliveryService,
-                                  PaymentService payments, DeliveryNotifier notifier) {
+                                  PaymentService payments, DeliveryNotifier notifier, CouponService coupons) {
+        this.coupons = coupons;
         this.deliveries = deliveries;
         this.rides = rides;
         this.deliveryService = deliveryService;
@@ -43,7 +47,7 @@ public class DeliveryPaymentService {
     }
 
     @Transactional
-    public PaymentResponse start(UUID deliveryId, String payerSub) {
+    public PaymentResponse start(UUID deliveryId, String payerSub, CouponChoice coupon) {
         Delivery d = encomenda(deliveryId);
         Ride ride = rides.findById(d.getRideId()).orElseThrow(this::naoEncontrada);
         if (!deliveryService.podeVerComoRemetente(d, payerSub)) {
@@ -56,7 +60,8 @@ public class DeliveryPaymentService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Esta encomenda não está aguardando pagamento.");
         }
         boolean pagaAntes = d.getPaymentStatus() == PaymentStatus.PAID;
-        PaymentResponse response = payments.start(d, valor(d),
+        long amount = coupons.amountToCharge(d, payerSub, coupon, valor(d));
+        PaymentResponse response = payments.start(d, amount,
                 "Raiji · encomenda " + ride.getOriginCity() + " → " + ride.getDestinationCity(),
                 Map.of("type", "DELIVERY", "deliveryId", deliveryId.toString(),
                         "rideId", ride.getId().toString(), "payerSub", payerSub),
@@ -65,7 +70,7 @@ public class DeliveryPaymentService {
         if (!pagaAntes && d.getPaymentStatus() == PaymentStatus.PAID) {
             avisarMotorista(ride, d);
         }
-        return response;
+        return response.withCoupon(d);
     }
 
     /** Situação do pagamento, conferida no Stripe. Visível ao remetente (e empresa) e ao motorista. */
@@ -80,7 +85,7 @@ public class DeliveryPaymentService {
             deliveries.save(d);
             avisarMotorista(ride, d);
         }
-        return payments.view(d, valor(d));
+        return payments.view(d, valor(d) - (d.getDiscountCents() == null ? 0 : d.getDiscountCents())).withCoupon(d);
     }
 
     /** Webhook do Stripe: atualiza a encomenda dona da cobrança (se houver). */

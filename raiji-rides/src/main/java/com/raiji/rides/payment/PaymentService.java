@@ -8,12 +8,14 @@ import java.util.Map;
 
 import com.raiji.common.enums.PaymentStatus;
 import com.raiji.rides.config.StripeProperties;
+import com.raiji.rides.rewards.CouponService;
 import com.raiji.rides.service.stripe.PaymentIntentInfo;
 import com.raiji.rides.service.stripe.StripePaymentGateway;
 import com.stripe.exception.StripeException;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -33,6 +35,13 @@ public class PaymentService {
     private final StripeProperties properties;
     private final StripePaymentGateway gateway;
     private final Clock clock;
+    /** Marca o cupom como usado quando o pagamento é confirmado (opcional nos testes) */
+    private CouponService coupons;
+
+    @Autowired(required = false)
+    void setCoupons(CouponService coupons) {
+        this.coupons = coupons;
+    }
 
     public PaymentService(StripeProperties properties, StripePaymentGateway gateway, Clock clock) {
         this.properties = properties;
@@ -108,6 +117,7 @@ public class PaymentService {
             p.setPaymentStatus(PaymentStatus.PAID);
             p.setPaidAt(Instant.now(clock));
             p.setPaidAmountCents(intent.amountReceived() > 0 ? intent.amountReceived() : intent.amount());
+            if (coupons != null) coupons.onPaid(p);
             return true;
         }
         p.setPaymentStatus(intent.processing() ? PaymentStatus.PROCESSING : PaymentStatus.UNPAID);

@@ -10,7 +10,9 @@ import com.raiji.common.enums.RideStatus;
 import com.raiji.rides.cargo.RidePackageBookings;
 import com.raiji.rides.domain.Ride;
 import com.raiji.rides.dto.RideResponse;
+import com.raiji.rides.event.RideChatChanged;
 import com.raiji.rides.repository.RideRepository;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,13 +41,15 @@ public class RideLifecycleService {
     private final RidePassengerService passengers;
     private final List<RidePackageBookings> packages;
     private final Clock clock;
+    private final ApplicationEventPublisher events;
 
     public RideLifecycleService(RideRepository rideRepository, RidePassengerService passengers,
-                                List<RidePackageBookings> packages, Clock clock) {
+                                List<RidePackageBookings> packages, Clock clock, ApplicationEventPublisher events) {
         this.rideRepository = rideRepository;
         this.passengers = passengers;
         this.packages = packages;
         this.clock = clock;
+        this.events = events;
     }
 
     @Transactional
@@ -84,6 +88,7 @@ public class RideLifecycleService {
         ride.setStatus(RideStatus.COMPLETED);
         ride.setCompletedAt(Instant.now(clock));
         passengers.completeAllConfirmed(ride);
+        events.publishEvent(new RideChatChanged(ride.getId()));
         return RideResponse.from(rideRepository.save(ride));
     }
 
@@ -101,6 +106,7 @@ public class RideLifecycleService {
             p.rejectPending(ride.getId(), motivo);
             p.cancelNotPickedUp(ride.getId(), motivo);
         });
+        events.publishEvent(new RideChatChanged(ride.getId()));
         return RideResponse.from(rideRepository.save(ride));
     }
 

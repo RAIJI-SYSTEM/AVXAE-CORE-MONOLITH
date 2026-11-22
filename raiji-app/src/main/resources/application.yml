@@ -27,6 +27,14 @@ spring:
         jwt:
           jwk-set-uri: http://localhost:8180/realms/raiji/protocol/openid-connect/certs
 
+  # Mensageria com o chat (grupos de carona e push de mensagens). Só conecta com
+  # raiji.messaging.enabled=true (ligado no Docker).
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USER:raiji}
+    password: ${RABBITMQ_PASSWORD:raiji123}
+
   # Foto da CNH na verificação de motorista
   servlet:
     multipart:
@@ -38,8 +46,31 @@ management:
     web:
       exposure:
         include: health
+  # Sem a mensageria ligada, o RabbitMQ fora do ar não deixa o app "doente"
+  health:
+    rabbit:
+      enabled: ${RAIJI_MESSAGING_ENABLED:false}
 
 raiji:
+  # Grupos de carona no chat e push de mensagens novas (RabbitMQ). Desligado = nada é enviado.
+  messaging:
+    enabled: ${RAIJI_MESSAGING_ENABLED:false}
+
+  # Notificações push (Firebase Cloud Messaging): caminho do JSON da conta de serviço
+  # do projeto Firebase. Sem arquivo, o push fica desligado.
+  push:
+    firebase-credentials-file: ${FIREBASE_CREDENTIALS_FILE:}
+
+  # Recompensas: cupom de boas-vindas e missão de anúncios (valores em centavos).
+  # mock-ads=true aceita o "assisti" vindo do app (testes); em produção, false: só o
+  # callback assinado do AdMob (/api/public/rewards/admob-ssv) credita.
+  rewards:
+    welcome-cents: ${RAIJI_REWARDS_WELCOME_CENTS:500}
+    coupon-validity-days: 30
+    challenge-goal: 3
+    challenge-reward-cents: ${RAIJI_REWARDS_CHALLENGE_CENTS:1500}
+    mock-ads: ${RAIJI_REWARDS_MOCK_ADS:false}
+
   keycloak:
     base-url: http://localhost:8180
     realm: raiji
@@ -88,6 +119,11 @@ raiji:
     # MODO DE TESTES: true = aprova o motorista sem conferir a CNH (não chama a Infosimples).
     # Deixe false (padrão) para a verificação real. Nunca ligue em produção.
     skip: ${RAIJI_DRIVER_VERIFICATION_SKIP:false}
+    # Como a CNH é conferida:
+    #   photo    = só pela foto (lê nome e validade; não pede o código de segurança). Padrão.
+    #   senatran = foto + base do SENATRAN (pede o código de segurança). A Infosimples só libera
+    #              esse serviço para contas de empresa (CNPJ) e exige o login gov.br abaixo.
+    check: ${RAIJI_DRIVER_VERIFICATION_CHECK:photo}
     infosimples:
       base-url: ${INFOSIMPLES_BASE_URL:https://api.infosimples.com}
       token: ${INFO_SIMPLES_KEY:}
