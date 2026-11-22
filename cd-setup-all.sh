@@ -13,14 +13,14 @@
 #               EC2 Ubuntu 24.04 com Docker, Elastic IP);
 #   4. GITHUB — cria secrets/variables/environments no GitHub Actions via gh
 #               (AWS, SSH, DB, Keycloak, smoke e funcionais opcionais);
-#   5. PUSH   — commita as correções aplicadas, publica a branch e,
-#               opcionalmente, develop/main (dispara o Deploy DEV/HOMOLOG)
-#               e acompanha o run;
+#   5. PUSH   — commita as correções aplicadas e publica a branch atual
+#               (padrão: NADA vai para develop/main — só com --push-develop,
+#               que pede confirmação, dispara o Deploy DEV e acompanha o run);
 #   6. REPORT — resumo do que foi feito + "O QUE VOCÊ PRECISA FAZER".
 #
 # COMO RODAR (na RAIZ do projeto):
-#   ./cd-setup-all.sh                         # aplica tudo + aws + github + push da branch
-#   ./cd-setup-all.sh --push-develop --watch  # + integra develop e acompanha o Deploy DEV
+#   ./cd-setup-all.sh                         # aplica tudo + aws + github + push da branch atual
+#   ./cd-setup-all.sh --push-develop --watch  # publicar develop + Deploy DEV (pede confirmação)
 #   ./cd-setup-all.sh --sync-main             # + push develop:main (registra workflows, HOMOLOG)
 #   ./cd-setup-all.sh --dry-run               # pré-visualiza sem alterar nada
 #   ./cd-setup-all.sh --only apply            # executa apenas uma fase
@@ -89,8 +89,10 @@ usage() {
 cd-setup-all.sh — TUDO EM UM, na raiz do projeto.
 
 Uso:
-  ./cd-setup-all.sh                         aplica correções + AWS + GitHub + push da branch
-  ./cd-setup-all.sh --push-develop --watch  também integra develop e acompanha o Deploy DEV
+  ./cd-setup-all.sh                         aplica correções + AWS + GitHub + push da branch atual
+                                            (por padrão NADA vai para develop/main)
+  ./cd-setup-all.sh --push-develop --watch  PUBLICA develop e dispara o Deploy DEV
+                                            (pede confirmação; --yes pula a pergunta)
   ./cd-setup-all.sh --sync-main             também envia develop:main (HOMOLOG + workflows visíveis)
   ./cd-setup-all.sh --envs dev              provisiona só um ambiente (dev|homolog)
   ./cd-setup-all.sh --only apply            roda só uma fase (apply|verify|aws|github|push)
@@ -149,6 +151,7 @@ while [[ $# -gt 0 ]]; do
     --smoke-pass) SMOKE_PASS="$2"; shift 2 ;;
     --actions-key-file) ACTIONS_KEY_FILE="$2"; shift 2 ;;
     --push-develop) PUSH_DEVELOP=1; shift ;;
+    --yes) ASSUME_YES=1; shift ;;
     --sync-main) SYNC_MAIN=1; shift ;;
     --watch) WATCH=1; shift ;;
     --dry-run) DRY_RUN=1; shift ;;
@@ -156,6 +159,7 @@ while [[ $# -gt 0 ]]; do
     *) echo "opção inválida: $1 (use --help)" >&2; exit 2 ;;
   esac
 done
+ASSUME_YES="${ASSUME_YES:-0}"
 
 for e in $ENVS; do
   [[ "$e" =~ ^(dev|homolog)$ ]] || { echo "--envs aceita só dev e/ou homolog" >&2; exit 2; }
@@ -2554,7 +2558,9 @@ credenciais/configuração, não por bug de aplicação.
 > implementas as correções nos arquivos (fase APPLY), conecta na AWS, roda o
 > bootstrap dos dois ambientes e cria TODOS os secrets/variables no GitHub
 > via `gh`, depois imprime a lista do que ainda falta você fazer ou enviar.
-> Com `--push-develop` ele também dispara o Deploy DEV e com `--sync-main`
+> Por padrão ele NÃO publica develop/main — atua só na branch atual (ex.:
+> fix/cd-deploy-hardening). Para publicar e disparar o Deploy DEV:
+> `--push-develop --watch` (pede confirmação; `--yes` pula). Com `--sync-main`
 > registra os workflows no branch default (HOMOLOG). Detalhes:
 > `./cd-setup-all.sh --help`.
 
@@ -3588,7 +3594,18 @@ else
     decision "Enviar acesso de push (SSH/token) ou rodar manualmente: git push -u origin $BRANCH"
   fi
 
-  # 5.3 integrar em develop (dispara Deploy DEV)
+  # 5.3 integrar em develop (dispara Deploy DEV) — NUNCA automático:
+  # só com --push-develop E confirmação explícita (ou --yes)
+  if [[ "$PUSH_DEVELOP" == 1 && "$DRY_RUN" == 0 && "$ASSUME_YES" != 1 ]]; then
+    RESP=""
+    if ! read -r -t 300 -p "  » AVISO: isso publica develop e DISPARA o Deploy DEV. Enter=CONFIRMA / qualquer texto+Enter=CANCELA " RESP; then
+      RESP="cancelado"
+    fi
+    if [[ -n "$RESP" ]]; then
+      info "--push-develop cancelado — NADA foi publicado na develop (para pular a pergunta: --yes)"
+      PUSH_DEVELOP=0
+    fi
+  fi
   if [[ "$PUSH_DEVELOP" == 1 ]]; then
     if git show-ref --verify --quiet refs/heads/develop; then
       if exec_cmd git checkout develop; then
@@ -3660,7 +3677,7 @@ printf '  %-24s %s\n' "AWS conectada:" "$(if [[ "${AWS_CONNECTED:-0}" == 1 && "$
 printf '  %-24s %s\n' "Bootstrap:" "${BOOTSTRAP_RESULT:-não executado}"
 printf '  %-24s %s\n' "GitHub admin (gh):" "$(if [[ "${GH_READY:-0}" == 1 ]]; then echo SIM; else echo 'NÃO (sem token/admin)'; fi)"
 printf '  %-24s %s\n' "Branch publicada:" "$(if [[ "${PUSH_DONE:-0}" == 1 ]]; then echo SIM; else echo 'NÃO'; fi)"
-printf '  %-24s %s\n' "Deploy DEV disparado:" "$(if [[ -n "${DEVELOP_PUSHED:-}" ]]; then echo SIM; else echo 'não (use --push-develop)'; fi)"
+printf '  %-24s %s\n' "Deploy DEV disparado:" "$(if [[ -n "${DEVELOP_PUSHED:-}" ]]; then echo SIM; else echo 'não (padrão: nada vai para develop)'; fi)"
 printf '  %-24s %s\n' "Segredos locais:" "$SECRETS_FILE"
 
 if [[ ${#DONE_LIST[@]} -gt 0 ]]; then
@@ -3682,7 +3699,10 @@ fi
 cat <<'LEMBRETES'
 
 LEMBRETES FINAIS
-  1) Push em develop dispara Deploy DEV; push em main dispara HOMOLOG.
+  1) Este script NÃO publica develop/main por padrão — atua só na branch
+     atual (ex.: fix/cd-deploy-hardening). Quando decidir publicar:
+     ./cd-setup-all.sh --push-develop --watch  (pede confirmação; --yes pula).
+     Push em develop dispara Deploy DEV; push em main dispara HOMOLOG.
      Rollback/Guardian só ficam VISÍVEIS no GitHub quando main (branch
      default) receber os workflows (--sync-main).
   2) Guardian vigia a cada 10 min e faz rollback automático — funciona só
