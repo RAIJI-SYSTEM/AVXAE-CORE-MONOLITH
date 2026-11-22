@@ -14,6 +14,9 @@ import com.raiji.rides.domain.Ride;
 import com.raiji.rides.domain.RideVisibility;
 import com.raiji.rides.repository.RideRepository;
 import com.raiji.users.company.CompanyMembership;
+import com.raiji.deliveries.DeliveryStatusHistory;
+import com.raiji.deliveries.event.DeliveryDeliveredEvent;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -23,6 +26,11 @@ import org.springframework.web.server.ResponseStatusException;
 import com.raiji.common.enums.RideType;
 import com.raiji.deliveries.dto.AvailableDeliveryResponse;
 import org.springframework.http.HttpStatus;
+import com.raiji.users.repository.VehicleRepository;
+import org.springframework.context.ApplicationEventPublisher;
+import com.raiji.deliveries.dto.DeliveryConfirmationRequest;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -68,8 +76,19 @@ class DeliveryServiceTest {
     @Mock
     private TrackingCodeGenerator trackingCodeGenerator;
 
+    @Mock
+    private VehicleRepository vehicles;
+
+    @Mock
+    private ApplicationEventPublisher events;
+
+    @Mock
+    private RecipientNotificationSimulator recipientNotificationSimulator;
+
     @InjectMocks
     private DeliveryService service;
+
+
 
     // =========================================================
     // DRIVING
@@ -540,45 +559,259 @@ class DeliveryServiceTest {
         assertEquals(409, exception.getStatusCode().value());
     }
 
+
     // =========================================================
-    // DELIVER
+    // CONFIRMAR ENTREGA
     // =========================================================
 
     @Test
-    void deliverComEncomendaInexistenteDeveRetornar404() {
+    void confirmComEncomendaInexistenteDeveRetornar404() {
         UUID deliveryId = UUID.randomUUID();
 
-        when(deliveries.findById(deliveryId)).thenReturn(Optional.empty());
+        when(deliveries.findByIdForUpdate(deliveryId))
+                .thenReturn(Optional.empty());
+
+        DeliveryConfirmationRequest body =
+                new DeliveryConfirmationRequest(
+                        "123456",
+                        "Maria Souza",
+                        null
+                );
 
         ResponseStatusException exception = assertThrows(
                 ResponseStatusException.class,
-                () -> service.deliver(deliveryId, "motorista-123", "PALAVRA")
+                () -> service.confirm(
+                        deliveryId,
+                        "motorista-123",
+                        body
+                )
         );
 
         assertEquals(404, exception.getStatusCode().value());
     }
 
     @Test
-    void deliverComStatusInvalidoDeveRetornar409() {
+    void confirmComStatusInvalidoDeveRetornar409() {
         UUID deliveryId = UUID.randomUUID();
         UUID rideId = UUID.randomUUID();
 
         Delivery delivery = mock(Delivery.class);
         Ride ride = prepararMotorista(rideId, "motorista-123");
 
-        when(deliveries.findById(deliveryId)).thenReturn(Optional.of(delivery));
+        when(deliveries.findByIdForUpdate(deliveryId))
+                .thenReturn(Optional.of(delivery));
+
         when(delivery.getDeletedAt()).thenReturn(null);
         when(delivery.getRideId()).thenReturn(rideId);
+        when(delivery.getMode()).thenReturn(DeliveryMode.ON_ROUTE);
         when(delivery.getStatus()).thenReturn(DeliveryStatus.CONFIRMED);
+
         when(rides.findById(rideId)).thenReturn(Optional.of(ride));
+
+        DeliveryConfirmationRequest body =
+                new DeliveryConfirmationRequest(
+                        "123456",
+                        "Maria Souza",
+                        null
+                );
 
         ResponseStatusException exception = assertThrows(
                 ResponseStatusException.class,
-                () -> service.deliver(deliveryId, "motorista-123", "PALAVRA")
+                () -> service.confirm(
+                        deliveryId,
+                        "motorista-123",
+                        body
+                )
         );
 
         assertEquals(409, exception.getStatusCode().value());
     }
+
+    @Test
+    void confirmComCodigoIncorretoDeveRegistrarTentativa() {
+        UUID deliveryId = UUID.randomUUID();
+        UUID rideId = UUID.randomUUID();
+
+        Delivery delivery = mock(Delivery.class);
+        Ride ride = prepararMotorista(rideId, "motorista-123");
+
+        when(deliveries.findByIdForUpdate(deliveryId))
+                .thenReturn(Optional.of(delivery));
+
+        when(delivery.getDeletedAt()).thenReturn(null);
+        when(delivery.getRideId()).thenReturn(rideId);
+        when(delivery.getMode()).thenReturn(DeliveryMode.ON_ROUTE);
+        when(delivery.getStatus()).thenReturn(DeliveryStatus.IN_TRANSIT);
+        when(delivery.getConfirmationAttempts()).thenReturn(0);
+        when(delivery.getConfirmationCode()).thenReturn("123456");
+
+        when(rides.findById(rideId)).thenReturn(Optional.of(ride));
+
+        DeliveryConfirmationRequest body =
+                new DeliveryConfirmationRequest(
+                        "999999",
+                        "Maria Souza",
+                        null
+                );
+
+        ResponseStatusException exception = assertThrows(
+                ResponseStatusException.class,
+                () -> service.confirm(
+                        deliveryId,
+                        "motorista-123",
+                        body
+                )
+        );
+
+        assertEquals(400, exception.getStatusCode().value());
+
+        verify(delivery).registerConfirmationAttempt();
+        verify(deliveries).saveAndFlush(delivery);
+    }
+
+    @Test
+    void confirmComCincoTentativasDeveRetornar423() {
+        UUID deliveryId = UUID.randomUUID();
+        UUID rideId = UUID.randomUUID();
+
+        Delivery delivery = mock(Delivery.class);
+        Ride ride = prepararMotorista(rideId, "motorista-123");
+
+        when(deliveries.findByIdForUpdate(deliveryId))
+                .thenReturn(Optional.of(delivery));
+
+        when(delivery.getDeletedAt()).thenReturn(null);
+        when(delivery.getRideId()).thenReturn(rideId);
+        when(delivery.getMode()).thenReturn(DeliveryMode.ON_ROUTE);
+        when(delivery.getStatus()).thenReturn(DeliveryStatus.IN_TRANSIT);
+        when(delivery.getConfirmationAttempts()).thenReturn(5);
+
+        when(rides.findById(rideId)).thenReturn(Optional.of(ride));
+
+        DeliveryConfirmationRequest body =
+                new DeliveryConfirmationRequest(
+                        "123456",
+                        "Maria Souza",
+                        null
+                );
+
+        ResponseStatusException exception = assertThrows(
+                ResponseStatusException.class,
+                () -> service.confirm(
+                        deliveryId,
+                        "motorista-123",
+                        body
+                )
+        );
+
+        assertEquals(423, exception.getStatusCode().value());
+
+        verify(delivery, never()).registerConfirmationAttempt();
+        verify(deliveries, never()).saveAndFlush(delivery);
+    }
+    @Test
+    void confirmComCodigoValidoDeveEntregarEncomendaERegistrarEventos() {
+        UUID deliveryId = UUID.randomUUID();
+        String driverSub = "motorista-123";
+        Instant deliveredAt = Instant.parse("2026-11-22T12:00:00Z");
+
+        // Cria uma entrega real para testar suas transições de estado.
+        Delivery delivery = new Delivery();
+
+        ReflectionTestUtils.setField(delivery, "id", deliveryId);
+
+        PackageDetails pkg = delivery.getPkg();
+
+        pkg.setSize(PackageSize.SMALL);
+        pkg.setDescription("Documentos");
+        pkg.setWeightKg(new BigDecimal("2.00"));
+        pkg.setLengthCm(20);
+        pkg.setWidthCm(15);
+        pkg.setHeightCm(10);
+        pkg.setFragile(false);
+        pkg.setDeclaredValue(new BigDecimal("50.00"));
+        pkg.setRecipientName("Maria da Silva");
+        pkg.setRecipientPhone("84999999999");
+
+        delivery.setDriverSub(driverSub);
+        delivery.setMode(DeliveryMode.ON_ROUTE);
+        delivery.setConfirmationCode("123456");
+        delivery.setPrice(new BigDecimal("100.00"));
+        delivery.setPlatformFeePercent(new BigDecimal("10.00"));
+
+        // Coloca a entrega no estado necessário para a confirmação.
+        delivery.confirm();
+        delivery.startTransit(deliveredAt);
+
+        when(deliveries.findByIdForUpdate(deliveryId))
+                .thenReturn(Optional.of(delivery));
+
+        when(clock.instant()).thenReturn(deliveredAt);
+
+        when(deliveries.save(any(Delivery.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        DeliveryConfirmationRequest body = new DeliveryConfirmationRequest(
+                "123456",
+                "Maria da Silva",
+                "Entregue em mãos ao destinatário."
+        );
+
+        // Executa a confirmação.
+        var response = service.confirm(deliveryId, driverSub, body);
+
+        // Verifica os dados da entrega.
+        assertEquals(DeliveryStatus.DELIVERED, delivery.getStatus());
+        assertEquals(deliveredAt, delivery.getDeliveredAt());
+        assertEquals(9000L, delivery.getRewardCents());
+        assertEquals("Maria da Silva", delivery.getConfirmedRecipientName());
+        assertEquals(
+                "Entregue em mãos ao destinatário.",
+                delivery.getDeliveryObservation()
+        );
+
+        // Verifica a resposta da API.
+        assertEquals(DeliveryStatus.DELIVERED, response.status());
+        assertEquals(9000L, response.rewardCents());
+        assertEquals("Maria da Silva", response.confirmedRecipientName());
+
+        // Verifica o histórico registrado.
+        ArgumentCaptor<DeliveryStatusHistory> historyCaptor =
+                ArgumentCaptor.forClass(DeliveryStatusHistory.class);
+
+        verify(history).save(historyCaptor.capture());
+
+        DeliveryStatusHistory savedHistory = historyCaptor.getValue();
+
+        assertEquals(deliveryId, savedHistory.getDeliveryId());
+        assertEquals(DeliveryStatus.IN_TRANSIT, savedHistory.getFromStatus());
+        assertEquals(DeliveryStatus.DELIVERED, savedHistory.getToStatus());
+        assertEquals(driverSub, savedHistory.getChangedBy());
+
+        // Verifica a publicação do evento de entrega concluída.
+        ArgumentCaptor<DeliveryDeliveredEvent> eventCaptor =
+                ArgumentCaptor.forClass(DeliveryDeliveredEvent.class);
+
+        verify(events).publishEvent(eventCaptor.capture());
+
+        DeliveryDeliveredEvent event = eventCaptor.getValue();
+
+        assertEquals(deliveryId, event.deliveryId());
+        assertEquals(driverSub, event.driverSub());
+        assertEquals(9000L, event.rewardCents());
+        assertEquals(deliveredAt, event.deliveredAt());
+
+        // Verifica a notificação ao remetente.
+        verify(notifier).sender(
+                eq(delivery),
+                eq("DELIVERY_DELIVERED"),
+                contains("Maria da Silva")
+        );
+
+        // Verifica a persistência.
+        verify(deliveries).save(delivery);
+    }
+
 
     // =========================================================
     // CANCEL
@@ -984,6 +1217,141 @@ class DeliveryServiceTest {
     }
 
     // =========================================================
+    // RESEND CONFIRMATION CODE
+    // =========================================================
+
+    @Test
+    void resendCodeDeveReenviarMesmoCodigoAoDestinatario() {
+        UUID deliveryId = UUID.randomUUID();
+        String senderSub = "remetente-123";
+        String confirmationCode = "123456";
+        String phone = "+5585999990000";
+
+        Delivery delivery = mock(Delivery.class);
+        PackageDetails pkg = mock(PackageDetails.class);
+
+        when(deliveries.findByIdForUpdate(deliveryId))
+                .thenReturn(Optional.of(delivery));
+        when(delivery.getDeletedAt()).thenReturn(null);
+        when(delivery.getSenderSub()).thenReturn(senderSub);
+        when(delivery.getStatus()).thenReturn(DeliveryStatus.PENDING);
+        when(delivery.getPkg()).thenReturn(pkg);
+        when(delivery.getId()).thenReturn(deliveryId);
+        when(delivery.getConfirmationCode()).thenReturn(confirmationCode);
+        when(pkg.getRecipientPhone()).thenReturn(phone);
+
+        assertDoesNotThrow(() -> service.resendCode(deliveryId, senderSub));
+
+        verify(recipientNotificationSimulator).sendConfirmationCode(
+                deliveryId,
+                phone,
+                confirmationCode
+        );
+
+        verify(notifier).sender(
+                delivery,
+                "DELIVERY_CODE_RESENT",
+                "O código de confirmação da sua entrega foi reenviado ao destinatário."
+        );
+    }
+
+    @Test
+    void resendCodeDeveNegarAcessoDeOutroUsuario() {
+        UUID deliveryId = UUID.randomUUID();
+        String senderSub = "remetente-123";
+
+        Delivery delivery = mock(Delivery.class);
+
+        when(deliveries.findByIdForUpdate(deliveryId))
+                .thenReturn(Optional.of(delivery));
+        when(delivery.getDeletedAt()).thenReturn(null);
+        when(delivery.getSenderSub()).thenReturn(senderSub);
+        when(delivery.getCompanyId()).thenReturn(null);
+
+        ResponseStatusException exception = assertThrows(
+                ResponseStatusException.class,
+                () -> service.resendCode(deliveryId, "outro-usuario")
+        );
+
+        assertEquals(404, exception.getStatusCode().value());
+
+        verifyNoInteractions(recipientNotificationSimulator, notifier);
+    }
+
+    @Test
+    void resendCodeDeveBloquearEntregaConcluida() {
+        UUID deliveryId = UUID.randomUUID();
+        String senderSub = "remetente-123";
+
+        Delivery delivery = mock(Delivery.class);
+
+        when(deliveries.findByIdForUpdate(deliveryId))
+                .thenReturn(Optional.of(delivery));
+        when(delivery.getDeletedAt()).thenReturn(null);
+        when(delivery.getSenderSub()).thenReturn(senderSub);
+        when(delivery.getStatus()).thenReturn(DeliveryStatus.DELIVERED);
+
+        ResponseStatusException exception = assertThrows(
+                ResponseStatusException.class,
+                () -> service.resendCode(deliveryId, senderSub)
+        );
+
+        assertEquals(409, exception.getStatusCode().value());
+
+        verifyNoInteractions(recipientNotificationSimulator, notifier);
+    }
+
+    @Test
+    void resendCodeDeveBloquearEntregaCancelada() {
+        UUID deliveryId = UUID.randomUUID();
+        String senderSub = "remetente-123";
+
+        Delivery delivery = mock(Delivery.class);
+
+        when(deliveries.findByIdForUpdate(deliveryId))
+                .thenReturn(Optional.of(delivery));
+        when(delivery.getDeletedAt()).thenReturn(null);
+        when(delivery.getSenderSub()).thenReturn(senderSub);
+        when(delivery.getStatus()).thenReturn(DeliveryStatus.CANCELLED);
+
+        ResponseStatusException exception = assertThrows(
+                ResponseStatusException.class,
+                () -> service.resendCode(deliveryId, senderSub)
+        );
+
+        assertEquals(409, exception.getStatusCode().value());
+
+        verifyNoInteractions(recipientNotificationSimulator, notifier);
+    }
+
+    @Test
+    void resendCodeSemTelefoneDoDestinatarioDeveRetornar409() {
+        UUID deliveryId = UUID.randomUUID();
+        String senderSub = "remetente-123";
+
+        Delivery delivery = mock(Delivery.class);
+        PackageDetails pkg = mock(PackageDetails.class);
+
+        when(deliveries.findByIdForUpdate(deliveryId))
+                .thenReturn(Optional.of(delivery));
+        when(delivery.getDeletedAt()).thenReturn(null);
+        when(delivery.getSenderSub()).thenReturn(senderSub);
+        when(delivery.getStatus()).thenReturn(DeliveryStatus.PENDING);
+        when(delivery.getPkg()).thenReturn(pkg);
+        when(pkg.getRecipientPhone()).thenReturn(null);
+
+        ResponseStatusException exception = assertThrows(
+                ResponseStatusException.class,
+                () -> service.resendCode(deliveryId, senderSub)
+        );
+
+        assertEquals(409, exception.getStatusCode().value());
+
+        verifyNoInteractions(recipientNotificationSimulator, notifier);
+    }
+
+
+    // =========================================================
     // HELPERS - AVAILABLE
     // =========================================================
 
@@ -1131,4 +1499,95 @@ class DeliveryServiceTest {
         verifyNoInteractions(trackingCodeGenerator);
         verify(deliveries, never()).save(any(Delivery.class));
     }
+
+    @Test
+    void driverHistoryDeveConsultarRepositorioComFiltros() {
+        String driverSub = "motorista-123";
+        Instant inicio = Instant.parse("2026-11-01T00:00:00Z");
+        Instant fim = Instant.parse("2026-11-30T23:59:59Z");
+        Pageable pageable = Pageable.unpaged();
+
+        when(deliveries.findDriverHistory(
+                driverSub,
+                DeliveryStatus.DELIVERED,
+                inicio,
+                fim,
+                pageable
+        )).thenReturn(Page.empty());
+
+        Page<DeliverySummaryResponse> resultado = service.driverHistory(
+                driverSub,
+                DeliveryStatus.DELIVERED,
+                inicio,
+                fim,
+                pageable
+        );
+
+        assertTrue(resultado.isEmpty());
+
+        verify(deliveries).findDriverHistory(
+                driverSub,
+                DeliveryStatus.DELIVERED,
+                inicio,
+                fim,
+                pageable
+        );
+    }
+
+    @Test
+    void senderHistoryDeveIncluirEmpresasDoRemetente() {
+        String senderSub = "remetente-123";
+        UUID companyId = UUID.randomUUID();
+        Pageable pageable = Pageable.unpaged();
+
+        when(membership.companyIdsOf(senderSub))
+                .thenReturn(List.of(companyId));
+
+        when(deliveries.findSenderHistory(
+                senderSub,
+                List.of(companyId),
+                null,
+                null,
+                null,
+                pageable
+        )).thenReturn(Page.empty());
+
+        Page<DeliverySummaryResponse> resultado = service.senderHistory(
+                senderSub,
+                null,
+                null,
+                null,
+                pageable
+        );
+
+        assertTrue(resultado.isEmpty());
+
+        verify(deliveries).findSenderHistory(
+                senderSub,
+                List.of(companyId),
+                null,
+                null,
+                null,
+                pageable
+        );
+    }
+
+    @Test
+    void historyDeveRejeitarPeriodoInvalido() {
+        Instant inicio = Instant.parse("2026-11-30T00:00:00Z");
+        Instant fim = Instant.parse("2026-11-01T00:00:00Z");
+
+        assertThrows(ResponseStatusException.class, () ->
+                service.driverHistory(
+                        "motorista-123",
+                        null,
+                        inicio,
+                        fim,
+                        Pageable.unpaged()
+                )
+        );
+
+        verifyNoInteractions(deliveries);
+    }
+
 }

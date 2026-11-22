@@ -91,7 +91,8 @@ class DeliveryControllerTest {
                 "ON_ROUTE",
                 null,
                 null,
-                Instant.parse("2026-11-18T12:00:00Z")
+                Instant.parse("2026-11-18T12:00:00Z"),
+                "123456"
         );
     }
 
@@ -239,6 +240,77 @@ class DeliveryControllerTest {
         mockMvc.perform(get("/api/deliveries/mine"))
                 .andExpect(status().isUnauthorized());
     }
+
+    @Test
+    void motoristaDeveConsultarHistoricoComFiltros() throws Exception {
+        Instant inicio = Instant.parse("2026-11-01T00:00:00Z");
+        Instant fim = Instant.parse("2026-11-30T23:59:59Z");
+
+        when(deliveryService.driverHistory(
+                eq("driver-123"),
+                eq(DeliveryStatus.DELIVERED),
+                eq(inicio),
+                eq(fim),
+                any(Pageable.class)
+        )).thenReturn(Page.<DeliverySummaryResponse>empty());
+
+        mockMvc.perform(get("/api/deliveries/driver/history")
+                        .with(jwt()
+                                .jwt(t -> t.subject("driver-123"))
+                                .authorities(new SimpleGrantedAuthority("ROLE_DRIVER")))
+                        .param("status", "DELIVERED")
+                        .param("startDate", "2026-11-01T00:00:00Z")
+                        .param("endDate", "2026-11-30T23:59:59Z")
+                        .param("page", "0")
+                        .param("size", "10")
+                        .param("sort", "requestedAt,desc"))
+                .andExpect(status().isOk());
+
+        verify(deliveryService).driverHistory(
+                eq("driver-123"),
+                eq(DeliveryStatus.DELIVERED),
+                eq(inicio),
+                eq(fim),
+                any(Pageable.class)
+        );
+    }
+
+    @Test
+    void remetenteDeveConsultarHistorico() throws Exception {
+        when(deliveryService.senderHistory(
+                eq("sender-123"),
+                eq(null),
+                eq(null),
+                eq(null),
+                any(Pageable.class)
+        )).thenReturn(Page.<DeliverySummaryResponse>empty());
+
+        mockMvc.perform(get("/api/deliveries/sender/history")
+                        .with(jwt()
+                                .jwt(t -> t.subject("sender-123"))
+                                .authorities(new SimpleGrantedAuthority("ROLE_PASSENGER")))
+                        .param("page", "0")
+                        .param("size", "20"))
+                .andExpect(status().isOk());
+
+        verify(deliveryService).senderHistory(
+                eq("sender-123"),
+                eq(null),
+                eq(null),
+                eq(null),
+                any(Pageable.class)
+        );
+    }
+
+    @Test
+    void passageiroNaoPodeConsultarHistoricoDoMotorista() throws Exception {
+        mockMvc.perform(get("/api/deliveries/driver/history")
+                        .with(jwt()
+                                .jwt(t -> t.subject("passenger-123"))
+                                .authorities(new SimpleGrantedAuthority("ROLE_PASSENGER"))))
+                .andExpect(status().isForbidden());
+    }
+
 
     @SpringBootConfiguration
     @EnableAutoConfiguration
