@@ -8,6 +8,7 @@ import java.util.UUID;
  * Códigos da encomenda:
  * - coleta: 4 dígitos que o remetente mostra ao motorista;
  * - entrega: palavra-chave que o destinatário informa ao motorista;
+ * - confirmação: 6 dígitos informados pelo destinatário;
  * - rastreamento: código público para identificar a encomenda.
  */
 public final class DeliveryCodes {
@@ -26,6 +27,13 @@ public final class DeliveryCodes {
     public static final int MAX_FAILED_ATTEMPTS = 5;
 
     private DeliveryCodes() {
+    }
+
+    /**
+     * Gera um código numérico de seis dígitos para confirmação da entrega.
+     */
+    public static String confirmationCode() {
+        return String.format("%06d", RANDOM.nextInt(1_000_000));
     }
 
     /**

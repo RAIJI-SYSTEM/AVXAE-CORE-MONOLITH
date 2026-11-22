@@ -20,7 +20,7 @@ import org.locationtech.jts.geom.Point;
 
 
 /**
- * Encomenda que viaja numa carona (pedido de espaço de carga).
+ * Encomenda que viaja numa carona (pedido de espaÃ§o de carga).
  */
 @Entity
 @Table(name = "deliveries")
@@ -107,6 +107,21 @@ public class Delivery extends AuditableEntity {
     @Column(name = "delivery_keyword", nullable = false, length = 12)
     private String deliveryKeyword;
 
+    @Column(name = "confirmation_code", nullable = false, length = 6)
+    private String confirmationCode;
+
+    @Column(name = "confirmation_attempts", nullable = false)
+    private int confirmationAttempts;
+
+    @Column(name = "reward_cents")
+    private Long rewardCents;
+
+    @Column(name = "confirmed_recipient_name", length = 120)
+    private String confirmedRecipientName;
+
+    @Column(name = "delivery_observation", length = 500)
+    private String deliveryObservation;
+
     @Column(name = "failed_code_attempts", nullable = false)
     private int failedCodeAttempts;
 
@@ -144,7 +159,7 @@ public class Delivery extends AuditableEntity {
     private Instant acceptedAt;
 
     // ---------------------------------------------------------
-    // Transições de estado
+    // TransiÃ§Ãµes de estado
     // ---------------------------------------------------------
 
     /**
@@ -153,7 +168,7 @@ public class Delivery extends AuditableEntity {
     public void confirm() {
         requireStatus(
                 DeliveryStatus.PENDING,
-                "Só uma encomenda pendente pode ser aceita."
+                "SÃ³ uma encomenda pendente pode ser aceita."
         );
 
         status = DeliveryStatus.CONFIRMED;
@@ -166,7 +181,7 @@ public class Delivery extends AuditableEntity {
     public void pickUp() {
         requireStatus(
                 DeliveryStatus.CONFIRMED,
-                "Só uma encomenda aceita pode ser coletada."
+                "SÃ³ uma encomenda aceita pode ser coletada."
         );
 
         status = DeliveryStatus.IN_TRANSIT;
@@ -175,23 +190,44 @@ public class Delivery extends AuditableEntity {
     }
 
     /**
-     * IN_TRANSIT -> DELIVERED
+     * IN_TRANSIT -> DELIVERED.
+     * A conclusão exige que o serviço valide o código do destinatário.
      */
-    public void deliver() {
+    public void deliver(Instant at, Long rewardCents) {
         requireStatus(
                 DeliveryStatus.IN_TRANSIT,
                 "Só uma encomenda em trânsito pode ser entregue."
         );
 
         status = DeliveryStatus.DELIVERED;
-        deliveredAt = Instant.now();
+        deliveredAt = at;
+        this.rewardCents = rewardCents;
     }
 
     /**
+     * CONFIRMED -> IN_TRANSIT quando a viagem vinculada começa.
+     */
+    public void startTransit(Instant at) {
+        requireStatus(
+                DeliveryStatus.CONFIRMED,
+                "Só uma encomenda aceita pode iniciar o transporte."
+        );
+
+        status = DeliveryStatus.IN_TRANSIT;
+        pickedUpAt = at;
+    }
+
+    /**
+     * Registra uma tentativa incorreta de confirmação da entrega.
+     */
+    public void registerConfirmationAttempt() {
+        confirmationAttempts++;
+    }
+    /**
      * PENDING/CONFIRMED/IN_TRANSIT -> CANCELLED.
      *
-     * A regra de negócio do serviço pode restringir o cancelamento
-     * somente aos estados anteriores à coleta.
+     * A regra de negÃ³cio do serviÃ§o pode restringir o cancelamento
+     * somente aos estados anteriores Ã  coleta.
      */
     public void cancel(String reason) {
         if (status != DeliveryStatus.PENDING
@@ -199,7 +235,7 @@ public class Delivery extends AuditableEntity {
                 && status != DeliveryStatus.IN_TRANSIT) {
 
             throw new IllegalDeliveryStateException(
-                    "Não é possível cancelar uma encomenda com status " + status + "."
+                    "NÃ£o Ã© possÃ­vel cancelar uma encomenda com status " + status + "."
             );
         }
 
@@ -354,6 +390,29 @@ public class Delivery extends AuditableEntity {
         this.deliveryKeyword = v;
     }
 
+    public String getConfirmationCode() {
+        return confirmationCode;
+    }
+
+    public void setConfirmationCode(String confirmationCode) {
+        this.confirmationCode = confirmationCode;
+    }
+
+    public int getConfirmationAttempts() {
+        return confirmationAttempts;
+    }
+
+    public void setConfirmationAttempts(int confirmationAttempts) {
+        this.confirmationAttempts = confirmationAttempts;
+    }
+
+    public Long getRewardCents() {
+        return rewardCents;
+    }
+
+    public void setRewardCents(Long rewardCents) {
+        this.rewardCents = rewardCents;
+    }
     public int getFailedCodeAttempts() {
         return failedCodeAttempts;
     }
@@ -498,5 +557,21 @@ public class Delivery extends AuditableEntity {
     }
     public void setAcceptedAt(Instant acceptedAt){
         this.acceptedAt = acceptedAt;
+    }
+
+    public String getConfirmedRecipientName() {
+        return confirmedRecipientName;
+    }
+
+    public void setConfirmedRecipientName(String confirmedRecipientName) {
+        this.confirmedRecipientName = confirmedRecipientName;
+    }
+
+    public String getDeliveryObservation() {
+        return deliveryObservation;
+    }
+
+    public void setDeliveryObservation(String deliveryObservation) {
+        this.deliveryObservation = deliveryObservation;
     }
 }
