@@ -69,6 +69,7 @@ REQUIRED_FILES = [
     "infra/aws/aws-config.env",
     ".github/workflows/guardian.yml",
     "scripts/aws/guardian.sh",
+    "scripts/aws/check-github-config.sh",
     "tests/cicd/run-all.sh",
     "tests/cicd/mock_server.py",
     "tests/cicd/test_smoke_functional.sh",
@@ -84,7 +85,9 @@ EXECUTABLE_FILES = [
     "scripts/aws/ecr-retag.sh",
     "scripts/aws/bootstrap-aws.sh",
     "scripts/aws/guardian.sh",
+    "scripts/aws/check-github-config.sh",
     "scripts/setup-cicd.sh",
+    "docs/CD-CHECKLIST.md",
     "tests/cicd/run-all.sh",
     "tests/cicd/test_smoke_functional.sh",
 ]
@@ -169,9 +172,15 @@ class TestDeployWorkflows(unittest.TestCase):
 
     def test_ambos_chamam_workflow_reutilizavel(self):
         for wf, env in ((self.dev, "dev"), (self.homolog, "homolog")):
-            job = list(wf["jobs"].values())[0]
+            job = next(j for j in wf["jobs"].values() if "uses" in j)
             self.assertTrue(job["uses"].endswith(".github/workflows/deploy.yml"))
             self.assertEqual(job["with"]["environment"], env)
+
+    def test_preflight_valida_configuracao(self):
+        for wf, env in ((self.dev, "dev"), (self.homolog, "homolog")):
+            pre = next(j for j in wf["jobs"].values() if j.get("name", "").startswith("Pré-requisitos"))
+            self.assertEqual(pre["environment"], env)
+            self.assertIn("AWS_EC2_HOST_", str(pre["steps"]))
 
     def test_deploy_e_workflow_call_com_secrets(self):
         self.assertIn("workflow_call", self._on(self.deploy))

@@ -28,6 +28,9 @@ services:
 
   app:
     container_name: ${COMPOSE_PROJECT_NAME:-raiji}-app
+    # O contexto de build (raiji-app/src) NÃO é enviado para a EC2: a imagem
+    # vem SEMPRE do ECR. `!reset` remove o `build:` herdado do compose base.
+    build: !reset null
     image: ${ECR_REGISTRY:?ECR_REGISTRY obrigatório}/${ECR_REPOSITORY:-raiji-app}:${IMAGE_TAG:?IMAGE_TAG obrigatório}
     pull_policy: always
     environment:
@@ -44,17 +47,27 @@ services:
       SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD obrigatório}
       SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: ${JWK_SET_URI:-http://keycloak:8080/realms/raiji/protocol/openid-connect/certs}
       RAIJI_KEYCLOAK_ADMIN_CLIENT_SECRET: ${KEYCLOAK_ADMIN_CLIENT_SECRET:?KEYCLOAK_ADMIN_CLIENT_SECRET obrigatório}
+      # --- região AWS (usada pelo S3 da CNH via instance profile) -------------
+      AWS_REGION: ${AWS_REGION:-us-east-1}
       # --- verificação da CNH: S3 real (sem endpoint/chaves: role da EC2) ------
       INFO_SIMPLES_KEY: ${INFO_SIMPLES_KEY:-}
       INFOSIMPLES_GOVBR_CPF: ${INFOSIMPLES_GOVBR_CPF:-}
       INFOSIMPLES_GOVBR_SENHA: ${INFOSIMPLES_GOVBR_SENHA:-}
+      # --- e-mails transacionais (Resend) ------------------------------------
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       RESEND_FROM: ${RESEND_FROM:-}
+      RESEND_BASE_URL: ${RESEND_BASE_URL:-https://api.resend.com}
+      # --- Stripe (caronas pagas / estorno) ----------------------------------
+      STRIPE_API_KEY: ${STRIPE_API_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      # --- regras de negócio -------------------------------------------------
       RAIJI_PLATFORM_FEE_PERCENT: ${RAIJI_PLATFORM_FEE_PERCENT:-1.5}
       RAIJI_INTERMUNICIPAL_REQUIRES_BUSINESS: ${RAIJI_INTERMUNICIPAL_REQUIRES_BUSINESS:-false}
+      RAIJI_TIME_ZONE: ${RAIJI_TIME_ZONE:-America/Sao_Paulo}
       # Origens extras do app (além de localhost/capacitor), separadas por vírgula
       RAIJI_CORS_ALLOWED_ORIGINS: ${RAIJI_CORS_ALLOWED_ORIGINS:-}
-      DRIVER_DOCS_BUCKET: ${DRIVER_DOCS_BUCKET:-}
+      # --- S3 da CNH (produção: bucket real, credenciais da role da EC2) ------
+      DRIVER_DOCS_BUCKET: ${DRIVER_DOCS_BUCKET:-raiji-driver-docs}
       DRIVER_DOCS_S3_ENDPOINT: ""
       DRIVER_DOCS_S3_PATH_STYLE: "false"
       DRIVER_DOCS_S3_ACCESS_KEY: ""

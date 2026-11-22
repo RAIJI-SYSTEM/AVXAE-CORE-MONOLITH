@@ -72,9 +72,9 @@ set -a; . ./.env; set +a
 COMPOSE=(docker compose -p "$COMPOSE_PROJECT_NAME" -f docker-compose.yml -f docker-compose.aws.yml)
 aws ecr get-login-password --region "${AWS_REGION:-us-east-1}" | docker login --username AWS --password-stdin "$ECR_REGISTRY" >/dev/null
 "${COMPOSE[@]}" pull --quiet app
-IMAGE_TAG="${ENVIRONMENT}-current" "${COMPOSE[@]}" up -d --no-deps app
+IMAGE_TAG="${ENVIRONMENT}-current" "${COMPOSE[@]}" up -d --no-deps --no-build app
 sed -i "s/^IMAGE_TAG=.*/IMAGE_TAG=${ENVIRONMENT}-current/" .deploy-state 2>/dev/null || true
-BASE_URL="http://localhost:$BASE_PORT" ./scripts/smoke-test.sh --check health --retries 36 --retry-delay 10
+BASE_URL="http://localhost:$BASE_PORT" ./scripts/smoke-test.sh --check health --retries "${HEALTH_RETRIES:-90}" --retry-delay 10
 REMOTE_EOF
 
 # --- 3) SMOKE completo (paralelo) ----------------------------------------------------

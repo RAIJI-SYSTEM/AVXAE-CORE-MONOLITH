@@ -44,7 +44,12 @@ ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)" \
   || die "aws sts falhou — confira AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY"
 ECR_REGISTRY="${ACCOUNT_ID}.dkr.ecr.${AWS_REGION_NAME}.amazonaws.com"
 IMAGE_TAG="${IMAGE_TAG:-${ENVIRONMENT}-current}"
-log "ECR registry: $ECR_REGISTRY | tag: $IMAGE_TAG"
+# Bucket do S3 para a foto da CNH. O bootstrap cria exatamente este nome.
+DRIVER_DOCS_BUCKET="${DRIVER_DOCS_BUCKET:-raiji-driver-docs-${ACCOUNT_ID}-${ENVIRONMENT}}"
+log "ECR registry: $ECR_REGISTRY | tag: $IMAGE_TAG | bucket CNH: $DRIVER_DOCS_BUCKET"
+
+# Aspas simples seguras para o formato .env do Compose (aceita espaços e $).
+sq() { printf "'%s'" "${1//\'/\'\\\'\'}"; }
 
 # --- 3) Sincronizar arquivos de infra -----------------------------------------
 log "sincronizando arquivos para $SSH_TARGET:$REMOTE_DIR ..."
@@ -64,16 +69,28 @@ ECR_REGISTRY=$ECR_REGISTRY
 ECR_REPOSITORY=raiji-app
 IMAGE_TAG=$IMAGE_TAG
 BASE_PORT=$BASE_PORT
-PUBLIC_BASE_URL=${PUBLIC_BASE_URL:-http://$EC2_HOST:$BASE_PORT}
+PUBLIC_BASE_URL=$(sq "${PUBLIC_BASE_URL:-http://$EC2_HOST:$BASE_PORT}")
 KC_PORT=$KC_PORT
 SPRING_PROFILES_ACTIVE=docker
 DB_URL=jdbc:postgresql://postgres:5432/raiji_app
 DB_USER=raiji
-DB_PASSWORD='$DB_PASSWORD'
+DB_PASSWORD=$(sq "$DB_PASSWORD")
 POSTGRES_DB=raiji_keycloak
 JWK_SET_URI=http://keycloak:8080/realms/raiji/protocol/openid-connect/certs
-KEYCLOAK_ADMIN_CLIENT_SECRET='$KEYCLOAK_ADMIN_CLIENT_SECRET'
+KEYCLOAK_ADMIN_CLIENT_SECRET=$(sq "$KEYCLOAK_ADMIN_CLIENT_SECRET")
 AWS_REGION=$AWS_REGION_NAME
+# --- funcionalidades opcionais (vazio = desligado) ---------------------------
+INFO_SIMPLES_KEY=$(sq "${INFO_SIMPLES_KEY:-}")
+INFOSIMPLES_GOVBR_CPF=$(sq "${INFOSIMPLES_GOVBR_CPF:-}")
+INFOSIMPLES_GOVBR_SENHA=$(sq "${INFOSIMPLES_GOVBR_SENHA:-}")
+RESEND_API_KEY=$(sq "${RESEND_API_KEY:-}")
+RESEND_FROM=$(sq "${RESEND_FROM:-}")
+STRIPE_API_KEY=$(sq "${STRIPE_API_KEY:-}")
+STRIPE_WEBHOOK_SECRET=$(sq "${STRIPE_WEBHOOK_SECRET:-}")
+RAIJI_CORS_ALLOWED_ORIGINS=$(sq "${RAIJI_CORS_ALLOWED_ORIGINS:-}")
+DRIVER_DOCS_BUCKET=$(sq "$DRIVER_DOCS_BUCKET")
+RAIJI_PLATFORM_FEE_PERCENT=$(sq "${RAIJI_PLATFORM_FEE_PERCENT:-1.5}")
+RAIJI_TIME_ZONE=$(sq "${RAIJI_TIME_ZONE:-America/Sao_Paulo}")
 ENV_EOF
 
 # --- 5) Deploy remoto ----------------------------------------------------------

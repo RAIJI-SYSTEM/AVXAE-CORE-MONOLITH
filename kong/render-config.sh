@@ -19,7 +19,7 @@ KC_INTERNAL_URL="${KC_INTERNAL_URL:-http://keycloak:8080}"
 KC_REALM="${KC_REALM:-raiji}"
 TEMPLATE="${TEMPLATE:-/kong/kong.yml.tmpl}"
 OUT="${OUT:-/out/kong.yml}"
-MAX_TRIES="${MAX_TRIES:-60}"
+MAX_TRIES="${MAX_TRIES:-180}"
 
 ISSUER="${PUBLIC_BASE_URL%/}/realms/${KC_REALM}"
 REALM_URL="${KC_INTERNAL_URL%/}/realms/${KC_REALM}"
