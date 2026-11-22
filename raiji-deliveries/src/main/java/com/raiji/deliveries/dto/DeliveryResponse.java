@@ -1,3 +1,4 @@
+
 package com.raiji.deliveries.dto;
 
 import java.math.BigDecimal;
@@ -15,9 +16,10 @@ import com.raiji.rides.pricing.PriceBreakdown;
 
 /**
  * Encomenda.
+ *
  * O trackingCode é público para os participantes da encomenda.
- * pickupCode e deliveryKeyword só aparecem para quem envia
- * (e membros da empresa); o motorista recebe null e digita o que ouvir.
+ * pickupCode, deliveryKeyword e confirmationCode só aparecem
+ * para quem envia (e membros da empresa); o motorista recebe null.
  */
 public record DeliveryResponse(
         UUID id,
@@ -49,28 +51,56 @@ public record DeliveryResponse(
         BigDecimal driverReceives,
         String pickupCode,
         String deliveryKeyword,
+        String confirmationCode,
         Instant requestedAt,
         Instant confirmedAt,
         Instant pickedUpAt,
         Instant deliveredAt,
         Instant cancelledAt,
         String cancellationReason,
+        Long rewardCents,
+        String confirmedRecipientName,
+        String deliveryObservation,
         RideSummary ride
 ) {
-    /** Resumo da carona em que a encomenda viaja. */
-    public record RideSummary(UUID id, String driverSub, String driverName, String originCity, String originState,
-                              String destinationCity, String destinationState, LocalDateTime departureDate,
-                              String status, String meetingPoint) {
+
+    /**
+     * Resumo da carona em que a encomenda viaja.
+     */
+    public record RideSummary(
+            UUID id,
+            String driverSub,
+            String driverName,
+            String originCity,
+            String originState,
+            String destinationCity,
+            String destinationState,
+            LocalDateTime departureDate,
+            String status,
+            String meetingPoint
+    ) {
         public static RideSummary of(Ride r) {
-            return r == null ? null : new RideSummary(r.getId(), r.getDriverSub(), r.getDriverName(),
-                    r.getOriginCity(), r.getOriginState(), r.getDestinationCity(), r.getDestinationState(),
-                    r.getDepartureDate(), r.getStatus().name(), r.getMeetingPoint());
+            return r == null ? null : new RideSummary(
+                    r.getId(),
+                    r.getDriverSub(),
+                    r.getDriverName(),
+                    r.getOriginCity(),
+                    r.getOriginState(),
+                    r.getDestinationCity(),
+                    r.getDestinationState(),
+                    r.getDepartureDate(),
+                    r.getStatus().name(),
+                    r.getMeetingPoint()
+            );
         }
     }
 
     public static DeliveryResponse of(Delivery d, Ride ride, boolean showCodes) {
         PackageDetails p = d.getPkg();
-        PriceBreakdown price = PriceBreakdown.of(d.getPrice(), d.getPlatformFeePercent());
+        PriceBreakdown price = PriceBreakdown.of(
+                d.getPrice(),
+                d.getPlatformFeePercent()
+        );
 
         return new DeliveryResponse(
                 d.getId(),
@@ -102,12 +132,16 @@ public record DeliveryResponse(
                 price.driverReceives(),
                 showCodes ? d.getPickupCode() : null,
                 showCodes ? d.getDeliveryKeyword() : null,
+                showCodes ? d.getConfirmationCode() : null,
                 d.getRequestedAt(),
                 d.getConfirmedAt(),
                 d.getPickedUpAt(),
                 d.getDeliveredAt(),
                 d.getCancelledAt(),
                 d.getCancellationReason(),
+                d.getRewardCents(),
+                d.getConfirmedRecipientName(),
+                d.getDeliveryObservation(),
                 RideSummary.of(ride)
         );
     }
