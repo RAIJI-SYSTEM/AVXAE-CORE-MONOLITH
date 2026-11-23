@@ -11,6 +11,7 @@ import com.raiji.deliveries.repository.DeliveryStatusHistoryRepository;
 import com.raiji.rides.cargo.CargoLoad;
 import com.raiji.rides.cargo.RidePackageBookings;
 import java.time.Instant;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,6 +21,9 @@ public class DeliveryRideBookings implements RidePackageBookings {
 
     private final DeliveryRepository deliveries;
     private final DeliveryStatusHistoryRepository history;
+    @Autowired(required = false)
+    private DeliveryRefunds refunds;
+
     private final DeliveryNotifier notifier;
 
     public DeliveryRideBookings(DeliveryRepository deliveries,
@@ -87,6 +91,9 @@ public class DeliveryRideBookings implements RidePackageBookings {
             DeliveryStatus previous = d.getStatus();
 
             d.cancel(reason);
+            if (refunds != null) {
+                refunds.refundIfPaid(d, null); // viagem cancelada: devolve o que ja foi pago (porta da feature)
+            }
             d = deliveries.save(d);
 
             history.save(new DeliveryStatusHistory(

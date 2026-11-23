@@ -5,7 +5,7 @@ import java.util.UUID;
 
 import com.raiji.common.enums.DeliveryStatus;
 import com.raiji.common.enums.PaymentStatus;
-import com.raiji.deliveries.domain.Delivery;
+import com.raiji.deliveries.Delivery;
 import com.raiji.deliveries.repository.DeliveryRepository;
 import com.raiji.rides.domain.Ride;
 import com.raiji.rides.payment.PaymentIntentChanged;

@@ -19,3 +19,7 @@ data/
 .tools/
 __pycache__/
 *.pyc
+.fix-merge-logs/
+.fix-merge-dumps/
+saida-diagnostico.txt
+dumps-fix.tgz

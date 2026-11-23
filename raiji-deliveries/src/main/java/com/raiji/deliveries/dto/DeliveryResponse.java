@@ -7,12 +7,14 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 import com.raiji.common.enums.DeliveryStatus;
+import com.raiji.common.enums.PaymentStatus;
 import com.raiji.deliveries.Delivery;
 import com.raiji.deliveries.PackageDetails;
 import com.raiji.deliveries.PackageSize;
 import com.raiji.rides.domain.Ride;
 import com.raiji.rides.geo.GeoSupport;
 import com.raiji.rides.pricing.PriceBreakdown;
+import com.raiji.rides.payment.PaymentService;
 
 /**
  * Encomenda.
@@ -61,7 +63,9 @@ public record DeliveryResponse(
         Long rewardCents,
         String confirmedRecipientName,
         String deliveryObservation,
-        RideSummary ride
+        RideSummary ride,
+        PaymentStatus paymentStatus,
+        Instant paidAt
 ) {
 
     /**
@@ -142,7 +146,9 @@ public record DeliveryResponse(
                 d.getRewardCents(),
                 d.getConfirmedRecipientName(),
                 d.getDeliveryObservation(),
-                RideSummary.of(ride)
+                RideSummary.of(ride),
+                PaymentService.statusOf(d, PaymentService.toCents(d.getPrice())),
+                d.getPaidAt()
         );
     }
 }

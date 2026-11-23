@@ -52,6 +52,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Import({DeliveryController.class, DeliveryControllerTest.TestConfig.class})
 class DeliveryControllerTest {
 
+    @org.springframework.boot.test.mock.mockito.MockBean
+    private com.raiji.deliveries.service.DeliveryPaymentService deliveryPaymentService;
+
+
     @Autowired
     MockMvc mockMvc;
 

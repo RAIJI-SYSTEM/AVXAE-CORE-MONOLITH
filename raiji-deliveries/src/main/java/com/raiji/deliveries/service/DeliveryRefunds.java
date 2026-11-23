@@ -1,6 +1,6 @@
 package com.raiji.deliveries.service;
 
-import com.raiji.deliveries.domain.Delivery;
+import com.raiji.deliveries.Delivery;
 import com.raiji.rides.payment.PaymentService;
 import com.raiji.rides.service.RideRefundService;
 

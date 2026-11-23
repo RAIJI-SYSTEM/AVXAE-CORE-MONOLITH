@@ -6,6 +6,8 @@ import java.util.UUID;
 
 import com.raiji.common.base.AuditableEntity;
 import com.raiji.common.enums.DeliveryStatus;
+import com.raiji.common.enums.PaymentStatus;
+import com.raiji.rides.payment.Payable;
 import com.raiji.deliveries.service.IllegalDeliveryStateException;
 import jakarta.persistence.Column;
 import jakarta.persistence.Embedded;
@@ -24,7 +26,7 @@ import org.locationtech.jts.geom.Point;
  */
 @Entity
 @Table(name = "deliveries")
-public class Delivery extends AuditableEntity {
+public class Delivery extends AuditableEntity implements Payable {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -130,6 +132,19 @@ public class Delivery extends AuditableEntity {
 
     @Column(name = "payment_intent_id", length = 100)
     private String paymentIntentId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_status", nullable = false, length = 20)
+    private PaymentStatus paymentStatus = PaymentStatus.UNPAID;
+
+    @Column(name = "paid_amount_cents")
+    private Long paidAmountCents;
+
+    @Column(name = "paid_at")
+    private Instant paidAt;
+
+    @Column(name = "discount_cents")
+    private Long discountCents;
 
     @Column(name = "requested_at", nullable = false)
     private Instant requestedAt = Instant.now();
@@ -574,4 +589,45 @@ public class Delivery extends AuditableEntity {
     public void setDeliveryObservation(String deliveryObservation) {
         this.deliveryObservation = deliveryObservation;
     }
+
+    // ---------------------------------------------------------
+    // Pagamento (portado da feature/integracao-parte-2)
+    // ---------------------------------------------------------
+
+    public PaymentStatus getPaymentStatus() {
+        return paymentStatus;
+    }
+
+    public void setPaymentStatus(PaymentStatus v) {
+        this.paymentStatus = v;
+    }
+
+    public Long getPaidAmountCents() {
+        return paidAmountCents;
+    }
+
+    public void setPaidAmountCents(Long v) {
+        this.paidAmountCents = v;
+    }
+
+    public Instant getPaidAt() {
+        return paidAt;
+    }
+
+    public void setPaidAt(Instant v) {
+        this.paidAt = v;
+    }
+
+    public Long getDiscountCents() {
+        return discountCents;
+    }
+
+    public void setDiscountCents(Long v) {
+        this.discountCents = v;
+    }
+
+    /** Cupom aplicado (null = sem cupom) */
+    private UUID couponId;
+    @Override public UUID getCouponId() { return couponId; }
+    @Override public void setCouponId(UUID v) { this.couponId = v; }
 }

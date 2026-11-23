@@ -133,4 +133,7 @@ public interface DeliveryRepository extends JpaRepository<Delivery, UUID> {
             @Param("endDate") Instant endDate,
             Pageable pageable
     );
+
+    /** Encomenda dona da cobrança (webhook do Stripe). */
+    Optional<Delivery> findByPaymentIntentId(String paymentIntentId);
 }

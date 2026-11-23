@@ -1,5 +1,7 @@
 package com.raiji.deliveries.service;
 
+import org.springframework.beans.factory.annotation.Autowired;
+
 import com.raiji.common.enums.DeliveryStatus;
 import com.raiji.common.enums.RideStatus;
 import com.raiji.common.enums.RideType;
@@ -785,6 +787,9 @@ public class DeliveryService {
         DeliveryStatus statusAnterior = d.getStatus();
 
         d.cancel(motivo);
+        if (refunds != null) {
+            refunds.refundIfPaid(d, actorSub); // cancelou depois de pagar: devolve o valor (porta da feature)
+        }
 
         d = deliveries.save(d);
 
@@ -1046,6 +1051,9 @@ public class DeliveryService {
     /**
      * Remetente: quem enviou ou membro ativo da empresa.
      */
+    @Autowired(required = false)
+    private DeliveryRefunds refunds;
+
     boolean podeVerComoRemetente(Delivery d, String sub) {
         return d.getSenderSub().equals(sub)
                 || (d.getCompanyId() != null
