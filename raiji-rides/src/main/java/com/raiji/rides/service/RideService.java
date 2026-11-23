@@ -111,19 +111,57 @@ public class RideService {
         return RideResponse.from(rideRepository.save(ride));
     }
 
+    /** Viagem EXCLUSIVA de um passageiro do mural (fora da busca, 1 vaga, pelo valor combinado). */
+    @Transactional
+    public Ride createPrivateSeatRide(String driverSub, String driverName, UUID vehicleId,
+                                      String originCity, String originState, Place origin,
+                                      String destinationCity, String destinationState, Place destination,
+                                      LocalDateTime departureDate, BigDecimal price) {
+        Ride ride = novaViagemExclusiva(RideType.PASSENGER, driverSub, driverName, vehicleId, originCity, originState,
+                origin, destinationCity, destinationState, destination, departureDate);
+        ride.setTotalSeats(1);
+        ride.setAvailableSeats(1);
+        ride.setPricePerPassenger(price);
+        return rideRepository.save(ride);
+    }
+
+    /** O veículo é do motorista e está ativo? (403 se não) — devolve a descrição ("Fiat Argo · Branco"). */
+    @Transactional(readOnly = true)
+    public String requireVehicle(UUID vehicleId, String driverSub) {
+        return descreverVeiculo(vehicleDoMotorista(vehicleId, driverSub));
+    }
+
+    /** Descrição de cada veículo ("Fiat Argo · Branco"), para listas. */
+    @Transactional(readOnly = true)
+    public Map<UUID, String> describeVehicles(java.util.Collection<UUID> ids) {
+        return vehicleRepository.findAllById(ids).stream()
+                .collect(Collectors.toMap(Vehicle::getId, RideService::descreverVeiculo));
+    }
+
     /**
-     * Viagem EXCLUSIVA de carga, criada quando um motorista fecha um frete com uma
-     * empresa (não aparece na busca, 0 vagas, sem preço por vaga: o valor do frete
-     * fica na encomenda).
+     * Viagem EXCLUSIVA de carga, criada quando um motorista fecha um frete com uma empresa ou uma
+     * encomenda do mural (fora da busca, 0 vagas; o valor fica na encomenda).
      */
     @Transactional
     public Ride createPrivateCargoRide(String driverSub, String driverName, UUID vehicleId,
                                        String originCity, String originState, Place origin,
                                        String destinationCity, String destinationState, Place destination,
                                        LocalDateTime departureDate, CargoDetails cargoDetails) {
+        Ride ride = novaViagemExclusiva(RideType.CARGO, driverSub, driverName, vehicleId, originCity, originState,
+                origin, destinationCity, destinationState, destination, departureDate);
+        ride.setTotalSeats(0);
+        ride.setAvailableSeats(0);
+        ride.setCargoDetails(cargoDetails);
+        return rideRepository.save(ride);
+    }
+
+    private Ride novaViagemExclusiva(RideType type, String driverSub, String driverName, UUID vehicleId,
+                                     String originCity, String originState, Place origin,
+                                     String destinationCity, String destinationState, Place destination,
+                                     LocalDateTime departureDate) {
         Vehicle vehicle = vehicleDoMotorista(vehicleId, driverSub);
         Ride ride = new Ride();
-        ride.setType(RideType.CARGO);
+        ride.setType(type);
         ride.setVisibility(RideVisibility.PRIVATE);
         ride.setDriverSub(driverSub);
         ride.setDriverName(driverName);
@@ -133,21 +171,19 @@ public class RideService {
         ride.setDestinationCity(destinationCity.trim());
         ride.setDestinationState(destinationState.toUpperCase(Locale.ROOT));
         ride.setDepartureDate(departureDate);
-        ride.setTotalSeats(0);
-        ride.setAvailableSeats(0);
         ride.setStatus(RideStatus.PLANNED);
         ride.setPlatformFeePercent(pricing.platformFeePercent());
-        ride.setCargoDetails(cargoDetails);
         aplicarLocalizacao(ride, origin, destination, null);
-        return rideRepository.save(ride);
+        return ride;
     }
 
-    /** Detalhe da carona; viagem exclusiva (PRIVATE) só para o próprio motorista. */
+    /** Detalhe da carona; viagem exclusiva (PRIVATE) só para o motorista e os passageiros dela. */
     @Transactional(readOnly = true)
     public RideDetailResponse get(UUID rideId, String requesterSub) {
         Ride ride = rideRepository.findById(rideId)
                 .filter(r -> r.getDeletedAt() == null)
-                .filter(r -> r.getVisibility() == RideVisibility.PUBLIC || r.getDriverSub().equals(requesterSub))
+                .filter(r -> r.getVisibility() == RideVisibility.PUBLIC || r.getDriverSub().equals(requesterSub)
+                        || rideRepository.hasBooking(rideId, requesterSub))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Carona não encontrada."));
         List<LatLng> route = ride.getRoute() == null ? List.of()
                 : java.util.Arrays.stream(ride.getRoute().getCoordinates())

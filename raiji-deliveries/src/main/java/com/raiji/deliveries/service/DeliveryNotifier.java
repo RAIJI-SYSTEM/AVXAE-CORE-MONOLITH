@@ -36,6 +36,10 @@ public class DeliveryNotifier {
                 .forEach(sub -> send(sub, "COMPANY", kind, rideId, refId, message));
     }
 
+    public void passenger(String sub, String kind, UUID rideId, UUID refId, String message) {
+        send(sub, "PASSENGER", kind, rideId, refId, message);
+    }
+
     public void driver(String driverSub, String kind, UUID rideId, UUID refId, String message) {
         send(driverSub, "DRIVER", kind, rideId, refId, message);
     }

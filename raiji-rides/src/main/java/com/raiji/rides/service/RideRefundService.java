@@ -23,7 +23,7 @@ import org.springframework.stereotype.Service;
  *
  * <p>Regras (critérios de aceite da issue #12):
  * <ul>
- *   <li>carona <b>gratuita</b> ({@code pricePerPassenger == null}) =&gt; NÃO
+ *   <li>carona <b>gratuita</b> (sem preço na reserva nem na carona) =&gt; NÃO
  *       chama o Stripe;</li>
  *   <li>reserva sem {@code paymentIntentId} =&gt; nada a estornar;</li>
  *   <li>estorno ok =&gt; auditoria {@code ESTORNO_SUCESSO} com o id do refund;</li>
@@ -66,11 +66,12 @@ public class RideRefundService {
      * @return {@code true} se um estorno foi de fato tentado (reserva paga)
      */
     public boolean refundIfApplicable(Ride ride, RidePassenger passenger, String actorSub) {
-        if (ride.getPricePerPassenger() == null) {
+        // Valor da reserva primeiro: no mural ele é combinado, mesmo que a carona em si seja gratuita
+        BigDecimal price = passenger.getPrice() != null ? passenger.getPrice() : ride.getPricePerPassenger();
+        if (price == null) {
             // Carona gratuita => não chama o Stripe (critério de aceite).
             return false;
         }
-        BigDecimal price = passenger.getPrice() != null ? passenger.getPrice() : ride.getPricePerPassenger();
         return refundIfPaid(passenger, ENTITY_TYPE, passenger.getId(), actorSub, toCents(price),
                 "rideId=" + ride.getId());
     }

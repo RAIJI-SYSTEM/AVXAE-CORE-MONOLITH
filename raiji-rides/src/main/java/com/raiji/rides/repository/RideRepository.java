@@ -108,6 +108,10 @@ public interface RideRepository extends JpaRepository<Ride, UUID>, JpaSpecificat
     /** Caronas em andamento ou por vir (para sincronizar os grupos do chat ao subir) */
     List<Ride> findByStatusInAndDeletedAtIsNull(List<RideStatus> statuses);
 
+    /** A pessoa tem reserva nesta carona? (viagem exclusiva: só motorista e passageiros veem) */
+    @Query("select count(p) > 0 from RidePassenger p where p.rideId = :rideId and p.passengerSub = :sub and p.deletedAt is null")
+    boolean hasBooking(@Param("rideId") UUID rideId, @Param("sub") String passengerSub);
+
     /** Caronas do motorista (as mais próximas da partida primeiro). */
     List<Ride> findByDriverSubAndStatusInAndDeletedAtIsNullOrderByDepartureDateAsc(
             String driverSub, List<RideStatus> statuses);

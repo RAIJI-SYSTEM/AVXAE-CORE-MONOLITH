@@ -2,7 +2,7 @@
 # Deixa o ambiente de desenvolvimento acessível pela REDE (Wi-Fi), para testar o app
 # em vários celulares sem cabo. Ou volta para localhost (cabo USB + adb reverse).
 #
-#   ./scripts/dev-rede.sh            usa o IP atual do PC na rede
+#   ./scripts/dev-rede.sh            usa o IP atual do PC no Wi-Fi
 #   ./scripts/dev-rede.sh 10.0.0.17  usa este IP
 #   ./scripts/dev-rede.sh localhost  volta para localhost
 #
@@ -19,7 +19,10 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 APP_ENV="$ROOT/../raiji-app/.env.local"
-HOST="${1:-$(hostname -I | awk '{print $1}')}"
+# Com mais de uma rede (cabo, USB, Docker), usa a do Wi-Fi: é onde os celulares estão
+wifi_ip() { ip -4 -o addr show 2>/dev/null | awk '$2 ~ /^wl/ {split($4, a, "/"); print a[1]; exit}'; }
+HOST="${1:-$(wifi_ip)}"
+HOST="${HOST:-$(hostname -I | awk '{print $1}')}"
 
 if [ -z "$HOST" ]; then
   echo "Não achei o IP do PC. Informe: ./scripts/dev-rede.sh 192.168.0.10" >&2

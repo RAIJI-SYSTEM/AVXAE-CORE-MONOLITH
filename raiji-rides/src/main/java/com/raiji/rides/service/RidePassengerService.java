@@ -602,6 +602,43 @@ public class RidePassengerService {
         return RidePassengerResponse.from(ridePassengerRepository.save(passenger));
     }
 
+    // ------------------------------------------------------------------ mural
+
+    /**
+     * O passageiro escolheu a oferta do motorista no mural: entra na carona já confirmado, pelo
+     * valor combinado (só falta pagar). A carona vem travada e a vaga é conferida aqui.
+     */
+    @Transactional
+    public RidePassenger confirmFromBoard(UUID rideId, String passengerSub, String passengerName,
+                                          java.math.BigDecimal price, Place pickup, Place dropoff) {
+        Ride ride = rideRepository.findByIdForUpdate(rideId)
+                .filter(r -> r.getDeletedAt() == null)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Carona não encontrada."));
+        if (!ride.carriesPassengers() || !ride.openForBookings()
+                || !ride.getDepartureDate().isAfter(LocalDateTime.now(clock))) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Esta carona não aceita mais passageiros.");
+        }
+        if (ride.getAvailableSeats() == null || ride.getAvailableSeats() <= 0) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Não há mais vagas nesta carona.");
+        }
+        if (ridePassengerRepository.existsByRideIdAndPassengerSubAndStatusInAndDeletedAtIsNull(
+                rideId, passengerSub, ACTIVE_STATUSES)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Você já tem um pedido nesta carona.");
+        }
+        RidePassenger passenger = new RidePassenger();
+        passenger.setRideId(rideId);
+        passenger.setPassengerSub(passengerSub);
+        passenger.setPassengerName(passengerName);
+        aplicarTrecho(ride, passenger, pickup, dropoff);
+        passenger.setPrice(price);
+        passenger.confirm();
+        ride.setAvailableSeats(ride.getAvailableSeats() - 1);
+        rideRepository.save(ride);
+        RidePassenger saved = ridePassengerRepository.save(passenger);
+        eventPublisher.publishEvent(new com.raiji.rides.event.RideChatChanged(rideId)); // entra no grupo
+        return saved;
+    }
+
     // ------------------------------------------------------------- ciclo de vida
 
     /** Recusa todos os pedidos pendentes (reservas encerradas, viagem iniciada ou cancelada). */

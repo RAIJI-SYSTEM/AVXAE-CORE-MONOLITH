@@ -125,6 +125,18 @@ class RideRefundServiceTest {
     }
 
     @Test
+    @DisplayName("carona gratuita com valor combinado no mural => estorna o valor da reserva")
+    void deveEstornarValorCombinadoNoMural() {
+        Ride ride = ride(null);
+        RidePassenger p = reserva("pi_mural");
+        p.setPrice(new BigDecimal("45.50"));
+        when(stripeService.refund("pi_mural", 4550L)).thenReturn(StripeRefundResult.success("re_mural"));
+
+        assertTrue(service.refundIfApplicable(ride, p, "actor-sub"));
+        verify(stripeService).refund("pi_mural", 4550L);
+    }
+
+    @Test
     @DisplayName("carona paga SEM paymentIntent => nada a estornar")
     void naoDeveEstornarSemPaymentIntent() {
         Ride ride = ride("20.00");

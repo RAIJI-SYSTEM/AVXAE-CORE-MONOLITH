@@ -42,6 +42,7 @@ public class NotificationPush {
         if (kind.contains("CANCEL")) return "Cancelamento";
         if (kind.startsWith("DELIVERY")) return "Encomenda";
         if (kind.startsWith("FREIGHT") || kind.startsWith("COMPANY")) return "Empresa";
+        if (kind.startsWith("BOARD")) return "Mural da região";
         return "Raiji";
     }
 }
