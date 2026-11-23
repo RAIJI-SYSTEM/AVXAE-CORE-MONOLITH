@@ -23,3 +23,7 @@ __pycache__/
 .fix-merge-dumps/
 saida-diagnostico.txt
 dumps-fix.tgz
+fix-merge-*.sh
+corrigir-payable.sh
+finalizar-integracao.sh
+diagnostico-merge.sh
