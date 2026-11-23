@@ -34,7 +34,7 @@ class NotificationServiceTest {
     @BeforeEach
     void setUp() {
         repository = mock(NotificationRepository.class);
-        service = new NotificationService(repository);
+        service = new NotificationService(repository, event -> { });
     }
 
     private Notification saved() {
@@ -57,7 +57,7 @@ class NotificationServiceTest {
     void decisaoVaiParaOModoPassageiro() {
         service.handleRideDecision(new RideDecisionEvent(
                 RIDE, UUID.randomUUID(), DRIVER, "Carlos", PASSENGER, "Ana",
-                RideDecision.ACCEPT, null, Instant.now()));
+                RideDecision.ACCEPT, null, Instant.now(), true));
 
         Notification n = saved();
         assertEquals(PASSENGER, n.getRecipientSub());

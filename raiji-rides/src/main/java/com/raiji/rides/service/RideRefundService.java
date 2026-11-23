@@ -2,14 +2,19 @@ package com.raiji.rides.service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.UUID;
 
+import com.raiji.common.enums.PaymentStatus;
 import com.raiji.rides.domain.Ride;
 import com.raiji.rides.domain.RidePassenger;
+import com.raiji.rides.payment.Payable;
 import com.raiji.rides.service.stripe.StripeRefundResult;
 import com.raiji.rides.service.stripe.StripeService;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import com.raiji.rides.rewards.CouponService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 /**
@@ -41,6 +46,13 @@ public class RideRefundService {
 
     private final StripeService stripeService;
     private final AuditLogService auditLogService;
+    /** Estornou: o cupom volta a valer (opcional nos testes) */
+    private CouponService coupons;
+
+    @Autowired(required = false)
+    void setCoupons(CouponService coupons) {
+        this.coupons = coupons;
+    }
 
     public RideRefundService(StripeService stripeService,
                              AuditLogService auditLogService) {
@@ -51,45 +63,59 @@ public class RideRefundService {
     /**
      * Estorna a reserva cancelada quando aplicável. Nunca lança exceção.
      *
-     * @return {@code true} se um estorno foi de fato tentado (pago + paymentIntent)
+     * @return {@code true} se um estorno foi de fato tentado (reserva paga)
      */
     public boolean refundIfApplicable(Ride ride, RidePassenger passenger, String actorSub) {
         if (ride.getPricePerPassenger() == null) {
             // Carona gratuita => não chama o Stripe (critério de aceite).
             return false;
         }
+        BigDecimal price = passenger.getPrice() != null ? passenger.getPrice() : ride.getPricePerPassenger();
+        return refundIfPaid(passenger, ENTITY_TYPE, passenger.getId(), actorSub, toCents(price),
+                "rideId=" + ride.getId());
+    }
 
-        String paymentIntentId = passenger.getPaymentIntentId();
-        if (paymentIntentId == null || paymentIntentId.isBlank()) {
-            log.debug(
-                    "Reserva {} sem paymentIntentId — nada a estornar.",
-                    passenger.getId());
+    /**
+     * Estorna um pedido pago (reserva ou encomenda) e o marca como REFUNDED.
+     * Só estorna o que o Stripe confirmou como pago: cobrança iniciada e não paga não
+     * tem o que estornar. Falhas viram {@code ESTORNO_FALHOU} na auditoria. Nunca lança exceção.
+     *
+     * @param fallbackCents valor usado se o pagamento não guardou o valor recebido (dados antigos)
+     * @return {@code true} se um estorno foi de fato tentado
+     */
+    public boolean refundIfPaid(Payable payable, String entityType, UUID entityId, String actorSub,
+                                long fallbackCents, String context) {
+        String paymentIntentId = payable.getPaymentIntentId();
+        if (payable.getPaymentStatus() != PaymentStatus.PAID || paymentIntentId == null || paymentIntentId.isBlank()) {
+            log.debug("{} {} não está pago — nada a estornar.", entityType, entityId);
             return false;
         }
 
-        long amountCents = toCents(ride.getPricePerPassenger());
+        long amountCents = payable.getPaidAmountCents() != null ? payable.getPaidAmountCents() : fallbackCents;
         StripeRefundResult result = stripeService.refund(paymentIntentId, amountCents);
 
         if (result.ok()) {
+            payable.setPaymentStatus(PaymentStatus.REFUNDED);
+            if (coupons != null) coupons.onRefunded(payable);
             auditLogService.record(
                     ACTION_SUCESSO,
-                    ENTITY_TYPE,
-                    passenger.getId(),
+                    entityType,
+                    entityId,
                     actorSub,
                     "refundId=" + result.refundId()
                             + "; paymentIntentId=" + paymentIntentId
                             + "; amountCents=" + amountCents
-                            + "; rideId=" + ride.getId());
+                            + "; " + context);
         } else {
             auditLogService.record(
                     ACTION_FALHOU,
-                    ENTITY_TYPE,
-                    passenger.getId(),
+                    entityType,
+                    entityId,
                     actorSub,
                     "error=" + result.error()
                             + "; paymentIntentId=" + paymentIntentId
                             + "; amountCents=" + amountCents
-                            + "; rideId=" + ride.getId());
+                            + "; " + context);
         }
 
         return true;

@@ -101,6 +101,13 @@ public interface RideRepository extends JpaRepository<Ride, UUID>, JpaSpecificat
             @Param("dLat") double dropoffLatitude,
             @Param("dLng") double dropoffLongitude);
 
+    /** Motoristas que já publicaram alguma carona (para achar pelo código) */
+    @Query("select distinct r.driverSub from Ride r where r.deletedAt is null")
+    List<String> findDistinctDriverSubs();
+
+    /** Caronas em andamento ou por vir (para sincronizar os grupos do chat ao subir) */
+    List<Ride> findByStatusInAndDeletedAtIsNull(List<RideStatus> statuses);
+
     /** Caronas do motorista (as mais próximas da partida primeiro). */
     List<Ride> findByDriverSubAndStatusInAndDeletedAtIsNullOrderByDepartureDateAsc(
             String driverSub, List<RideStatus> statuses);

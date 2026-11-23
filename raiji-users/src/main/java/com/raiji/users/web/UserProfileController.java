@@ -1,6 +1,8 @@
 
 package com.raiji.users.web;
 
+import java.util.Optional;
+
 import com.raiji.users.dto.AccountTypeRequest;
 import com.raiji.users.dto.SetProfileRequest;
 import com.raiji.users.dto.UpdateProfileRequest;
@@ -87,6 +89,22 @@ public class UserProfileController {
             @Valid @RequestBody SetProfileRequest request) {
         return ResponseEntity.ok(
                 capabilitiesService.applyLegacyProfile(jwt, request.role(), request.userType()));
+    }
+
+    /**
+     * Dados de contato do usuário: nome e e-mail (do token) + telefone e foto
+     * salvos pelo PATCH /api/users/me. Campos ainda não salvos vêm null.
+     */
+    @GetMapping("/contact")
+    public UpdateProfileResponse contact(@AuthenticationPrincipal Jwt jwt) {
+        String sub = jwt.getSubject();
+        Optional<UserBusinessProfile> profile = businessProfileService.find(sub);
+        return new UpdateProfileResponse(
+                sub,
+                jwt.getClaimAsString("email"),
+                jwt.getClaimAsString("name"),
+                profile.map(UserBusinessProfile::getPhone).orElse(null),
+                profile.map(UserBusinessProfile::getPhotoUrl).orElse(null));
     }
 
     @PatchMapping

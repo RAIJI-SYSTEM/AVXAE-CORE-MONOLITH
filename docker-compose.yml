@@ -72,14 +72,31 @@
         # E-mails transacionais (Resend), também do .env da raiz
         RESEND_API_KEY: ${RESEND_API_KEY:-}
         RESEND_FROM: ${RESEND_FROM:-Raiji <onboarding@resend.dev>}
+        # true = aprova motorista sem conferir a CNH (só para testes locais)
+        RAIJI_DRIVER_VERIFICATION_SKIP: ${RAIJI_DRIVER_VERIFICATION_SKIP:-false}
+        RAIJI_DRIVER_VERIFICATION_CHECK: ${RAIJI_DRIVER_VERIFICATION_CHECK:-photo}
         # Comissão da plataforma (%) e regra CNPJ/MEI intermunicipal (desligada)
         RAIJI_PLATFORM_FEE_PERCENT: ${RAIJI_PLATFORM_FEE_PERCENT:-1.5}
+        # Pagamentos (Stripe): chave secreta sk_test_... e segredo do webhook, do .env da raiz
+        STRIPE_API_KEY: ${STRIPE_API_KEY:-}
+        STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
         RAIJI_INTERMUNICIPAL_REQUIRES_BUSINESS: ${RAIJI_INTERMUNICIPAL_REQUIRES_BUSINESS:-false}
         # Foto da CNH (temporária): RustFS local
         DRIVER_DOCS_BUCKET: raiji-driver-docs
         DRIVER_DOCS_S3_ENDPOINT: http://rustfs:9000
+        # Recompensas: true = o app credita anúncios sozinho (testes, sem callback do AdMob)
+        RAIJI_REWARDS_MOCK_ADS: ${RAIJI_REWARDS_MOCK_ADS:-true}
+        # Grupos de carona no chat e push (RabbitMQ)
+        RAIJI_MESSAGING_ENABLED: "true"
+        RABBITMQ_HOST: rabbitmq
+        # Push (Firebase): coloque o JSON da conta de serviço em ./secrets/firebase-service-account.json
+        FIREBASE_CREDENTIALS_FILE: /run/secrets/raiji/firebase-service-account.json
+      volumes:
+        - ./secrets:/run/secrets/raiji:ro
       # Sem "ports": o app só é acessível pela rede interna, via Kong (:8000).
       depends_on:
+        rabbitmq:
+          condition: service_healthy
         postgres:
           condition: service_healthy
         keycloak:

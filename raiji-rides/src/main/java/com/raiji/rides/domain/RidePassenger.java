@@ -21,13 +21,15 @@ import jakarta.persistence.Index;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import org.locationtech.jts.geom.Point;
+import com.raiji.common.enums.PaymentStatus;
+import com.raiji.rides.payment.Payable;
 
 @Entity
 @Table(name = "ride_passengers", indexes = {
         @Index(name = "idx_ride_pass_ride", columnList = "ride_id"),
         @Index(name = "idx_ride_pass_passenger_sub", columnList = "passenger_sub")
 })
-public class RidePassenger extends AuditableEntity {
+public class RidePassenger extends AuditableEntity implements Payable {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -66,6 +68,25 @@ public class RidePassenger extends AuditableEntity {
      */
     @Column(name = "payment_intent_id", length = 100)
     private String paymentIntentId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_status", nullable = false, length = 20)
+    private PaymentStatus paymentStatus = PaymentStatus.UNPAID;
+
+    /** Valor recebido pelo Stripe, em centavos (usado no estorno). */
+    @Column(name = "paid_amount_cents")
+    private Long paidAmountCents;
+
+    @Column(name = "paid_at")
+    private Instant paidAt;
+
+    /** Cupom usado neste pagamento (o desconto é pago pela plataforma) */
+    @Column(name = "coupon_id")
+    private java.util.UUID couponId;
+
+    /** Desconto do cupom, em centavos: o valor cobrado é o preço menos isto */
+    @Column(name = "discount_cents")
+    private Long discountCents;
 
     /**
      * S2-01 / RF18 — bagagem declarada na solicitação.
@@ -156,6 +177,16 @@ public class RidePassenger extends AuditableEntity {
     public String getCancellationReason() { return cancellationReason; }
     public String getPaymentIntentId() { return paymentIntentId; }
     public void setPaymentIntentId(String v) { this.paymentIntentId = v; }
+    @Override public PaymentStatus getPaymentStatus() { return paymentStatus; }
+    @Override public void setPaymentStatus(PaymentStatus v) { this.paymentStatus = v; }
+    @Override public Long getPaidAmountCents() { return paidAmountCents; }
+    @Override public void setPaidAmountCents(Long v) { this.paidAmountCents = v; }
+    @Override public java.util.UUID getCouponId() { return couponId; }
+    @Override public void setCouponId(java.util.UUID v) { this.couponId = v; }
+    @Override public Long getDiscountCents() { return discountCents; }
+    @Override public void setDiscountCents(Long v) { this.discountCents = v; }
+    @Override public Instant getPaidAt() { return paidAt; }
+    @Override public void setPaidAt(Instant v) { this.paidAt = v; }
     public List<Baggage> getBaggage() { return baggage; }
     public Point getPickupLocation() { return pickupLocation; }
     public void setPickupLocation(Point v) { this.pickupLocation = v; }

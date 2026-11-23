@@ -21,8 +21,15 @@ public final class CnhDecision {
 
     public enum Outcome { APPROVED, REJECTED, ERROR }
 
-    /** Dados lidos da foto que alimentam a validação */
-    public record OcrData(String nome, String cpf, String registro) {}
+    /**
+     * Dados lidos da foto. Categoria e validade podem faltar (a leitura nem sempre acha);
+     * só a verificação por foto ({@link #decideFromPhoto}) depende deles.
+     */
+    public record OcrData(String nome, String cpf, String registro, String categoria, LocalDate validade) {
+        public OcrData(String nome, String cpf, String registro) {
+            this(nome, cpf, registro, null, null);
+        }
+    }
 
     /** Resultado do OCR: os dados, ou a decisão final se não deu para ler */
     public record OcrOutcome(OcrData data, Result failure) {
@@ -75,7 +82,29 @@ public final class CnhDecision {
         if (nome == null || cpf == null || cpf.length() != 11 || registro == null || registro.length() < 9) {
             return new OcrOutcome(null, Result.rejected(UNREADABLE));
         }
-        return new OcrOutcome(new OcrData(nome.trim(), cpf, registro), null);
+        String categoria = fieldLike(campos, "CATEGORIA");
+        LocalDate validade = parseDate(fieldLike(campos, "VALIDADE"));
+        return new OcrOutcome(new OcrData(nome.trim(), cpf, registro,
+                categoria == null ? null : categoria.trim().toUpperCase(), validade), null);
+    }
+
+    /** Nomes dos campos que a leitura devolveu (sem os valores): para diagnóstico no log */
+    @SuppressWarnings("unchecked")
+    public static Set<String> ocrFieldNames(InfosimplesClient.Response ocr) {
+        if (ocr.code() != 200) return Set.of();
+        Object campos = ocr.first().get("campos");
+        return campos instanceof Map<?, ?> c ? new java.util.TreeSet<>((Set<String>) c.keySet()) : Set.of();
+    }
+
+    /** Primeiro campo cujo nome contém {@code part} (ex.: "data_validade", "validade") */
+    private static String fieldLike(Map<String, Object> campos, String part) {
+        return campos.keySet().stream()
+                .filter(k -> normalize(k).contains(part))
+                .sorted()
+                .map(k -> field(campos, k))
+                .filter(v -> v != null)
+                .findFirst()
+                .orElse(null);
     }
 
     @SuppressWarnings("unchecked")
@@ -86,6 +115,28 @@ public final class CnhDecision {
         if (valor == null || String.valueOf(valor).isBlank()) return null;
         if (f.get("score") instanceof Number score && score.doubleValue() < MIN_OCR_SCORE) return null;
         return String.valueOf(valor);
+    }
+
+    // ---------------------------------------------------- Verificação por foto
+
+    /**
+     * Sem a base do SENATRAN (que a Infosimples só libera para contas de empresa): decide só
+     * pelo que foi lido na foto. Confere a validade e o nome da conta; NÃO garante que a CNH
+     * é autêntica nem que não está suspensa/cassada.
+     */
+    public static Result decideFromPhoto(OcrData ocr, String accountName, LocalDate today) {
+        if (ocr.validade() == null) {
+            return Result.rejected("Não conseguimos ler a validade da CNH na foto. Envie uma foto nítida, "
+                    + "sem reflexo, mostrando a frente inteira do documento.");
+        }
+        if (ocr.validade().isBefore(today)) {
+            return Result.rejected("Sua CNH venceu em " + ocr.validade().format(BR_DATE) + ".");
+        }
+        if (!sameName(accountName, ocr.nome())) {
+            return Result.rejected("O nome na CNH não corresponde ao nome da sua conta. "
+                    + "Atualize o nome da conta para o mesmo da CNH.");
+        }
+        return new Result(Outcome.APPROVED, null, ocr.categoria(), ocr.validade(), ocr.nome());
     }
 
     // ------------------------------------------------------------ Validação
@@ -164,10 +215,11 @@ public final class CnhDecision {
         return d.isEmpty() ? null : d;
     }
 
-    private static LocalDate parseDate(String value) {
+    static LocalDate parseDate(String value) {
         if (value == null) return null;
+        String v = value.trim();
         try {
-            return LocalDate.parse(value, BR_DATE);
+            return v.matches("\\d{4}-\\d{2}-\\d{2}.*") ? LocalDate.parse(v.substring(0, 10)) : LocalDate.parse(v, BR_DATE);
         } catch (DateTimeParseException e) {
             return null;
         }

@@ -13,10 +13,12 @@ import com.raiji.rides.domain.RideDecision;
 import com.raiji.rides.event.RideCancelledEvent;
 import com.raiji.rides.event.RideDecisionEvent;
 import com.raiji.rides.event.RideRequestCreatedEvent;
+import com.raiji.rides.push.NotificationSaved;
 import com.raiji.rides.repository.NotificationRepository;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.context.event.EventListener;
@@ -28,11 +30,20 @@ public class NotificationService {
             LoggerFactory.getLogger(NotificationService.class);
 
     private final NotificationRepository notificationRepository;
+    private final ApplicationEventPublisher events;
 
     public NotificationService(
-            NotificationRepository notificationRepository
+            NotificationRepository notificationRepository,
+            ApplicationEventPublisher events
     ) {
         this.notificationRepository = notificationRepository;
+        this.events = events;
+    }
+
+    /** Grava e avisa o push (que só sai depois do commit) */
+    private void persist(Notification notification) {
+        notificationRepository.save(notification);
+        events.publishEvent(NotificationSaved.of(notification));
     }
 
     /** Aviso genérico vindo de qualquer módulo (encomendas, empresas, frete, ciclo da viagem). */
@@ -52,7 +63,7 @@ public class NotificationService {
         notification.setRideId(rideId);
         notification.setReferenceId(referenceId);
         notification.setMessage(message.length() > 500 ? message.substring(0, 500) : message);
-        notificationRepository.save(notification);
+        persist(notification);
     }
 
     @Transactional(readOnly = true)
@@ -91,7 +102,7 @@ public class NotificationService {
         notification.setRideId(event.rideId());
         notification.setMessage(message);
 
-        notificationRepository.save(notification);
+        persist(notification);
 
         log.info(
                 "Notificação criada para o motorista {} referente à carona {}",
@@ -111,6 +122,7 @@ public class NotificationService {
         String message = event.decision() == RideDecision.ACCEPT
                 ? "Sua solicitação de carona com " + event.driverName()
                         + " foi ACEITA."
+                        + (event.paymentRequired() ? " Pague pelo app para garantir a vaga." : "")
                 : "Sua solicitação de carona com " + event.driverName()
                         + " foi RECUSADA. Motivo: " + event.reason();
 
@@ -127,7 +139,7 @@ public class NotificationService {
         notification.setRideId(event.rideId());
         notification.setMessage(message);
 
-        notificationRepository.save(notification);
+        persist(notification);
 
         log.info(
                 "Notificação de decisão ({}) criada para o passageiro {} na carona {}",
@@ -165,7 +177,7 @@ public class NotificationService {
         notification.setRideId(event.rideId());
         notification.setMessage(message);
 
-        notificationRepository.save(notification);
+        persist(notification);
 
         log.info(
                 "Notificação de cancelamento criada para o motorista {} na carona {} (vaga liberada: {})",
