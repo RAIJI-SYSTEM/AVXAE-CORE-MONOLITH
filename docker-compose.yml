@@ -12,7 +12,7 @@
         POSTGRES_PASSWORD: raiji123
         POSTGRES_DB: raiji_keycloak
       ports:
-        - "127.0.0.1:5432:5432"   # só local (IDE / psql); nunca público
+        - "127.0.0.1:5433:5432"   # só local (IDE / psql); nunca público
       volumes:
         - postgres-data:/var/lib/postgresql/data
       healthcheck:
