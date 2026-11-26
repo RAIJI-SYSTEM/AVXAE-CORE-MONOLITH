@@ -89,7 +89,7 @@
       "gridPos": {
         "x": 4,
         "y": 2,
-        "w": 4,
+        "w": 5,
         "h": 4
       },
       "targets": [
@@ -130,9 +130,9 @@
         "uid": "prometheus"
       },
       "gridPos": {
-        "x": 8,
+        "x": 9,
         "y": 2,
-        "w": 4,
+        "w": 5,
         "h": 4
       },
       "targets": [
@@ -173,9 +173,9 @@
         "uid": "prometheus"
       },
       "gridPos": {
-        "x": 12,
+        "x": 14,
         "y": 2,
-        "w": 4,
+        "w": 5,
         "h": 4
       },
       "targets": [
@@ -216,9 +216,9 @@
         "uid": "prometheus"
       },
       "gridPos": {
-        "x": 16,
+        "x": 19,
         "y": 2,
-        "w": 4,
+        "w": 5,
         "h": 4
       },
       "targets": [
@@ -304,7 +304,7 @@
       "gridPos": {
         "x": 4,
         "y": 6,
-        "w": 4,
+        "w": 5,
         "h": 4
       },
       "targets": [
@@ -345,9 +345,9 @@
         "uid": "prometheus"
       },
       "gridPos": {
-        "x": 8,
+        "x": 9,
         "y": 6,
-        "w": 4,
+        "w": 5,
         "h": 4
       },
       "targets": [
@@ -388,9 +388,9 @@
         "uid": "prometheus"
       },
       "gridPos": {
-        "x": 12,
+        "x": 14,
         "y": 6,
-        "w": 4,
+        "w": 5,
         "h": 4
       },
       "targets": [
@@ -431,9 +431,9 @@
         "uid": "prometheus"
       },
       "gridPos": {
-        "x": 16,
+        "x": 19,
         "y": 6,
-        "w": 4,
+        "w": 5,
         "h": 4
       },
       "targets": [
@@ -519,7 +519,7 @@
       "gridPos": {
         "x": 4,
         "y": 10,
-        "w": 4,
+        "w": 5,
         "h": 4
       },
       "targets": [
@@ -560,9 +560,9 @@
         "uid": "prometheus"
       },
       "gridPos": {
-        "x": 8,
+        "x": 9,
         "y": 10,
-        "w": 4,
+        "w": 5,
         "h": 4
       },
       "targets": [
@@ -603,9 +603,9 @@
         "uid": "prometheus"
       },
       "gridPos": {
-        "x": 12,
+        "x": 14,
         "y": 10,
-        "w": 4,
+        "w": 5,
         "h": 4
       },
       "targets": [
@@ -646,9 +646,9 @@
         "uid": "prometheus"
       },
       "gridPos": {
-        "x": 16,
+        "x": 19,
         "y": 10,
-        "w": 4,
+        "w": 5,
         "h": 4
       },
       "targets": [
@@ -734,7 +734,7 @@
       "gridPos": {
         "x": 4,
         "y": 14,
-        "w": 4,
+        "w": 5,
         "h": 4
       },
       "targets": [
@@ -775,9 +775,9 @@
         "uid": "prometheus"
       },
       "gridPos": {
-        "x": 8,
+        "x": 9,
         "y": 14,
-        "w": 4,
+        "w": 5,
         "h": 4
       },
       "targets": [
@@ -818,9 +818,9 @@
         "uid": "prometheus"
       },
       "gridPos": {
-        "x": 12,
+        "x": 14,
         "y": 14,
-        "w": 4,
+        "w": 5,
         "h": 4
       },
       "targets": [
@@ -861,9 +861,9 @@
         "uid": "prometheus"
       },
       "gridPos": {
-        "x": 16,
+        "x": 19,
         "y": 14,
-        "w": 4,
+        "w": 5,
         "h": 4
       },
       "targets": [
@@ -949,7 +949,7 @@
       "gridPos": {
         "x": 4,
         "y": 18,
-        "w": 4,
+        "w": 5,
         "h": 4
       },
       "targets": [
@@ -990,9 +990,9 @@
         "uid": "prometheus"
       },
       "gridPos": {
-        "x": 8,
+        "x": 9,
         "y": 18,
-        "w": 4,
+        "w": 5,
         "h": 4
       },
       "targets": [
@@ -1033,9 +1033,9 @@
         "uid": "prometheus"
       },
       "gridPos": {
-        "x": 12,
+        "x": 14,
         "y": 18,
-        "w": 4,
+        "w": 5,
         "h": 4
       },
       "targets": [
@@ -1076,9 +1076,9 @@
         "uid": "prometheus"
       },
       "gridPos": {
-        "x": 16,
+        "x": 19,
         "y": 18,
-        "w": 4,
+        "w": 5,
         "h": 4
       },
       "targets": [
@@ -1171,49 +1171,6 @@
         {
           "refId": "A",
           "expr": "count(raiji_container_cpu_percent)",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "instant": true
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "none"
-        },
-        "overrides": []
-      },
-      "options": {
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "auto"
-      }
-    },
-    {
-      "type": "stat",
-      "title": "Kong · conexões ativas",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "gridPos": {
-        "x": 0,
-        "y": 14,
-        "w": 4,
-        "h": 4
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "raiji_kong_connections_active",
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -1363,7 +1320,7 @@
       "gridPos": {
         "x": 0,
         "y": 36,
-        "w": 12,
+        "w": 24,
         "h": 8
       },
       "targets": [
@@ -1843,7 +1800,7 @@
       "gridPos": {
         "x": 0,
         "y": 80,
-        "w": 12,
+        "w": 24,
         "h": 8
       },
       "targets": [
@@ -2000,8 +1957,8 @@
         "uid": "prometheus"
       },
       "gridPos": {
-        "x": 12,
-        "y": 90,
+        "x": 0,
+        "y": 94,
         "w": 12,
         "h": 8
       },
@@ -2058,8 +2015,8 @@
         "uid": "prometheus"
       },
       "gridPos": {
-        "x": 0,
-        "y": 98,
+        "x": 12,
+        "y": 90,
         "w": 6,
         "h": 4
       },
@@ -2101,8 +2058,8 @@
         "uid": "prometheus"
       },
       "gridPos": {
-        "x": 6,
-        "y": 98,
+        "x": 18,
+        "y": 90,
         "w": 6,
         "h": 4
       },
@@ -2145,7 +2102,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 98,
+        "y": 94,
         "w": 12,
         "h": 8
       },
@@ -2194,7 +2151,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 106,
+        "y": 102,
         "w": 12,
         "h": 8
       },
@@ -2252,7 +2209,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 106,
+        "y": 102,
         "w": 12,
         "h": 8
       },
@@ -2319,8 +2276,8 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 114,
-        "w": 12,
+        "y": 110,
+        "w": 24,
         "h": 8
       },
       "targets": [
@@ -2373,7 +2330,7 @@
       "title": "",
       "gridPos": {
         "x": 0,
-        "y": 122,
+        "y": 118,
         "w": 24,
         "h": 2
       },
@@ -2392,7 +2349,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 124,
+        "y": 120,
         "w": 4,
         "h": 4
       },
@@ -2435,7 +2392,7 @@
       },
       "gridPos": {
         "x": 4,
-        "y": 124,
+        "y": 120,
         "w": 4,
         "h": 4
       },
@@ -2478,7 +2435,7 @@
       },
       "gridPos": {
         "x": 8,
-        "y": 124,
+        "y": 120,
         "w": 4,
         "h": 4
       },
@@ -2521,7 +2478,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 124,
+        "y": 120,
         "w": 4,
         "h": 4
       },
@@ -2564,7 +2521,7 @@
       },
       "gridPos": {
         "x": 16,
-        "y": 124,
+        "y": 120,
         "w": 4,
         "h": 4
       },
@@ -2607,7 +2564,7 @@
       },
       "gridPos": {
         "x": 20,
-        "y": 124,
+        "y": 120,
         "w": 4,
         "h": 4
       },
@@ -2650,7 +2607,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 128,
+        "y": 124,
         "w": 12,
         "h": 8
       },
@@ -2708,7 +2665,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 128,
+        "y": 124,
         "w": 12,
         "h": 8
       },
@@ -2766,7 +2723,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 136,
+        "y": 132,
         "w": 12,
         "h": 8
       },
@@ -2815,7 +2772,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 136,
+        "y": 132,
         "w": 12,
         "h": 8
       },
@@ -2869,7 +2826,7 @@
       "title": "",
       "gridPos": {
         "x": 0,
-        "y": 144,
+        "y": 140,
         "w": 24,
         "h": 2
       },
@@ -2986,7 +2943,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 154,
+        "y": 142,
         "w": 12,
         "h": 4
       },
@@ -3029,7 +2986,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 154,
+        "y": 142,
         "w": 12,
         "h": 4
       },
@@ -3072,7 +3029,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 158,
+        "y": 154,
         "w": 12,
         "h": 8
       },
@@ -3139,7 +3096,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 158,
+        "y": 154,
         "w": 12,
         "h": 8
       },
@@ -3197,7 +3154,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 166,
+        "y": 162,
         "w": 12,
         "h": 8
       },
@@ -3255,7 +3212,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 166,
+        "y": 162,
         "w": 12,
         "h": 8
       },
@@ -3309,7 +3266,7 @@
       "title": "",
       "gridPos": {
         "x": 0,
-        "y": 174,
+        "y": 170,
         "w": 24,
         "h": 2
       },
@@ -3321,15 +3278,58 @@
     },
     {
       "type": "stat",
-      "title": "Kong UP",
+      "title": "Kong · conexões ativas",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
       },
       "gridPos": {
         "x": 0,
-        "y": 176,
-        "w": 24,
+        "y": 172,
+        "w": 12,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "raiji_kong_connections_active",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto"
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Kong UP",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 172,
+        "w": 12,
         "h": 4
       },
       "targets": [
@@ -3371,8 +3371,8 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 180,
-        "w": 12,
+        "y": 176,
+        "w": 24,
         "h": 8
       },
       "targets": [
@@ -3425,7 +3425,7 @@
       "title": "",
       "gridPos": {
         "x": 0,
-        "y": 188,
+        "y": 184,
         "w": 24,
         "h": 2
       },
@@ -3444,7 +3444,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 190,
+        "y": 186,
         "w": 8,
         "h": 4
       },
@@ -3487,7 +3487,7 @@
       },
       "gridPos": {
         "x": 8,
-        "y": 190,
+        "y": 186,
         "w": 8,
         "h": 4
       },
@@ -3530,7 +3530,7 @@
       },
       "gridPos": {
         "x": 16,
-        "y": 190,
+        "y": 186,
         "w": 8,
         "h": 4
       },
@@ -3573,7 +3573,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 194,
+        "y": 190,
         "w": 12,
         "h": 8
       },
@@ -3622,7 +3622,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 194,
+        "y": 190,
         "w": 12,
         "h": 8
       },
@@ -3671,7 +3671,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 202,
+        "y": 198,
         "w": 12,
         "h": 8
       },
@@ -3720,7 +3720,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 202,
+        "y": 198,
         "w": 12,
         "h": 8
       },
@@ -3769,8 +3769,8 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 210,
-        "w": 12,
+        "y": 206,
+        "w": 24,
         "h": 8
       },
       "targets": [
@@ -3814,7 +3814,7 @@
       "title": "",
       "gridPos": {
         "x": 0,
-        "y": 218,
+        "y": 214,
         "w": 24,
         "h": 2
       },
@@ -3833,7 +3833,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 220,
+        "y": 216,
         "w": 12,
         "h": 8
       },
@@ -3882,7 +3882,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 220,
+        "y": 216,
         "w": 12,
         "h": 8
       },
@@ -3931,8 +3931,8 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 228,
-        "w": 12,
+        "y": 224,
+        "w": 24,
         "h": 8
       },
       "targets": [
