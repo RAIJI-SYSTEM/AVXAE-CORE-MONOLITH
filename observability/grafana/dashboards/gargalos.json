@@ -184,7 +184,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "raiji_probe_up",
+          "expr": "1 - max by (service) (raiji_probe_up)",
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"

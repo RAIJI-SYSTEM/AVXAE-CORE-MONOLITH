@@ -313,7 +313,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "avg(raiji_container_cpu_percent{container=~\"raiji-scale-chat.*\"})",
+          "expr": "avg(raiji_container_cpu_percent{container=~\"raiji-(scale-)?chat.*\"})",
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -362,7 +362,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "avg(raiji_container_memory_bytes{container=~\"raiji-scale-chat.*\"}) / 1024 / 1024",
+          "expr": "avg(raiji_container_memory_bytes{container=~\"raiji-(scale-)?chat.*\"}) / 1024 / 1024",
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"

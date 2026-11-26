@@ -209,7 +209,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "100 - (node_filesystem_avail_bytes{fstype!~\"tmpfs|overlay|squashfs\"} / node_filesystem_size_bytes{fstype!~\"tmpfs|overlay|squashfs\"} * 100)",
+          "expr": "max(100 - (node_filesystem_avail_bytes{fstype!~\"tmpfs|overlay|squashfs\"} / node_filesystem_size_bytes{fstype!~\"tmpfs|overlay|squashfs\"} * 100))",
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -2387,7 +2387,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "100 - (node_filesystem_files_free{fstype!~\"tmpfs|overlay|squashfs\"} / node_filesystem_files{fstype!~\"tmpfs|overlay|squashfs\"} * 100)",
+          "expr": "100 - (node_filesystem_files_free{fstype=~\"ext4|xfs\"} / node_filesystem_files{fstype=~\"ext4|xfs\"} * 100)",
           "legendFormat": "inodes {{mountpoint}}",
           "datasource": {
             "type": "prometheus",
@@ -3530,7 +3530,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "avg(raiji_container_cpu_percent{container=~\"raiji-scale-chat.*\"})",
+          "expr": "avg(raiji_container_cpu_percent{container=~\"raiji-(scale-)?chat.*\"})",
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -3579,7 +3579,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "avg(raiji_container_memory_bytes{container=~\"raiji-scale-chat.*\"}) / 1024 / 1024",
+          "expr": "avg(raiji_container_memory_bytes{container=~\"raiji-(scale-)?chat.*\"}) / 1024 / 1024",
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -3805,7 +3805,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "raiji_probe_up",
+          "expr": "1 - max by (service) (raiji_probe_up)",
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
