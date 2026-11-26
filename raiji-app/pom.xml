@@ -109,6 +109,39 @@
             </executions>
         </plugin>
 
+        <!-- Teste de mutação (PIT). Execute com:
+             mvn -pl raiji-app -am test-compile org.pitest:pitest-maven:mutationCoverage -->
+        <plugin>
+            <groupId>org.pitest</groupId>
+            <artifactId>pitest-maven</artifactId>
+            <version>1.19.1</version>
+            <dependencies>
+                <dependency>
+                    <groupId>org.pitest</groupId>
+                    <artifactId>pitest-junit5-plugin</artifactId>
+                    <version>1.2.2</version>
+                </dependency>
+            </dependencies>
+            <configuration>
+                <targetClasses>
+                    <param>com.raiji.web.ApiErrorHandler</param>
+                </targetClasses>
+                <targetTests>
+                    <param>com.raiji.web.ApiErrorHandlerTest</param>
+                </targetTests>
+                <outputFormats>
+                    <param>HTML</param>
+                    <param>XML</param>
+                </outputFormats>
+                <timestampedReports>false</timestampedReports>
+                <threads>4</threads>
+                <withHistory>true</withHistory>
+                <failWhenNoMutations>false</failWhenNoMutations>
+                <mutationThreshold>90</mutationThreshold>
+                <coverageThreshold>80</coverageThreshold>
+            </configuration>
+        </plugin>
+
         <plugin>
             <groupId>org.jacoco</groupId>
             <artifactId>jacoco-maven-plugin</artifactId>

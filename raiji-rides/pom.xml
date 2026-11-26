@@ -87,4 +87,47 @@
         </dependency>
 
     </dependencies>
+
+    <build>
+        <plugins>
+            <!-- Teste de mutação (PIT). Execute com:
+                 mvn -pl raiji-rides -am test-compile org.pitest:pitest-maven:mutationCoverage -->
+            <plugin>
+                <groupId>org.pitest</groupId>
+                <artifactId>pitest-maven</artifactId>
+                <version>1.19.1</version>
+                <dependencies>
+                    <dependency>
+                        <groupId>org.pitest</groupId>
+                        <artifactId>pitest-junit5-plugin</artifactId>
+                        <version>1.2.2</version>
+                    </dependency>
+                </dependencies>
+                <configuration>
+                    <targetClasses>
+                        <param>com.raiji.rides.service.RideRefundService</param>
+                        <param>com.raiji.rides.payment.PaymentService</param>
+                        <param>com.raiji.rides.service.stripe.StripeService</param>
+                    </targetClasses>
+                    <targetTests>
+                        <param>com.raiji.rides.service.RideRefundServiceTest</param>
+                        <param>com.raiji.rides.payment.PaymentServiceTest</param>
+                        <param>com.raiji.rides.payment.PaymentServiceFailureTest</param>
+                        <param>com.raiji.rides.payment.PaymentServiceMutationTest</param>
+                        <param>com.raiji.rides.service.StripeServiceTest</param>
+                    </targetTests>
+                    <outputFormats>
+                        <param>HTML</param>
+                        <param>XML</param>
+                    </outputFormats>
+                    <timestampedReports>false</timestampedReports>
+                    <threads>4</threads>
+                    <withHistory>true</withHistory>
+                    <failWhenNoMutations>false</failWhenNoMutations>
+                    <mutationThreshold>90</mutationThreshold>
+                    <coverageThreshold>80</coverageThreshold>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
 </project>

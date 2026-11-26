@@ -52,6 +52,17 @@ class CnhDecisionTest {
     }
 
     @Test
+    @DisplayName("OCR aceita score exatamente no limite mínimo (0.5)")
+    void ocrScoreNoLimite() {
+        CnhDecision.OcrOutcome r = CnhDecision.readOcr(ocr("cnh_frente", Map.of(
+                "nome", campo("MARIA DA SILVA SOUZA", 0.5),
+                "cpf", campo("123.456.789-01", 0.5),
+                "registro", campo("98765432100", 0.5))));
+
+        assertThat(r.ok()).isTrue();
+    }
+
+    @Test
     @DisplayName("OCR com baixa confiança no CPF: rejeita pedindo foto nítida")
     void ocrBaixaConfianca() {
         CnhDecision.OcrOutcome r = CnhDecision.readOcr(ocr("cnh_frente", Map.of(
@@ -163,6 +174,60 @@ class CnhDecisionTest {
         assertThat(r.data().categoria()).isEqualTo("AB");
         assertThat(r.data().validade()).isEqualTo(LocalDate.of(2030, 11, 10));
         assertThat(CnhDecision.parseDate("2030-11-10")).isEqualTo(LocalDate.of(2030, 11, 10));
+    }
+
+    @Test
+    @DisplayName("campo vazio é ignorado e o próximo campo de validade válido é usado")
+    void campoVazioEhIgnorado() {
+        Map<String, Object> campos = new HashMap<>();
+        campos.put("nome", campo("MARIA DA SILVA SOUZA", 0.9));
+        campos.put("cpf", campo("123.456.789-01", 0.9));
+        campos.put("registro", campo("98765432100", 0.9));
+        campos.put("validade", campo("   ", 0.9));
+        campos.put("validade_data", campo("10/11/2030", 0.9));
+
+        CnhDecision.OcrOutcome r = CnhDecision.readOcr(ocr("cnh_frente", campos));
+
+        assertThat(r.ok()).isTrue();
+        assertThat(r.data().validade()).isEqualTo(LocalDate.of(2030, 11, 10));
+    }
+
+    @Test
+    @DisplayName("OCR com código diferente de 200 vira ERROR")
+    void ocrCodigoNao200() {
+        assertThat(CnhDecision.readOcr(resposta(199, null)).failure().outcome()).isEqualTo(Outcome.ERROR);
+        assertThat(CnhDecision.readOcr(resposta(201, null)).failure().outcome()).isEqualTo(Outcome.ERROR);
+    }
+
+    @Test
+    @DisplayName("ocrFieldNames devolve os nomes dos campos e vazio quando não há OCR")
+    void nomesDosCamposDoOcr() {
+        Map<String, Object> campos = Map.of(
+                "nome", campo("MARIA", 0.9),
+                "cpf", campo("123", 0.9),
+                "registro", campo("456", 0.9));
+
+        assertThat(CnhDecision.ocrFieldNames(ocr("cnh_frente", campos)))
+                .containsExactly("cpf", "nome", "registro");
+        assertThat(CnhDecision.ocrFieldNames(resposta(615, null))).isEmpty();
+    }
+
+    @Test
+    @DisplayName("decide: validade ausente e categoria ausente são rejeitadas")
+    void decideCamposObrigatoriosAusentes() {
+        assertThat(CnhDecision.decide(
+                resposta(200, cnh("válida", null, "B", "MARIA DA SILVA SOUZA")),
+                OCR, "Maria Souza", HOJE).reason()).contains("validade");
+
+        assertThat(CnhDecision.decide(
+                resposta(200, cnh("válida", "10/11/2029", null, "MARIA DA SILVA SOUZA")),
+                OCR, "Maria Souza", HOJE).reason()).contains("categoria");
+    }
+
+    @Test
+    @DisplayName("token de uma letra não conta como nome")
+    void nomeComTokenDeUmaLetra() {
+        assertThat(CnhDecision.sameName("A", "A SILVA")).isFalse();
     }
 
     @Test

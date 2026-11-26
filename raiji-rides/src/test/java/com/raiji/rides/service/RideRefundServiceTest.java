@@ -15,6 +15,7 @@ import java.util.UUID;
 
 import com.raiji.rides.domain.Ride;
 import com.raiji.rides.domain.RidePassenger;
+import com.raiji.rides.rewards.CouponService;
 import com.raiji.rides.service.stripe.StripeRefundResult;
 import com.raiji.rides.service.stripe.StripeService;
 
@@ -174,6 +175,21 @@ class RideRefundServiceTest {
         service.refundIfApplicable(ride, p, "actor-sub");
 
         verify(stripeService).refund("pi_5", 3250L);
+    }
+
+    @Test
+    @DisplayName("estorno com sucesso devolve o cupom (onRefunded)")
+    void deveDevolverCupomQuandoEstornoOk() {
+        CouponService coupons = mock(CouponService.class);
+        service.setCoupons(coupons);
+        Ride ride = ride("50.00");
+        RidePassenger p = reserva("pi_cupom");
+        when(stripeService.refund("pi_cupom", 5000L))
+                .thenReturn(StripeRefundResult.success("re_cupom"));
+
+        assertTrue(service.refundIfApplicable(ride, p, "actor-sub"));
+
+        verify(coupons).onRefunded(p);
     }
 
     @Test
