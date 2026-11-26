@@ -62,6 +62,7 @@ async function adminToken(request: APIRequestContext): Promise<string> {
 export async function createUser(
   request: APIRequestContext,
   role: "DRIVER" | "PASSENGER" = "PASSENGER",
+  extraRoles: string[] = [],
 ): Promise<E2EUser> {
   const username = `e2e-${role.toLowerCase()}-${randomSuffix()}`;
   const admin = await adminToken(request);
@@ -86,7 +87,11 @@ export async function createUser(
 
   // Atribui explicitamente as roles: o usuário criado pela Admin API pode
   // ainda não ter o default-role composto materializado no token.
-  const roleNames = role === "DRIVER" ? ["PASSENGER", "DRIVER"] : ["PASSENGER"];
+  const roleNames = [...new Set([
+    "PASSENGER",
+    ...(role === "DRIVER" ? ["DRIVER"] : []),
+    ...extraRoles,
+  ])];
   const roles = [];
   for (const roleName of roleNames) {
     const roleResponse = await request.get(`${KC_ADMIN}/admin/realms/raiji/roles/${roleName}`, {
@@ -128,10 +133,19 @@ export async function createVehicle(
   return (await response.json()).id as string;
 }
 
+export interface RideOptions {
+  type?: "PASSENGER" | "MIXED" | "CARGO";
+  totalSeats?: number;
+  pricePerPassenger?: string;
+  pricePerPackage?: string;
+  cargoDetails?: Record<string, unknown>;
+}
+
 export async function createRide(
   request: APIRequestContext,
   driverToken: string,
   vehicleId: string,
+  options: RideOptions = {},
 ): Promise<{ id: string; originCity: string; destinationCity: string }> {
   const suffix = randomSuffix();
   const originCity = `E2E-Origem-${suffix}`;
@@ -144,13 +158,16 @@ export async function createRide(
     headers: auth(driverToken),
     data: {
       vehicleId,
-      type: "PASSENGER",
+      type: options.type ?? "PASSENGER",
       originCity,
       originState: "CE",
       destinationCity,
       destinationState: "CE",
       departureDate,
-      totalSeats: 3,
+      totalSeats: options.totalSeats ?? 3,
+      ...(options.pricePerPassenger ? { pricePerPassenger: options.pricePerPassenger } : {}),
+      ...(options.pricePerPackage ? { pricePerPackage: options.pricePerPackage } : {}),
+      ...(options.cargoDetails ? { cargoDetails: options.cargoDetails } : {}),
     },
   });
 
