@@ -1793,7 +1793,7 @@
     },
     {
       "type": "stat",
-      "title": "PostgreSQL · conexões",
+      "title": "PostgreSQL UP",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -1801,6 +1801,264 @@
       "gridPos": {
         "x": 0,
         "y": 70,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "raiji_pg_up",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto"
+      }
+    },
+    {
+      "type": "stat",
+      "title": "MongoDB UP",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 4,
+        "y": 70,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "raiji_mongo_up",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto"
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Kong UP",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 70,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "raiji_kong_up",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto"
+      }
+    },
+    {
+      "type": "stat",
+      "title": "RabbitMQ UP",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 70,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "raiji_rabbit_up",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto"
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Disco do host (%)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 70,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max(100 - (node_filesystem_avail_bytes{fstype!~\"tmpfs|overlay|squashfs\"} / node_filesystem_size_bytes{fstype!~\"tmpfs|overlay|squashfs\"} * 100))",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto"
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Load (1 min)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 20,
+        "y": 70,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "node_load1",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto"
+      }
+    },
+    {
+      "type": "stat",
+      "title": "PostgreSQL · conexões",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 74,
         "w": 4,
         "h": 4
       },
@@ -1843,7 +2101,7 @@
       },
       "gridPos": {
         "x": 4,
-        "y": 70,
+        "y": 74,
         "w": 4,
         "h": 4
       },
@@ -1886,7 +2144,7 @@
       },
       "gridPos": {
         "x": 8,
-        "y": 70,
+        "y": 74,
         "w": 4,
         "h": 4
       },
@@ -1929,7 +2187,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 70,
+        "y": 74,
         "w": 4,
         "h": 4
       },
@@ -1972,7 +2230,7 @@
       },
       "gridPos": {
         "x": 16,
-        "y": 70,
+        "y": 74,
         "w": 4,
         "h": 4
       },
@@ -2015,7 +2273,7 @@
       },
       "gridPos": {
         "x": 20,
-        "y": 70,
+        "y": 74,
         "w": 4,
         "h": 4
       },
@@ -2058,7 +2316,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 74,
+        "y": 78,
         "w": 12,
         "h": 8
       },
@@ -2107,7 +2365,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 74,
+        "y": 78,
         "w": 12,
         "h": 8
       },
@@ -2165,7 +2423,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 82,
+        "y": 86,
         "w": 12,
         "h": 8
       },
@@ -2232,7 +2490,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 82,
+        "y": 86,
         "w": 12,
         "h": 8
       },
@@ -2290,7 +2548,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 90,
+        "y": 94,
         "w": 12,
         "h": 8
       },
@@ -2339,7 +2597,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 90,
+        "y": 94,
         "w": 12,
         "h": 8
       },
@@ -2388,7 +2646,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 98,
+        "y": 102,
         "w": 12,
         "h": 8
       },
@@ -2437,7 +2695,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 98,
+        "y": 102,
         "w": 12,
         "h": 8
       },
@@ -2495,7 +2753,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 106,
+        "y": 110,
         "w": 12,
         "h": 8
       },
@@ -2553,7 +2811,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 106,
+        "y": 110,
         "w": 12,
         "h": 8
       },
@@ -2611,7 +2869,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 114,
+        "y": 118,
         "w": 12,
         "h": 8
       },
@@ -2660,7 +2918,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 114,
+        "y": 118,
         "w": 12,
         "h": 8
       },
@@ -2718,7 +2976,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 122,
+        "y": 126,
         "w": 12,
         "h": 8
       },
@@ -2785,7 +3043,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 122,
+        "y": 126,
         "w": 12,
         "h": 8
       },
@@ -2843,7 +3101,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 130,
+        "y": 134,
         "w": 12,
         "h": 8
       },
@@ -2901,7 +3159,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 130,
+        "y": 134,
         "w": 12,
         "h": 8
       },
@@ -2955,7 +3213,7 @@
       "title": "",
       "gridPos": {
         "x": 0,
-        "y": 138,
+        "y": 142,
         "w": 24,
         "h": 2
       },
@@ -2974,7 +3232,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 140,
+        "y": 144,
         "w": 8,
         "h": 4
       },
@@ -3017,7 +3275,7 @@
       },
       "gridPos": {
         "x": 8,
-        "y": 140,
+        "y": 144,
         "w": 8,
         "h": 4
       },
@@ -3060,7 +3318,7 @@
       },
       "gridPos": {
         "x": 16,
-        "y": 140,
+        "y": 144,
         "w": 8,
         "h": 4
       },
@@ -3103,7 +3361,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 144,
+        "y": 148,
         "w": 12,
         "h": 8
       },
@@ -3152,7 +3410,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 144,
+        "y": 148,
         "w": 12,
         "h": 8
       },
@@ -3201,7 +3459,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 152,
+        "y": 156,
         "w": 12,
         "h": 8
       },
@@ -3250,7 +3508,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 152,
+        "y": 156,
         "w": 12,
         "h": 8
       },
@@ -3299,7 +3557,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 160,
+        "y": 164,
         "w": 12,
         "h": 8
       },
@@ -3344,7 +3602,7 @@
       "title": "",
       "gridPos": {
         "x": 0,
-        "y": 168,
+        "y": 172,
         "w": 24,
         "h": 2
       },
@@ -3363,7 +3621,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 170,
+        "y": 174,
         "w": 12,
         "h": 8
       },
@@ -3412,7 +3670,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 170,
+        "y": 174,
         "w": 12,
         "h": 8
       },
@@ -3461,7 +3719,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 178,
+        "y": 182,
         "w": 12,
         "h": 8
       },
@@ -3510,7 +3768,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 178,
+        "y": 182,
         "w": 12,
         "h": 8
       },
@@ -3559,7 +3817,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 186,
+        "y": 190,
         "w": 12,
         "h": 8
       },
