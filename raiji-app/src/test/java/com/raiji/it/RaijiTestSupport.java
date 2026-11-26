@@ -80,6 +80,10 @@ public abstract class RaijiTestSupport {
         // falso, em todos os testes — nenhum teste chama a API real (sem custo).
         registro.add("raiji.driver-verification.infosimples.base-url", FakeInfosimples::start);
         registro.add("raiji.driver-verification.infosimples.token", () -> FakeInfosimples.TOKEN);
+        // Os ITs cobrem o fluxo completo (OCR + SENATRAN) com a Infosimples falsa.
+        // O padrão de produção é "photo"; o teste precisa ser explícito para não
+        // depender do default e continuar cobrindo suspensão/nome/CNH não encontrada.
+        registro.add("raiji.driver-verification.check", () -> "senatran");
         registro.add("raiji.driver-verification.infosimples.govbr-cpf", () -> "");
         registro.add("raiji.driver-verification.infosimples.govbr-password", () -> "");
 

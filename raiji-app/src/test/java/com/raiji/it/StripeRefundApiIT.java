@@ -203,6 +203,20 @@ class StripeRefundApiIT extends RaijiTestSupport {
                 requestId);
     }
 
+    /**
+     * Simula a confirmação do Stripe (webhook/consulta) que torna a reserva
+     * estornável. O fluxo real só estorna {@code payment_status = PAID}; o
+     * ACCEPT grava apenas o paymentIntentId. Sem isso o teste estaria
+     * esperando estorno de uma cobrança ainda não paga.
+     */
+    private void marcarComoPaga(String requestId, long amountCents) {
+        jdbcTemplate.update(
+                "UPDATE ride_passengers SET payment_status = 'PAID', "
+                        + "paid_amount_cents = ?, paid_at = NOW() "
+                        + "WHERE id = CAST(? AS uuid)",
+                amountCents, requestId);
+    }
+
     // ===== critérios de aceite (issue #12) =====
 
     @Test
@@ -213,6 +227,7 @@ class StripeRefundApiIT extends RaijiTestSupport {
         String rideId = criarCarona(driver, 3, "50.00");
         String requestId = solicitarVaga(passenger.token(), rideId, "Maria Silva");
         aceitar(driver.token(), rideId, requestId, "pi_IT_pago_1");
+        marcarComoPaga(requestId, 5000);
 
         fakeGateway.reset();
         cancelar(passenger.token(), rideId, requestId, "Imprevisto pessoal");
@@ -255,6 +270,7 @@ class StripeRefundApiIT extends RaijiTestSupport {
         String rideId = criarCarona(driver, 3, "25.00");
         String requestId = solicitarVaga(passenger.token(), rideId, "Maria Silva");
         aceitar(driver.token(), rideId, requestId, "pi_IT_falha");
+        marcarComoPaga(requestId, 2500);
 
         fakeGateway.reset();
         fakeGateway.fail = true; // sandbox fora do ar / cartão inválido

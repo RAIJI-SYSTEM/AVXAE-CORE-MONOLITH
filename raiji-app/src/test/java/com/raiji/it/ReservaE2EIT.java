@@ -283,6 +283,19 @@ class ReservaE2EIT extends RaijiTestSupport {
                 requestId);
     }
 
+    /**
+     * Simula a confirmação do Stripe que torna a reserva estornável. O ACCEPT
+     * grava o paymentIntentId, mas o fluxo real só estorna reserva com
+     * {@code payment_status = PAID}; o app confirma o pagamento depois do aceite.
+     */
+    private void marcarComoPaga(String requestId, long amountCents) {
+        jdbcTemplate.update(
+                "UPDATE ride_passengers SET payment_status = 'PAID', "
+                        + "paid_amount_cents = ?, paid_at = NOW() "
+                        + "WHERE id = CAST(? AS uuid)",
+                amountCents, requestId);
+    }
+
     private int contarNotificacoes(String sub, String rideId, String trecho) {
         Integer total = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM notifications "
@@ -359,6 +372,9 @@ class ReservaE2EIT extends RaijiTestSupport {
                 .then().statusCode(200)
                 .body("status", equalTo("CONFIRMED"))
                 .body("confirmedAt", notNullValue());
+
+        // pagamento confirmado pelo Stripe (pré-condição do estorno no cancelamento)
+        marcarComoPaga(requestId, 5000);
 
         // vaga reservada: 3 → 2
         await("vaga reservada refletida na busca")
