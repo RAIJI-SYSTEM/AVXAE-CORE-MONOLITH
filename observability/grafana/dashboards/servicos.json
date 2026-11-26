@@ -3614,21 +3614,6 @@
     },
     {
       "type": "text",
-      "title": "Metodologia",
-      "gridPos": {
-        "x": 12,
-        "y": 183,
-        "w": 12,
-        "h": 8
-      },
-      "options": {
-        "mode": "markdown",
-        "content": "### Comparativo 1×N\n1. `run-scale.sh` sobe N réplicas do microsserviço e roda o Locust com a **mesma carga**.\n2. Cada rodada grava `raiji_scale_*` em `results/scale.json` (lido pelo probe-exporter).\n3. Eficiência = `(RPS_N / N) / RPS_1` — **1,0** é escala linear; abaixo de ~0,8 há gargalo compartilhado.\n4. Correlacione com **CPU/Memória por container** (painéis acima) e a **latência p95**.\n\nLeitura rápida:\n- CPU ~100% por réplica → gargalo de CPU da aplicação.\n- CPU baixa + p95 alto + fila/pool → dependência (Mongo/Rabbit/DB).\n- Host saturado → limite vertical (todas as réplicas no mesmo host).\n"
-      },
-      "transparent": false
-    },
-    {
-      "type": "text",
       "title": "",
       "gridPos": {
         "x": 0,
@@ -3895,21 +3880,6 @@
           "sort": "desc"
         }
       }
-    },
-    {
-      "type": "text",
-      "title": "Identificação do gargalo",
-      "gridPos": {
-        "x": 12,
-        "y": 211,
-        "w": 12,
-        "h": 8
-      },
-      "options": {
-        "mode": "markdown",
-        "content": "### Árvore de decisão\n| Sintoma | Gargalo |\n|---|---|\n| CPU por réplica ~100% e p95 sobe | Aplicação (CPU) |\n| CPU baixa, p95 alto, fila cresce | Consumidor/DB (escrita) |\n| Host ~100%, p95 piora ao escalar | Contenção de host (limite vertical) |\n| RPS satura com N>1 e CPU por réplica cai | Recurso compartilhado (DB/Kong/Rabbit) |\n| Memória crescendo no tempo | Leak/GC |\n\n**Fórmula:** eficiência `E = (RPS_N / N) / RPS_1`.\n`E ≈ 1` escala linear; `E < 0,8` indique gargalo compartilhado.\n"
-      },
-      "transparent": false
     }
   ]
 }
