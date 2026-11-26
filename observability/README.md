@@ -105,3 +105,26 @@ O comparativo medido e a explicação do gargalo estão em
 - Métricas internas de Postgres/Mongo não são coletadas aqui (exigiria exporters).
 - O harness usa `/health` por padrão (sem auth). Para exercitar rotas reais,
   defina `RAIJI_SCALE_TOKEN` (JWT) e `RAIJI_SCALE_PATH=/conversations`.
+
+
+## Dashboards
+
+| Dashboard | Conteúdo |
+|---|---|
+| **Raiji · Serviços (um por serviço)** | home: UP, latência, HTTP, CPU e memória de cada serviço |
+| **Raiji · Visão geral** | latência/status, CPU/memória por container, host, RabbitMQ, rede |
+| **Raiji · Escalabilidade 1×N** | RPS, p95/p99, falhas, eficiência e CPU/memória das réplicas |
+| **Raiji · Gargalos** | latência × CPU × memória, filas e serviços fora do ar |
+| **Raiji · Infraestrutura & Bancos** | Postgres, MongoDB, Kong, RabbitMQ, disco/inodes/load/rede e saúde dos containers |
+
+## Métricas extras (probe-exporter v2)
+
+- **Containers**: memória usada/limite (%), restarts, OOM kill, health, PIDs,
+  throttling de CPU e I/O de disco (além de CPU e rede).
+- **PostgreSQL**: UP, conexões, tamanho do banco, cache hit, deadlocks e
+  consultas ativas > 5 s (via `docker exec psql`).
+- **MongoDB**: UP, conexões, operações/s, memória residente, tamanho e uptime
+  (via `docker exec mongosh`).
+- **Kong**: UP, conexões ativas/aceitas/tratadas e workers (Admin API).
+- **RabbitMQ**: filas (mensagens, prontas, não confirmadas, consumidores,
+  utilização e memória) e visão geral (conexões, canais, taxas, alarmes).

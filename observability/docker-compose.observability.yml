@@ -65,6 +65,16 @@ services:
       PORT: "9101"
       CONTAINER_PREFIX: "raiji"
       RESULTS_FILE: /results/scale.json
+      # Infraestrutura (pode ser sobrescrito por ambiente)
+      POSTGRES_CONTAINER: ${POSTGRES_CONTAINER:-raiji-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-raiji_app}
+      POSTGRES_USER: ${POSTGRES_USER:-raiji}
+      MONGO_CONTAINER: ${MONGO_CONTAINER:-raiji-chat-mongo}
+      MONGO_DB: ${MONGO_DB:-raiji}
+      KONG_STATUS_URL: ${KONG_STATUS_URL:-http://kong:8001/status}
+      RABBITMQ_MGMT_URL: ${RABBITMQ_MGMT_URL:-http://rabbitmq:15672}
+      RABBITMQ_USER: ${RABBITMQ_USER:-raiji}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-raiji123}
       # Serviços monitorados (nomes internos do compose do monólito).
       # front roda em container separado: sondado pelo host (host-gateway).
       # Pode ser sobrescrito: PROBE_TARGETS="chat=http://raiji-scale-chat-1:3000/health"

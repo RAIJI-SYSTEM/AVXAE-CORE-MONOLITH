@@ -69,3 +69,101 @@ groups:
           severity: critical
         annotations:
           summary: "Fila {{ $labels.queue }} sem consumidores"
+
+  - name: raiji-infra
+    rules:
+      - alert: DiscoAlto
+        expr: 100 - (node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay|squashfs"} * 100) > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Disco acima de 85% em {{ $labels.mountpoint }}"
+
+      - alert: InodesAlto
+        expr: 100 - (node_filesystem_files_free{fstype!~"tmpfs|overlay|squashfs"} / node_filesystem_files{fstype!~"tmpfs|overlay|squashfs"} * 100) > 90
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Inodes acima de 90% em {{ $labels.mountpoint }}"
+
+      - alert: MemoriaContainerAlta
+        expr: raiji_container_memory_percent > 90
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.container }} usando >90% do limite de memória"
+
+      - alert: ContainerReiniciou
+        expr: changes(raiji_container_restarts_total[10m]) > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.container }} reiniciou nos últimos 10 min"
+
+      - alert: ContainerOOM
+        expr: raiji_container_oom_killed == 1
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.container }} sofreu OOM kill"
+
+      - alert: PostgresFora
+        expr: raiji_pg_up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "PostgreSQL não respondeu"
+
+      - alert: PostgresConsultasLongas
+        expr: raiji_pg_long_queries > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $value }} consulta(s) ativa(s) há mais de 5s no PostgreSQL"
+
+      - alert: MongoFora
+        expr: raiji_mongo_up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "MongoDB não respondeu"
+
+      - alert: KongFora
+        expr: raiji_kong_up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Kong não respondeu"
+
+      - alert: RabbitFora
+        expr: raiji_rabbit_up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Management API do RabbitMQ não respondeu"
+
+      - alert: RabbitDlqComMensagens
+        expr: raiji_rabbit_queue_messages{queue=~".*dlq"} > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "DLQ {{ $labels.queue }} com {{ $value }} mensagem(ns)"
+
+      - alert: RabbitNaoConfirmadas
+        expr: raiji_rabbit_messages_unacknowledged > 1000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Muitas mensagens não confirmadas no RabbitMQ"
