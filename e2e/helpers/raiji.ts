@@ -16,6 +16,22 @@ export interface E2EUser {
 
 export const auth = (token: string) => ({ Authorization: `Bearer ${token}` });
 
+/** Data/hora de parede de Brasília, formato aceito pelo LocalDateTime do backend. */
+export function localDateTime(date: Date): string {
+  return new Intl.DateTimeFormat("sv-SE", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  })
+    .format(date)
+    .replace(" ", "T");
+}
+
 function randomSuffix() {
   return `${Date.now()}-${Math.floor(Math.random() * 1_000_000)}`;
 }
@@ -139,6 +155,7 @@ export interface RideOptions {
   pricePerPassenger?: string;
   pricePerPackage?: string;
   cargoDetails?: Record<string, unknown>;
+  departureInMinutes?: number;
 }
 
 export async function createRide(
@@ -150,9 +167,9 @@ export async function createRide(
   const suffix = randomSuffix();
   const originCity = `E2E-Origem-${suffix}`;
   const destinationCity = `E2E-Destino-${suffix}`;
-  const departureDate = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000)
-    .toISOString()
-    .slice(0, 19);
+  const departureDate = localDateTime(
+    new Date(Date.now() + (options.departureInMinutes ?? 2 * 24 * 60) * 60 * 1000),
+  );
 
   const response = await request.post(`${KONG}/api/rides`, {
     headers: auth(driverToken),
