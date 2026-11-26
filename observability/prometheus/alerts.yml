@@ -14,7 +14,7 @@ groups:
           description: "URL: {{ $labels.url }} (status {{ $labels.status }})"
 
       - alert: LatenciaAlta
-        expr: raiji_probe_duration_seconds > 0.5
+        expr: raiji_probe_up == 1 and raiji_probe_duration_seconds > 0.5
         for: 2m
         labels:
           severity: warning

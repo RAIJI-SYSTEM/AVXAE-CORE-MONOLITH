@@ -20,7 +20,8 @@ do microsserviço, sem alterar o código das aplicações.
 | Monólito | up/latência/status | sonda `http://app:8080/actuator/health` |
 | Chat | up/latência/status | sonda `http://chat:3000/health` |
 | Front | up/latência/status | sonda `http://host.docker.internal:3000/` |
-| Kong | up/latência/status | sonda `http://kong:8000/` |
+| Kong | up/latência/status | sonda `http://kong:8000/realms/raiji` |
+| Keycloak | up/latência/status | sonda `http://keycloak:8080/realms/raiji` |
 | Containers `raiji-*` | CPU %, memória, rede | Docker Engine API (socket) |
 | Host | CPU, RAM, disco, rede | `node_exporter` |
 | RabbitMQ | filas, consumidores, vazão | plugin prometheus nativo (`:15692`) |

@@ -68,7 +68,7 @@ services:
       # Serviços monitorados (nomes internos do compose do monólito).
       # front roda em container separado: sondado pelo host (host-gateway).
       # Pode ser sobrescrito: PROBE_TARGETS="chat=http://raiji-scale-chat-1:3000/health"
-      PROBE_TARGETS: ${PROBE_TARGETS:-monolith=http://app:8080/actuator/health,chat=http://chat:3000/health,front=http://host.docker.internal:3000/,kong=http://kong:8000/}
+      PROBE_TARGETS: ${PROBE_TARGETS:-monolith=http://app:8080/actuator/health,chat=http://chat:3000/health,front=http://host.docker.internal:3000/,kong=http://kong:8000/realms/raiji,keycloak=http://keycloak:8080/realms/raiji}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./exporter/results:/results:ro

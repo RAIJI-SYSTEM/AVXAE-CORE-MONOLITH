@@ -37,7 +37,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "raiji_probe_duration_seconds{service=\"chat\"}",
+          "expr": "max(raiji_probe_duration_seconds{service=\"chat\"} and on(service,url) (raiji_probe_up{service=\"chat\"} == 1))",
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -241,7 +241,7 @@
           "legendFormat": "mensagens {{queue}}"
         },
         {
-          "refId": "A",
+          "refId": "B",
           "expr": "rabbitmq_queue_consumers{queue=~\"chat\\\\..*\"}",
           "datasource": {
             "type": "prometheus",

@@ -13,6 +13,7 @@ Somente biblioteca padrão do Python — nenhuma dependência extra.
 
 from __future__ import annotations
 
+import base64
 import json
 import os
 import socket
@@ -31,12 +32,16 @@ CONTAINER_PREFIX = os.getenv("CONTAINER_PREFIX", "raiji")
 RESULTS_FILE = os.getenv("RESULTS_FILE", "/results/scale.json")
 STATS_TTL = float(os.getenv("STATS_TTL", "5"))
 PROBE_TIMEOUT = float(os.getenv("PROBE_TIMEOUT", "2"))
+RABBIT_MGMT_URL = os.getenv("RABBITMQ_MGMT_URL", "http://rabbitmq:15672").rstrip("/")
+RABBITMQ_USER = os.getenv("RABBITMQ_USER", "raiji")
+RABBITMQ_PASSWORD = os.getenv("RABBITMQ_PASSWORD", "raiji123")
 
 DEFAULT_TARGETS = (
     "monolith=http://app:8080/actuator/health,"
     "chat=http://chat:3000/health,"
     "front=http://host.docker.internal:3000/,"
-    "kong=http://kong:8000/"
+    "kong=http://kong:8000/realms/raiji,"
+    "keycloak=http://keycloak:8080/realms/raiji"
 )
 
 
@@ -57,7 +62,7 @@ def parse_targets(raw: str) -> list[tuple[str, str]]:
 TARGETS = parse_targets(os.getenv("PROBE_TARGETS", DEFAULT_TARGETS))
 
 _lock = threading.Lock()
-_stats_cache: dict[str, object] = {"at": 0.0, "containers": [], "probes": []}
+_stats_cache: dict[str, object] = {"at": 0.0, "containers": [], "probes": [], "queues": []}
 
 
 class UnixHTTPConnection(HTTPConnection):
@@ -120,7 +125,7 @@ def container_stats() -> list[dict]:
     if not containers:
         return []
     # stats em paralelo: com várias réplicas, a coleta sequencial passaria do scrape
-    with ThreadPoolExecutor(max_workers=8) as pool:
+    with ThreadPoolExecutor(max_workers=16) as pool:
         results = list(pool.map(_container_stat, containers))
     return [r for r in results if r]
 
@@ -150,6 +155,19 @@ def probe(target: tuple[str, str]) -> dict:
     }
 
 
+def rabbit_queues() -> list[dict]:
+    """Filas via Management API (o plugin prometheus do RabbitMQ 4 só traz agregados)."""
+    url = f"{RABBIT_MGMT_URL}/api/queues?columns=name,messages,messages_ready,messages_unacknowledged,consumers"
+    token = base64.b64encode(f"{RABBITMQ_USER}:{RABBITMQ_PASSWORD}".encode()).decode()
+    request = urllib.request.Request(url, headers={"Authorization": f"Basic {token}"})
+    try:
+        with urllib.request.urlopen(request, timeout=PROBE_TIMEOUT) as response:
+            data = json.loads(response.read() or b"[]")
+        return data if isinstance(data, list) else []
+    except Exception:
+        return []
+
+
 def read_scale_results() -> list[dict]:
     try:
         with open(RESULTS_FILE, encoding="utf-8") as fh:
@@ -167,11 +185,15 @@ def refresh(force: bool = False) -> None:
         if not force and now - float(_stats_cache["at"]) < STATS_TTL:
             return
     # coleta FORA do lock: /metrics nunca fica bloqueado esperando o Docker
-    containers = container_stats()
-    probes = [probe(t) for t in TARGETS]
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        containers_f = pool.submit(container_stats)
+        probes_f = pool.submit(lambda: [probe(t) for t in TARGETS])
+        queues_f = pool.submit(rabbit_queues)
+        containers, probes, queues = containers_f.result(), probes_f.result(), queues_f.result()
     with _lock:
         _stats_cache["containers"] = containers
         _stats_cache["probes"] = probes
+        _stats_cache["queues"] = queues
         _stats_cache["at"] = now
 
 
@@ -216,6 +238,26 @@ def render_metrics() -> str:
         lines.append(f"raiji_container_memory_limit_bytes{{{labels}}} {fmt(float(c['memory_limit_bytes']))}")  # type: ignore[index]
         lines.append(f"raiji_container_network_receive_bytes_total{{{labels}}} {fmt(float(c['network_rx_bytes']))}")  # type: ignore[index]
         lines.append(f"raiji_container_network_transmit_bytes_total{{{labels}}} {fmt(float(c['network_tx_bytes']))}")  # type: ignore[index]
+
+    with _lock:
+        queues = list(_stats_cache["queues"])  # type: ignore[arg-type]
+    lines += [
+        "# HELP raiji_rabbit_queue_messages Mensagens na fila (Management API)",
+        "# TYPE raiji_rabbit_queue_messages gauge",
+        "# HELP raiji_rabbit_queue_messages_ready Mensagens prontas",
+        "# TYPE raiji_rabbit_queue_messages_ready gauge",
+        "# HELP raiji_rabbit_queue_messages_unacked Mensagens não confirmadas",
+        "# TYPE raiji_rabbit_queue_messages_unacked gauge",
+        "# HELP raiji_rabbit_queue_consumers Consumidores da fila",
+        "# TYPE raiji_rabbit_queue_consumers gauge",
+    ]
+    for q in queues:  # type: ignore[union-attr]
+        name = q.get("name", "")  # type: ignore[union-attr]
+        labels = f'queue="{name}"'
+        lines.append(f"raiji_rabbit_queue_messages{{{labels}}} {fmt(float(q.get('messages', 0) or 0))}")  # type: ignore[union-attr]
+        lines.append(f"raiji_rabbit_queue_messages_ready{{{labels}}} {fmt(float(q.get('messages_ready', 0) or 0))}")  # type: ignore[union-attr]
+        lines.append(f"raiji_rabbit_queue_messages_unacked{{{labels}}} {fmt(float(q.get('messages_unacknowledged', 0) or 0))}")  # type: ignore[union-attr]
+        lines.append(f"raiji_rabbit_queue_consumers{{{labels}}} {fmt(float(q.get('consumers', 0) or 0))}")  # type: ignore[union-attr]
 
     results = read_scale_results()
     lines += [
