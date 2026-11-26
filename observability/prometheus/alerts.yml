@@ -1,0 +1,71 @@
+# Alertas avaliados pelo Prometheus. Sem Alertmanager eles aparecem como
+# "firing" em http://localhost:9090/alerts; no Grafana podem ser usados como
+# fonte para alert rules.
+groups:
+  - name: raiji-disponibilidade
+    rules:
+      - alert: ServicoForaDoAr
+        expr: raiji_probe_up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.service }} não respondeu à sonda"
+          description: "URL: {{ $labels.url }} (status {{ $labels.status }})"
+
+      - alert: LatenciaAlta
+        expr: raiji_probe_duration_seconds > 0.5
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.service }} com latência > 500ms"
+          description: "Latência atual: {{ $value }}s"
+
+  - name: raiji-recursos
+    rules:
+      - alert: CpuAltaContainer
+        expr: raiji_container_cpu_percent > 85
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "CPU alta em {{ $labels.container }}"
+          description: "Uso atual: {{ $value }}%"
+
+      - alert: MemoriaAltaContainer
+        expr: raiji_container_memory_limit_bytes > 0
+              and (raiji_container_memory_bytes / raiji_container_memory_limit_bytes) > 0.9
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Memória > 90% em {{ $labels.container }}"
+
+      - alert: CpuHostAlta
+        expr: 100 - (avg(rate(node_cpu_seconds_total{mode="idle"}[1m])) * 100) > 90
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "CPU do host acima de 90%"
+          description: "Uso atual: {{ $value }}%"
+
+  - name: raiji-mensageria
+    rules:
+      - alert: FilaAcumulando
+        expr: rabbitmq_queue_messages{queue=~"chat\\..*"} > 1000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Fila {{ $labels.queue }} com acúmulo"
+          description: "Mensagens: {{ $value }}"
+
+      - alert: SemConsumidores
+        expr: rabbitmq_queue_consumers{queue=~"chat\\..*"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Fila {{ $labels.queue }} sem consumidores"

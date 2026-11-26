@@ -1,0 +1,3 @@
+# resultados do comparativo 1xN (gerados pelos run-scale.sh)
+exporter/results/*.json
+!exporter/results/.gitkeep

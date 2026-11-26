@@ -1,0 +1,43 @@
+# =============================================================================
+# Prometheus do projeto Raiji — coleta de TODOS os serviços.
+# As sondas/containers vêm do probe-exporter (sem alterar os serviços).
+# RabbitMQ já expõe métricas nativas no plugin prometheus (:15692).
+# =============================================================================
+global:
+  scrape_interval: 5s
+  evaluation_interval: 15s
+  external_labels:
+    env: local
+
+rule_files:
+  - /etc/prometheus/alerts.yml
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  - job_name: probe-exporter
+    static_configs:
+      - targets: ["probe-exporter:9101"]
+
+  - job_name: node-exporter
+    static_configs:
+      - targets: ["node-exporter:9100"]
+
+  # Plugin rabbitmq_prometheus (já habilitado na imagem management)
+  - job_name: rabbitmq
+    static_configs:
+      - targets: ["rabbitmq:15692"]
+
+  # Actuator no formato Prometheus (quando habilitado no monólito):
+  # basta descomentar e adicionar micrometer-registry-prometheus.
+  # - job_name: monolith
+  #   metrics_path: /actuator/prometheus
+  #   static_configs:
+  #     - targets: ["app:8080"]
+
+  # /metrics do MESSAGE-SERVICE (quando a rota for adicionada):
+  # - job_name: chat
+  #   static_configs:
+  #     - targets: ["chat:3000"]

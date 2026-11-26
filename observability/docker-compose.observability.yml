@@ -1,0 +1,88 @@
+# =============================================================================
+# Observabilidade do projeto Raiji — Prometheus + Grafana (+ node_exporter)
+#
+# O Grafana fica neste repositório (monólito) e coleta dados de TODOS os
+# serviços, usando a rede do docker-compose do monólito.
+#
+# Uso:
+#   docker compose -p raiji-observability -f docker-compose.observability.yml up -d --build
+#   Grafana:    http://localhost:3300  (admin/admin)
+#   Prometheus: http://localhost:9090
+#
+# Pré-requisito: a rede avxae-core-monolith_default precisa existir
+# (suba o compose do monólito pelo menos uma vez, ou crie com `docker network create`).
+# =============================================================================
+name: raiji-observability
+
+services:
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    container_name: raiji-prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=15d
+      - --web.enable-lifecycle
+    volumes:
+      - ./prometheus:/etc/prometheus:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    networks: [raiji]
+
+  grafana:
+    image: grafana/grafana:11.3.0
+    container_name: raiji-grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/visao-geral.json
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "3300:3000"
+    depends_on: [prometheus]
+    networks: [raiji]
+
+  node-exporter:
+    image: prom/node-exporter:v1.8.2
+    container_name: raiji-node-exporter
+    command: ["--path.rootfs=/host"]
+    pid: host
+    volumes:
+      - /:/host:ro,rslave
+    ports:
+      - "9100:9100"
+    networks: [raiji]
+
+  probe-exporter:
+    build: ./exporter
+    container_name: raiji-probe-exporter
+    environment:
+      PORT: "9101"
+      CONTAINER_PREFIX: "raiji"
+      RESULTS_FILE: /results/scale.json
+      # Serviços monitorados (nomes internos do compose do monólito).
+      # front roda em container separado: sondado pelo host (host-gateway).
+      # Pode ser sobrescrito: PROBE_TARGETS="chat=http://raiji-scale-chat-1:3000/health"
+      PROBE_TARGETS: ${PROBE_TARGETS:-monolith=http://app:8080/actuator/health,chat=http://chat:3000/health,front=http://host.docker.internal:3000/,kong=http://kong:8000/}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./exporter/results:/results:ro
+    ports:
+      - "9101:9101"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks: [raiji]
+
+volumes:
+  prometheus-data:
+  grafana-data:
+
+networks:
+  raiji:
+    name: avxae-core-monolith_default
+    external: true
