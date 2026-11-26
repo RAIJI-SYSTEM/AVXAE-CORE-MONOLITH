@@ -99,3 +99,17 @@ CITIES = [
     ("Belo Horizonte", "MG"),
     ("Curitiba", "PR"),
 ]
+
+
+# --------------------------------------------------------------------------- #
+# Mensageria (AMQP) — usado por messaging_locustfile.py
+# --------------------------------------------------------------------------- #
+AMQP_URL = os.getenv("RAIJI_AMQP_URL", "amqp://raiji:raiji123@localhost:5672/%2f")
+AMQP_TIMEOUT = _float("RAIJI_AMQP_TIMEOUT", 5.0)
+AMQP_PROBE_ROUTING_KEY = os.getenv("RAIJI_AMQP_PROBE_ROUTING_KEY", "loadtest.probe")
+AMQP_PROBE_TIMEOUT = _float("RAIJI_AMQP_PROBE_TIMEOUT", 1.0)
+MESSAGING_ENABLED = _bool("RAIJI_MESSAGING_ENABLED", True)
+
+RIDES_EXCHANGE = os.getenv("RAIJI_RIDES_EXCHANGE", "raiji.rides")
+USERS_EXCHANGE = os.getenv("RAIJI_USERS_EXCHANGE", "raiji.users")
+CHAT_EXCHANGE = os.getenv("RAIJI_CHAT_EXCHANGE", "raiji.chat")

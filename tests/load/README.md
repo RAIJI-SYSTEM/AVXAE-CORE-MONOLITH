@@ -78,3 +78,30 @@ cd ~/Documentos/integrador-raiji/load-tests
   códigos aceitos); 401/403 em massa indicam token/role — rode `./run.sh seed`.
 - Compare `api:` com `front(bff):` para o mesmo endpoint: a diferença é o custo
   do proxy do Next.
+
+
+## Mensageria (AMQP)
+
+Testa o **egresso do chat para o push**: publica `message.created` no exchange
+`raiji.chat` (o caminho que o MESSAGE-SERVICE usa e que o monolito consome em
+`monolith.chat-messages`), além da ida e volta no exchange. Locust não fala
+AMQP nativamente: a suíte usa `pika` e publica as métricas como
+`request_type=AMQP`, nos mesmos relatórios de `reports/`.
+
+```bash
+./run-messaging.sh deps          # instala Locust + pika
+./run-messaging.sh smoke         # 5 VUs, 20 s (egress + probe)
+./run-messaging.sh load          # 30 VUs, rampa 3/s, 120 s
+./run-messaging.sh egress        # só message.created
+./run-messaging.sh ride          # publica ciclo de vida de carona (raiji.rides)
+./run-messaging.sh user          # publica ciclo de vida de usuário (raiji.users)
+./run-messaging.sh probe         # só ida e volta no raiji.chat
+```
+
+Sem o monolito no ar não há fila ligada a `message.created`; as publicações
+usam `mandatory=false` e o exchange descarta a mensagem (as métricas de
+publicação continuam válidas). Com o monolito no ar, o caminho completo
+broker → `ChatMessagePush` → FCM é exercitado.
+
+O probe usa `RAIJI_AMQP_PROBE_ROUTING_KEY=loadtest.probe` por padrão para não
+acordar o consumidor real; use `message.created` para medir o caminho real.
