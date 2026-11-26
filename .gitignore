@@ -27,3 +27,6 @@ users.csv
 reports/
 # backups locais do .env (contêm segredos)
 .env.bak*
+
+# Relatórios agregados de testes
+reports/testes/
