@@ -463,7 +463,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "rabbitmq_queue_messages{queue=~\"chat\\\\..*\"}",
+          "expr": "raiji_rabbit_queue_messages{queue=~\"chat.*\"}",
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -512,7 +512,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "rabbitmq_queue_consumers{queue=~\"chat\\\\..*\"}",
+          "expr": "raiji_rabbit_queue_consumers{queue=~\"chat.*\"}",
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
