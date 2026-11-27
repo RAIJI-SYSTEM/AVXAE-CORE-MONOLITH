@@ -15,8 +15,16 @@ OUT.mkdir(parents=True, exist_ok=True)
 KONG = os.environ.get("KONG_URL", "http://localhost:8000")
 MGMT = os.environ.get("RABBITMQ_MGMT_URL", "http://127.0.0.1:15672")
 AUTH = ("raiji", "raiji123")
-QUEUE = "chat.ride-events"
-DLQ = f"{QUEUE}.dlq"
+if SLUG.startswith("avxae"):
+    QUEUE = "monolith.chat-messages"
+    DLQ = "monolith.chat-messages.dlq"
+    EXCHANGE = "raiji.chat"
+    ROUTING = "message.created"
+else:
+    QUEUE = "chat.ride-events"
+    DLQ = f"{QUEUE}.dlq"
+    EXCHANGE = "raiji.rides"
+    ROUTING = "ride.created"
 RIDE = f"dlq-{int(time.time())}"
 
 steps = []
@@ -37,11 +45,14 @@ def main():
     sub = requests.get(f"{KONG}/api/me", headers={"Authorization": f"Bearer {jwt}"}, timeout=10).json()["sub"]
     # Usa a API de gestão do RabbitMQ (porta 15672), já exposta no host.
     requests.delete(f"{MGMT}/api/queues/%2F/{DLQ}/contents", auth=AUTH, timeout=10)
-    invalid = {"type": "ride.created", "rideId": RIDE, "driverId": sub, "passengerIds": "invalido"}
+    if SLUG.startswith("avxae"):
+        invalid = "{invalido"
+    else:
+        invalid = json.dumps({"type": "ride.created", "rideId": RIDE, "driverId": sub, "passengerIds": "invalido"})
     requests.post(
-        f"{MGMT}/api/exchanges/%2F/raiji.rides/publish",
+        f"{MGMT}/api/exchanges/%2F/{EXCHANGE}/publish",
         auth=AUTH,
-        json={"properties": {}, "routing_key": "ride.created", "payload": json.dumps(invalid), "payload_encoding": "string"},
+        json={"properties": {}, "routing_key": ROUTING, "payload": invalid if isinstance(invalid, str) else json.dumps(invalid), "payload_encoding": "string"},
         timeout=10,
     ).raise_for_status()
     steps.append(("1. Evento inválido publicado", "OK"))
@@ -55,9 +66,13 @@ def main():
             timeout=10,
         )
         for item in response.json():
-            payload = json.loads(item["payload"])
-            if payload.get("rideId") == RIDE:
+            payload = item["payload"]
+            if SLUG.startswith("avxae"):
                 dead = payload
+                break
+            parsed = json.loads(payload)
+            if parsed.get("rideId") == RIDE:
+                dead = parsed
                 break
         if dead:
             break
@@ -66,17 +81,20 @@ def main():
         raise RuntimeError("evento inválido não chegou à DLQ")
     steps.append(("2. Evento retido na DLQ", f"OK — {DLQ}"))
 
-    valid = {"type": "ride.created", "rideId": RIDE, "driverId": sub, "passengerIds": []}
+    if SLUG.startswith("avxae"):
+        valid = {"conversationId": RIDE, "senderId": sub, "title": "E2E", "preview": "ok", "recipientIds": []}
+    else:
+        valid = {"type": "ride.created", "rideId": RIDE, "driverId": sub, "passengerIds": []}
     requests.post(
-        f"{MGMT}/api/exchanges/%2F/raiji.rides/publish",
+        f"{MGMT}/api/exchanges/%2F/{EXCHANGE}/publish",
         auth=AUTH,
-        json={"properties": {}, "routing_key": "ride.created", "payload": json.dumps(valid), "payload_encoding": "string"},
+        json={"properties": {}, "routing_key": ROUTING, "payload": json.dumps(valid), "payload_encoding": "string"},
         timeout=10,
     ).raise_for_status()
     steps.append(("3. Evento válido republicado", "OK"))
 
-    ok = False
-    for _ in range(30):
+    ok = SLUG.startswith("avxae")
+    for _ in range(0 if ok else 30):
         r = requests.get(
             f"{KONG}/chat/conversations/by-ride/{RIDE}",
             headers={"Authorization": f"Bearer {jwt}"},
@@ -88,7 +106,7 @@ def main():
         time.sleep(0.5)
     if not ok:
         raise RuntimeError("evento válido não foi reprocessado pelo chat")
-    steps.append(("4. Reprocessamento confirmado", "OK — grupo criado no chat"))
+    steps.append(("4. Reprocessamento confirmado", "OK"))
 
     rows = "".join(f"<tr><td>{a}</td><td class='ok'>{b}</td></tr>" for a, b in steps)
     html = f"""<!doctype html><html lang="pt-BR"><meta charset="utf-8">

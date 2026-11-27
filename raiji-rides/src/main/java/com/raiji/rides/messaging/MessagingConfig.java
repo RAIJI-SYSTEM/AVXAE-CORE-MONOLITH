@@ -3,6 +3,7 @@ package com.raiji.rides.messaging;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import org.springframework.amqp.core.Binding;
+import org.springframework.amqp.core.FanoutExchange;
 import org.springframework.amqp.core.BindingBuilder;
 import org.springframework.amqp.core.Queue;
 import org.springframework.amqp.core.QueueBuilder;
@@ -29,6 +30,8 @@ public class MessagingConfig {
     public static final String RIDE_SYNCED = "ride.synced";
     public static final String CHAT_EXCHANGE = "raiji.chat";
     public static final String CHAT_MESSAGES_QUEUE = "monolith.chat-messages";
+    public static final String CHAT_DLX = "raiji.chat.dlx";
+    public static final String CHAT_MESSAGES_DLQ = "monolith.chat-messages.dlq";
 
     @Bean
     TopicExchange ridesExchange() {
@@ -41,8 +44,25 @@ public class MessagingConfig {
     }
 
     @Bean
+    FanoutExchange chatDeadLetterExchange() {
+        return new FanoutExchange(CHAT_DLX, true, false);
+    }
+
+    @Bean
+    Queue chatMessagesDlq() {
+        return QueueBuilder.durable(CHAT_MESSAGES_DLQ).build();
+    }
+
+    @Bean
+    Binding chatMessagesDlqBinding(Queue chatMessagesDlq, FanoutExchange chatDeadLetterExchange) {
+        return BindingBuilder.bind(chatMessagesDlq).to(chatDeadLetterExchange);
+    }
+
+    @Bean
     Queue chatMessagesQueue() {
-        return QueueBuilder.durable(CHAT_MESSAGES_QUEUE).build();
+        return QueueBuilder.durable(CHAT_MESSAGES_QUEUE)
+                .deadLetterExchange(CHAT_DLX)
+                .build();
     }
 
     @Bean
