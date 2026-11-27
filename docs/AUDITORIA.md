@@ -213,6 +213,30 @@ stdout. O Promtail coleta e envia ao Loki.
 O dashboard técnico anterior continua disponível em
 `http://localhost:3300/d/raiji-auditoria`.
 
+## Dashboard técnico — todos os logs
+
+Dashboard: `http://localhost:3300/d/raiji-auditoria`
+
+Ele reúne:
+
+- logs HTTP de monólito, chat, front e Keycloak (Loki);
+- **logs de execução dos testes** de `reports/testes/logs/` dos três repositórios
+  (Promtail lê os arquivos via mount `/workspace`);
+- **`audit_log` do Postgres** em uma tabela (datasource `Postgres Auditoria`);
+- eventos de identidade do Keycloak (exportador);
+- logs de infraestrutura (Kong, Postgres, RabbitMQ);
+- painel de links e comandos úteis.
+
+O mount do workspace no Promtail usa `WORKSPACE_DIR` (padrão `../..`, relativo
+ao diretório `observability`). Para apontar para outro local:
+
+```bash
+WORKSPACE_DIR=/caminho/do/workspace   docker compose -p raiji-observability -f docker-compose.observability.yml up -d promtail
+```
+
+O datasource Postgres é local (`postgres:5432`, banco `raiji_app`). Em produção,
+restrinja o acesso a esse datasource e use um usuário somente leitura.
+
 ## Retenção e privacidade
 
 | Camada | Retenção |

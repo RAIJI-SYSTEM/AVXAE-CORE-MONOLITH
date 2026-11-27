@@ -65,6 +65,8 @@ services:
     volumes:
       - ./promtail/promtail-config.yml:/etc/promtail/promtail-config.yml:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      # logs de teste dos três repositórios (workspace)
+      - ${WORKSPACE_DIR:-../..}:/workspace:ro
     depends_on: [loki]
     networks: [raiji]
 

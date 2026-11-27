@@ -33,3 +33,29 @@ scrape_configs:
         target_label: compose_project
     pipeline_stages:
       - docker: {}
+
+  # Logs de execução dos testes (arquivos reports/testes/logs/*.log).
+  - job_name: test-logs
+    static_configs:
+      - targets: [localhost]
+        labels:
+          job: test-logs
+          log_type: test
+          service: avxae-core-monolith
+          __path__: /workspace/AVXAE-CORE-MONOLITH/reports/testes/logs/*.log
+      - targets: [localhost]
+        labels:
+          job: test-logs
+          log_type: test
+          service: front-pwa
+          __path__: /workspace/FRONT-PWA/reports/testes/logs/*.log
+      - targets: [localhost]
+        labels:
+          job: test-logs
+          log_type: test
+          service: message-service
+          __path__: /workspace/MESSAGE-SERVICE/reports/testes/logs/*.log
+    relabel_configs:
+      - source_labels: [__path__]
+        regex: '.*/([^/]+\.log)'
+        target_label: filename

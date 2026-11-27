@@ -1,16 +1,41 @@
 {
-  "annotations": { "list": [] },
+  "annotations": {
+    "list": []
+  },
   "editable": true,
   "graphTooltip": 0,
   "id": null,
-  "links": [],
+  "links": [
+    {
+      "title": "Visão de negócio",
+      "url": "/d/raiji-auditoria-negocio",
+      "type": "link",
+      "icon": "external link",
+      "targetBlank": false
+    },
+    {
+      "title": "Explore Loki",
+      "url": "/explore",
+      "type": "link",
+      "icon": "external link",
+      "targetBlank": false
+    }
+  ],
   "panels": [
     {
       "id": 1,
       "type": "logs",
       "title": "Monólito · auditoria HTTP (quem fez o quê)",
-      "gridPos": { "h": 11, "w": 24, "x": 0, "y": 0 },
-      "datasource": { "type": "loki", "uid": "loki" },
+      "gridPos": {
+        "h": 11,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
       "targets": [
         {
           "refId": "A",
@@ -30,8 +55,16 @@
       "id": 2,
       "type": "logs",
       "title": "Chat · auditoria HTTP",
-      "gridPos": { "h": 11, "w": 24, "x": 0, "y": 11 },
-      "datasource": { "type": "loki", "uid": "loki" },
+      "gridPos": {
+        "h": 11,
+        "w": 24,
+        "x": 0,
+        "y": 11
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
       "targets": [
         {
           "refId": "A",
@@ -51,8 +84,16 @@
       "id": 3,
       "type": "logs",
       "title": "Front · navegação e chamadas BFF",
-      "gridPos": { "h": 11, "w": 24, "x": 0, "y": 22 },
-      "datasource": { "type": "loki", "uid": "loki" },
+      "gridPos": {
+        "h": 11,
+        "w": 24,
+        "x": 0,
+        "y": 22
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
       "targets": [
         {
           "refId": "A",
@@ -72,8 +113,16 @@
       "id": 4,
       "type": "logs",
       "title": "Keycloak · login, logout e falhas",
-      "gridPos": { "h": 11, "w": 24, "x": 0, "y": 33 },
-      "datasource": { "type": "loki", "uid": "loki" },
+      "gridPos": {
+        "h": 11,
+        "w": 24,
+        "x": 0,
+        "y": 33
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
       "targets": [
         {
           "refId": "A",
@@ -88,13 +137,160 @@
         "enableLogDetails": true,
         "dedupStrategy": "none"
       }
+    },
+    {
+      "id": 5,
+      "type": "logs",
+      "title": "Logs dos testes — relatórios de execução",
+      "gridPos": {
+        "h": 14,
+        "w": 24,
+        "x": 0,
+        "y": 44
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{job=\"test-logs\", service=\"avxae-core-monolith\"}",
+          "queryType": "range"
+        },
+        {
+          "refId": "B",
+          "expr": "{job=\"test-logs\", service=\"front-pwa\"}",
+          "queryType": "range"
+        },
+        {
+          "refId": "C",
+          "expr": "{job=\"test-logs\", service=\"message-service\"}",
+          "queryType": "range"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "sortOrder": "Descending",
+        "wrapLogMessage": true,
+        "enableLogDetails": true,
+        "dedupStrategy": "none"
+      }
+    },
+    {
+      "id": 6,
+      "type": "table",
+      "title": "Auditoria durável — Postgres audit_log",
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 58
+      },
+      "datasource": {
+        "type": "postgres",
+        "uid": "postgres-auditoria"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawSql": "SELECT created_at AS \"Quando\", actor_sub AS \"Ator\", action AS \"Ação\", entity_type AS \"Recurso\", entity_id AS \"ID\", details AS \"Detalhes\" FROM audit_log ORDER BY created_at DESC LIMIT 100",
+          "format": "table",
+          "editorMode": "code"
+        }
+      ],
+      "options": {
+        "showHeader": true
+      }
+    },
+    {
+      "id": 7,
+      "type": "logs",
+      "title": "Identidade — Keycloak (login/logout e admin events)",
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 68
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{container=\"raiji-keycloak-events\"} |= \"keycloak_event\" | json | line_format \"{{.username}}{{.actorUsername}} | {{.kind}} | {{.type}} | {{.resourcePath}} | {{.ipAddress}}{{.actorIp}}\"",
+          "queryType": "range"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "sortOrder": "Descending",
+        "wrapLogMessage": true,
+        "enableLogDetails": true,
+        "dedupStrategy": "none"
+      }
+    },
+    {
+      "id": 8,
+      "type": "logs",
+      "title": "Infra — Kong, Postgres e RabbitMQ",
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 78
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{container=~\"raiji-(kong|postgres|rabbitmq)\"}",
+          "queryType": "range"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "sortOrder": "Descending",
+        "wrapLogMessage": true,
+        "enableLogDetails": true,
+        "dedupStrategy": "none"
+      }
+    },
+    {
+      "id": 9,
+      "type": "text",
+      "title": "Links e comandos úteis",
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 88
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "### Onde ver cada log\n\n- [Logs dos testes — monólito](http://127.0.0.1:8090/AVXAE-CORE-MONOLITH/reports/testes/logs/)\n- [Logs dos testes — FRONT](http://127.0.0.1:8090/FRONT-PWA/reports/testes/logs/)\n- [Logs dos testes — MESSAGE](http://127.0.0.1:8090/MESSAGE-SERVICE/reports/testes/logs/)\n- [Relatórios HTML — monólito](http://127.0.0.1:8090/AVXAE-CORE-MONOLITH/reports/)\n- [Keycloak Events](http://localhost:8180/admin/master/console/)\n- [Visão de negócio](http://localhost:3300/d/raiji-auditoria-negocio)\n\n### Comandos\n\n```bash\ndocker logs -f raiji-app\ndocker logs -f raiji-chat\ndocker logs -f raiji-front\ndocker logs -f raiji-keycloak\n```\n\n### APIs de auditoria\n\n```text\nGET /api/audit/me\nGET /api/admin/audit\nGET /chat/audit/me\nGET /chat/audit/events\n```"
+      }
     }
   ],
   "refresh": "10s",
   "schemaVersion": 39,
-  "tags": ["raiji", "auditoria", "logs"],
-  "templating": { "list": [] },
-  "time": { "from": "now-1h", "to": "now" },
+  "tags": [
+    "raiji",
+    "auditoria",
+    "logs"
+  ],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
   "timepicker": {},
   "timezone": "browser",
   "title": "Raiji · Auditoria (logs)",
