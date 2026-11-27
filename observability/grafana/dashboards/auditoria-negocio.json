@@ -95,7 +95,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(count_over_time({container=~\"raiji-($servico)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | user=~\"$usuario\" | code=~\"4..|5..\" |~ \"$busca\" [$__range]))",
+          "expr": "sum(count_over_time({container=~\"raiji-($servico)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | user=~\"$usuario\" | acao=~\"$acao\" | code=~\"$status\" | code=~\"4..|5..\" |~ \"$busca\" [$__range]))",
           "instant": true,
           "queryType": "instant"
         }
@@ -262,12 +262,12 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "{container=~\"raiji-($servico)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | user=~\"$usuario\" | code=~\"4..|5..\" |~ \"$busca\" | line_format \"{{.user}} | {{.acao}} | {{.http_path}}{{.path}} | {{.code}} | {{.request_id}}{{.requestId}}\"",
+          "expr": "{container=~\"raiji-($servico)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | user=~\"$usuario\" | acao=~\"$acao\" | code=~\"$status\" | code=~\"4..|5..\" |~ \"$busca\" | line_format \"{{.user}} | {{.acao}} | {{.http_path}}{{.path}} | {{.code}} | {{.request_id}}{{.requestId}}\"",
           "queryType": "range"
         },
         {
           "refId": "D",
-          "expr": "{container=\"raiji-keycloak-events\"} |= \"keycloak_event\" | json | error=~\".+\" |~ \"$busca\"",
+          "expr": "{container=\"raiji-keycloak-events\"} |= \"keycloak_event\" | json | username=~\"$usuario\" or actorUsername=~\"$usuario\" or userId=~\"$usuario\" or actorId=~\"$usuario\" | error=~\".+\" |~ \"$busca\"",
           "queryType": "range"
         },
         {
@@ -353,7 +353,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "topk(10, sum by (acao) (count_over_time({container=~\"raiji-($servico)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | user=~\"$usuario\" | acao=~\".+\" | code=~\"$status\" |~ \"$busca\" [$__range])))",
+          "expr": "topk(10, sum by (acao) (count_over_time({container=~\"raiji-($servico)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | user=~\"$usuario\" | acao=~\"$acao\" | code=~\"$status\" |~ \"$busca\" [$__range])))",
           "instant": true,
           "queryType": "instant",
           "format": "table"
@@ -596,7 +596,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "topk(100, sum by (user) (count_over_time({container=~\"raiji-($servico)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | user=~\"$usuario\" | code=~\"4..|5..\" |~ \"$busca\" [$__range])))",
+          "expr": "topk(100, sum by (user) (count_over_time({container=~\"raiji-($servico)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | user=~\"$usuario\" | acao=~\"$acao\" | code=~\"$status\" | code=~\"4..|5..\" |~ \"$busca\" [$__range])))",
           "instant": true,
           "queryType": "instant",
           "format": "table"

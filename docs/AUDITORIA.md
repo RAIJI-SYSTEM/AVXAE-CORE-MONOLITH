@@ -217,9 +217,10 @@ As consultas normalizam `actor_sub`/`actorSub`, `http_status`/`status` e
 Todos os painéis de ações e de resumo (totais, top usuários, usuários —
 estatísticas, falhas por usuário, usuários × ações e ações por serviço)
 respeitam os cinco filtros. Se o filtro **Usuário** não corresponder a ninguém,
-todos eles ficam vazios (`No data`) — inclusive Top usuários. Já os painéis de
-infraestrutura (Kong/Keycloak/Postgres/RabbitMQ) e de identidade do Keycloak
-respeitam apenas a **Busca livre**.
+todos eles ficam vazios (`No data`) — inclusive Top usuários. O painel de
+identidade do Keycloak respeita **Usuário** e **Busca livre**. Já os painéis de
+infraestrutura (Kong/Keycloak/Postgres/RabbitMQ) e a busca livre em todos os
+containers respeitam apenas a **Busca livre**.
 
 O painel de identidade é alimentado pelo container `raiji-keycloak-events`, que
 consulta a Admin API do Keycloak a cada 10s e publica os eventos em JSON no

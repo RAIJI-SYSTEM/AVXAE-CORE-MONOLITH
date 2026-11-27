@@ -141,7 +141,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "{container=\"raiji-front\"} |= \"\\\"service\\\":\\\"front-pwa\\\"\" | json | event=~\"http_request|bff_request|page_view\" | actorSub=~\"$usuario\" or actorUsername=~\"$usuario\" |~ \"$busca\" | line_format \"{{.actorUsername}} | {{.event}} | {{.method}} {{.path}} | {{.status}} | {{.requestId}}\"",
+          "expr": "{container=\"raiji-front\"} |= \"\\\"service\\\":\\\"front-pwa\\\"\" | json | event=~\"http_request|bff_request|page_view\" | event=~\"$acao\" | status=~\"$status\" | actorSub=~\"$usuario\" or actorUsername=~\"$usuario\" |~ \"$busca\" | line_format \"{{.actorUsername}} | {{.event}} | {{.method}} {{.path}} | {{.status}} | {{.requestId}}\"",
           "queryType": "range"
         }
       ],
@@ -519,7 +519,7 @@
         },
         {
           "refId": "C",
-          "expr": "{container=\"raiji-front\"} |= \"\\\"service\\\":\\\"front-pwa\\\"\" | json | actorUsername=~\"$usuario\" |~ \"$busca\" | line_format \"{{.actorUsername}} | {{.event}} | {{.method}} {{.path}} | {{.status}} | {{.requestId}}\"",
+          "expr": "{container=\"raiji-front\"} |= \"\\\"service\\\":\\\"front-pwa\\\"\" | json | event=~\"$acao\" | status=~\"$status\" | actorUsername=~\"$usuario\" |~ \"$busca\" | line_format \"{{.actorUsername}} | {{.event}} | {{.method}} {{.path}} | {{.status}} | {{.requestId}}\"",
           "queryType": "range"
         }
       ],
