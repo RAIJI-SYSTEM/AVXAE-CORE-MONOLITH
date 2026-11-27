@@ -5,7 +5,12 @@
 #   2. verify        -> pipeline da issue: checkout -> JDK 21 -> cache Maven ->
 #                       mvn clean verify (unitários + integração + cobertura) ->
 #                       upload do relatório JaCoCo
-#   3. docker-image  -> garante que a imagem do deploy continua buildando
+#   3. mutation      -> PIT (teste de mutação) em paralelo
+#   4. e2e           -> Playwright contra a stack completa (Kong/Keycloak/Rabbit/chat)
+#   5. load          -> Locust: carga, stress, mensageria e comparativo 1xN
+#   6. docker-image  -> garante que a imagem do deploy continua buildando
+#
+# Todos os jobs são independentes e rodam ao mesmo tempo em runners separados.
 # =============================================================================
 name: CI
 
@@ -147,3 +152,292 @@ jobs:
           push: false
           cache-from: type=gha,scope=ci
           cache-to: type=gha,mode=max,scope=ci
+
+  # ---------------------------------------------------------------------------
+  # Teste de mutação (PIT) — independente do verify, roda em paralelo.
+  # ---------------------------------------------------------------------------
+  mutation:
+    name: Mutação (PIT)
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup JDK 21 + cache Maven
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: PIT — raiji-app, raiji-rides e raiji-users
+        run: >
+          mvn -B -ntp
+          -pl raiji-app,raiji-rides,raiji-users -am test-compile
+          org.pitest:pitest-maven:mutationCoverage
+
+      - name: Upload relatórios PIT
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pit-reports
+          path: |
+            raiji-app/target/pit-reports/
+            raiji-rides/target/pit-reports/
+            raiji-users/target/pit-reports/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  # ---------------------------------------------------------------------------
+  # E2E (Playwright) — sobe a stack real (Postgres, Keycloak, RabbitMQ, RustFS,
+  # monólito, chat e Kong) e executa os fluxos de sistema contra o Kong.
+  # ---------------------------------------------------------------------------
+  e2e:
+    name: E2E (Playwright · stack completa)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      COMPOSE_PROJECT_NAME: avxae-core-monolith
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Clonar MESSAGE-SERVICE (chat) para a stack
+        run: |
+          BRANCH="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
+          git clone --depth 1 --branch "$BRANCH" \
+            https://github.com/RAIJI-SYSTEM/MESSAGE-SERVICE.git "$RUNNER_TEMP/message-service" \
+            || git clone --depth 1 \
+            https://github.com/RAIJI-SYSTEM/MESSAGE-SERVICE.git "$RUNNER_TEMP/message-service"
+
+      - name: Subir stack completa (--profile chat)
+        env:
+          CHAT_CONTEXT: ${{ runner.temp }}/message-service
+        run: docker compose -f docker-compose.yml --profile chat up -d --build
+
+      - name: Aguardar monólito e chat ficarem saudáveis
+        env:
+          CHAT_CONTEXT: ${{ runner.temp }}/message-service
+        run: |
+          set -uo pipefail
+          ok=0
+          for _ in $(seq 1 120); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8000/actuator/health || true)
+            if [ "$code" = "200" ]; then ok=1; break; fi
+            sleep 5
+          done
+          if [ "$ok" != "1" ]; then
+            echo "Monólito não respondeu em http://localhost:8000/actuator/health"
+            docker compose -f docker-compose.yml --profile chat ps
+            exit 1
+          fi
+          for _ in $(seq 1 60); do
+            [ "$(docker inspect -f '{{.State.Health.Status}}' raiji-chat 2>/dev/null || true)" = "healthy" ] && break
+            sleep 5
+          done
+          status=$(docker inspect -f '{{.State.Health.Status}}' raiji-chat 2>/dev/null || true)
+          echo "chat: ${status:-desconhecido}"
+          [ "$status" = "healthy" ]
+
+      - name: Smoke de sistema (health, realm, token, /api/me)
+        env:
+          BASE_URL: http://localhost:8000
+        run: ./scripts/smoke-test.sh --serial
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Instalar Playwright (dependências + Chromium)
+        working-directory: e2e
+        run: |
+          npm install --no-audit --no-fund
+          npx playwright install --with-deps chromium
+
+      - name: Executar E2E
+        working-directory: e2e
+        run: npx playwright test --reporter=list,html
+
+      - name: Logs da stack (em caso de falha)
+        if: failure()
+        env:
+          CHAT_CONTEXT: ${{ runner.temp }}/message-service
+        run: docker compose -f docker-compose.yml --profile chat logs --tail=250
+
+      - name: Upload relatório Playwright
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-playwright-report
+          path: e2e/playwright-report/
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Derrubar stack
+        if: always()
+        env:
+          CHAT_CONTEXT: ${{ runner.temp }}/message-service
+        run: docker compose -f docker-compose.yml --profile chat down -v --remove-orphans
+
+  # ---------------------------------------------------------------------------
+  # Carga (Locust) — smoke, stress, mensageria AMQP e comparativo 1xN (N=1 e N=2).
+  # Sobe a stack base e uma segunda instância do monólito para o comparativo.
+  # ---------------------------------------------------------------------------
+  load:
+    name: Carga (Locust · stress · mensageria · 1xN)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      COMPOSE_PROJECT_NAME: avxae-core-monolith
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Subir stack base (sem chat)
+        run: >
+          docker compose -f docker-compose.yml up -d --build
+          postgres keycloak rabbitmq rustfs rustfs-init kong-init kong app
+
+      - name: Aguardar monólito
+        run: |
+          set -uo pipefail
+          for _ in $(seq 1 120); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8000/actuator/health || true)
+            [ "$code" = "200" ] && exit 0
+            sleep 5
+          done
+          docker compose -f docker-compose.yml logs --tail=250
+          exit 1
+
+      - name: Smoke de sistema (health, realm, token, /api/me)
+        env:
+          BASE_URL: http://localhost:8000
+        run: ./scripts/smoke-test.sh --serial
+
+      - name: Setup Python (Locust)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Instalar Locust
+        working-directory: tests/load
+        run: ./run.sh deps
+
+      - name: Carga — smoke
+        working-directory: tests/load
+        env:
+          LOAD_USERS: "10"
+          LOAD_SPAWN: "5"
+          SMOKE_HOLD: "15"
+          ANNOTATE: "0"
+        run: ./run.sh smoke
+
+      - name: Carga — stress (degraus reduzidos)
+        working-directory: tests/load
+        env:
+          LOAD_USERS: "20"
+          LOAD_START: "10"
+          LOAD_STEP: "10"
+          LOAD_STEP_TIME: "3"
+          LOAD_SPAWN: "5"
+          ANNOTATE: "0"
+        run: ./run.sh stress
+
+      - name: Mensageria — carga AMQP
+        working-directory: tests/load
+        env:
+          AMQP_USERS: "2"
+          AMQP_SPAWN: "1"
+          AMQP_HOLD: "5"
+        run: |
+          AMQP_IP=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' raiji-rabbitmq)
+          RAIJI_AMQP_URL="amqp://raiji:raiji123@${AMQP_IP}:5672/%2f" ./run-messaging.sh smoke
+
+      - name: Mensageria — DLQ + reprocessamento
+        run: |
+          tests/load/.venv/bin/pip install --quiet requests
+          tests/load/.venv/bin/python scripts/evidence/messaging_dlq.py avxae-core-monolith
+
+      - name: Subir segunda instância do monólito (N=2)
+        run: |
+          docker rm -f raiji-app-2 >/dev/null 2>&1 || true
+          docker run -d --name raiji-app-2 \
+            --network avxae-core-monolith_default \
+            -p 127.0.0.1:8081:8080 \
+            -e SPRING_PROFILES_ACTIVE=docker \
+            -e RAIJI_MESSAGING_ENABLED=true \
+            -e RABBITMQ_HOST=rabbitmq \
+            -e RAIJI_KEYCLOAK_ADMIN_CLIENT_SECRET=raiji-admin-secret \
+            avxae-core-monolith-app
+          for _ in $(seq 1 90); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8081/actuator/health || true)
+            [ "$code" = "200" ] && exit 0
+            sleep 3
+          done
+          docker logs --tail=200 raiji-app-2
+          exit 1
+
+      - name: Escalabilidade 1xN (N=1 e N=2)
+        working-directory: tests/load
+        env:
+          RAIJI_SCALE_URLS: http://127.0.0.1:8000,http://127.0.0.1:8081
+          N_LIST: "1 2"
+          USERS: "5"
+          HOLD: "5"
+          ANNOTATE: "0"
+        run: ./run-scale.sh
+
+      - name: Logs da stack (em caso de falha)
+        if: failure()
+        run: docker compose -f docker-compose.yml logs --tail=250
+
+      - name: Upload relatórios Locust
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: locust-reports
+          path: |
+            tests/load/reports/
+            tests/load/scale-results.json
+            reports/drills/
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Derrubar stack
+        if: always()
+        run: |
+          docker rm -f raiji-app-2 >/dev/null 2>&1 || true
+          docker compose -f docker-compose.yml down -v --remove-orphans
+
+  # ---------------------------------------------------------------------------
+  # Regressão — quebra proposital em worktree temporária + métricas formais
+  # (quantos testes falharam e o percentual sobre a suíte). Não altera o código.
+  # ---------------------------------------------------------------------------
+  regression:
+    name: Regressão (quebra proposital)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup JDK 21 + cache Maven
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Quebra controlada + suíte de regressão
+        run: python3 scripts/evidence/regression_drill.py avxae-core-monolith
+
+      - name: Upload evidência da regressão
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: regression-drill
+          path: reports/drills/
+          if-no-files-found: ignore
+          retention-days: 14
