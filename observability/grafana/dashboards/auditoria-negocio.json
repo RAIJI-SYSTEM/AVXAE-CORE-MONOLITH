@@ -191,7 +191,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "topk(1, sum by (user) (count_over_time({container=~\"raiji-($servico)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | user=~\".+\" | acao=~\"$acao\" | code=~\"$status\" |~ \"$busca\" [$__range])))",
+          "expr": "topk(1, sum by (user) (count_over_time({container=~\"raiji-($servico)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | user=~\"$usuario\" | acao=~\"$acao\" | code=~\"$status\" |~ \"$busca\" [$__range])))",
           "instant": true,
           "queryType": "instant",
           "legendFormat": "{{user}}"
@@ -301,7 +301,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (container) (count_over_time({container=~\"raiji-($servico)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" [$__range]))",
+          "expr": "sum by (container) (count_over_time({container=~\"raiji-($servico)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | user=~\"$usuario\" | acao=~\"$acao\" | code=~\"$status\" |~ \"$busca\" [$__range]))",
           "instant": true,
           "queryType": "instant",
           "format": "table"
@@ -405,7 +405,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "topk(50, sum by (user) (count_over_time({container=~\"raiji-($servico)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | user=~\".+\" | acao=~\"$acao\" | code=~\"$status\" |~ \"$busca\" [$__range])))",
+          "expr": "topk(50, sum by (user) (count_over_time({container=~\"raiji-($servico)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | user=~\"$usuario\" | acao=~\"$acao\" | code=~\"$status\" |~ \"$busca\" [$__range])))",
           "instant": true,
           "queryType": "instant",
           "format": "table"
@@ -544,7 +544,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "topk(100, sum by (user) (count_over_time({container=~\"raiji-($servico)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | user=~\".+\" | acao=~\"$acao\" |~ \"$busca\" [$__range])))",
+          "expr": "topk(100, sum by (user) (count_over_time({container=~\"raiji-($servico)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | user=~\"$usuario\" | acao=~\"$acao\" | code=~\"$status\" |~ \"$busca\" [$__range])))",
           "instant": true,
           "queryType": "instant",
           "format": "table"
@@ -596,7 +596,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "topk(100, sum by (user) (count_over_time({container=~\"raiji-($servico)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | user=~\".+\" | code=~\"4..|5..\" |~ \"$busca\" [$__range])))",
+          "expr": "topk(100, sum by (user) (count_over_time({container=~\"raiji-($servico)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | user=~\"$usuario\" | code=~\"4..|5..\" |~ \"$busca\" [$__range])))",
           "instant": true,
           "queryType": "instant",
           "format": "table"
@@ -648,7 +648,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "topk(100, sum by (user, acao) (count_over_time({container=~\"raiji-($servico)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | user=~\".+\" | acao=~\".+\" | code=~\"$status\" |~ \"$busca\" [$__range])))",
+          "expr": "topk(100, sum by (user, acao) (count_over_time({container=~\"raiji-($servico)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | user=~\"$usuario\" | acao=~\"$acao\" | code=~\"$status\" |~ \"$busca\" [$__range])))",
           "instant": true,
           "queryType": "instant",
           "format": "table"
