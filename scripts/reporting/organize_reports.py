@@ -61,12 +61,17 @@ def main(repo: Path, slug: str):
         if directory.is_dir():
             locust_files.extend(directory.glob("*.html"))
     messaging_file = latest([p for p in locust_files if "amqp" in p.name.lower()])
-    load_file = latest([p for p in locust_files if "amqp" not in p.name.lower()])
+    scale_files = [p for p in locust_files if "scale" in p.name.lower()]
+    load_candidates = [p for p in locust_files if "amqp" not in p.name.lower() and "scale" not in p.name.lower()]
+    load_file = latest(load_candidates)
+    scale_file = latest(scale_files)
 
     if messaging_file:
         shutil.copyfile(messaging_file, raw / f"{slug}_mensageria.html")
     if load_file:
         shutil.copyfile(load_file, raw / f"{slug}_carga.html")
+    if scale_file:
+        shutil.copyfile(scale_file, raw / f"{slug}_escalabilidade.html")
 
     e2e = detailed / "e2e" / "index.html"
     tests = detailed / "testes.html"
@@ -80,7 +85,10 @@ def main(repo: Path, slug: str):
     links = {
         "sistema-e2e": [("Relatório Playwright", "testes/e2e/index.html")] if e2e.exists() else [],
         "mensageria": [("Relatório Locust — mensageria", f"raw/{slug}_mensageria.html")] if messaging_file else [],
-        "carga-escalabilidade-monitoramento": [("Relatório Locust — carga", f"raw/{slug}_carga.html")] if load_file else [],
+        "carga-escalabilidade-monitoramento": (
+            ([("Relatório Locust — carga", f"raw/{slug}_carga.html")] if load_file else []) +
+            ([("Relatório Locust — escalabilidade 1xN", f"raw/{slug}_escalabilidade.html")] if scale_file else [])
+        ),
         "mutacao": ([("Relatório StrykerJS", "testes/mutacao/mutation.html")] if mutation else []) +
                    [(f"Relatório PIT — {p.parent.name}", f"testes/mutacao/{p.parent.name}/index.html") for p in pit],
         "regressao-analise-falhas": [("Resultados e falhas", "testes/testes.html")] if tests.exists() else [],
@@ -89,9 +97,13 @@ def main(repo: Path, slug: str):
     for key, title, desc in CATEGORIES:
         note = ""
         if key == "mensageria" and not messaging_file:
-            note = "Não executado nesta execução. Rode o smoke de mensageria do Locust com a stack e o RabbitMQ disponíveis."
-        if key == "carga-escalabilidade-monitoramento" and not load_file:
-            note = "Não executado nesta execução. Rode o perfil de carga do Locust com a stack disponível."
+            note = (
+                "Não se aplica: o FRONT-PWA não possui consumidor/produtor AMQP."
+                if slug == "front-pwa"
+                else "Não executado nesta execução. Rode o smoke de mensageria do Locust com a stack e o RabbitMQ disponíveis."
+            )
+        if key == "carga-escalabilidade-monitoramento" and not load_file and not scale_file:
+            note = "Não executado nesta execução. Rode os perfis de carga e escala do Locust com a stack disponível."
         (reports / f"{slug}_{key}.html").write_text(
             page(f"{title} — {slug}", desc, links[key], note), encoding="utf-8"
         )

@@ -30,3 +30,7 @@ reports/
 
 # Relatórios agregados de testes
 reports/testes/
+
+# Resultados gerados pelos testes de carga
+tests/load/scale-results.json
+.stryker-tmp/

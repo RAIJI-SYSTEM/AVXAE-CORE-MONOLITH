@@ -56,6 +56,23 @@ else
 fi
 
 python3 "$ROOT/scripts/reporting/build_index.py" "$OUT" maven
+
+# --- Locust: carga, mensageria e escalabilidade --------------------------------
+if [ "${RUN_LOAD:-1}" = "1" ] && curl -fsS --max-time 3 http://localhost:8000/actuator/health >/dev/null 2>&1; then
+  LOAD_DIR="$ROOT/tests/load"
+  if [ ! -x "$LOAD_DIR/.venv/bin/locust" ]; then
+    (cd "$LOAD_DIR" && ./run.sh deps) > "$LOGS/04-locust-deps.log" 2>&1 || status=1
+  fi
+  (cd "$LOAD_DIR" && LOAD_USERS="${LOAD_USERS:-3}" LOAD_SPAWN="${LOAD_SPAWN:-1}" SMOKE_HOLD="${SMOKE_HOLD:-5}" ./run.sh smoke) > "$LOGS/04-locust-carga.log" 2>&1 || status=1
+  AMQP_IP=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' raiji-rabbitmq 2>/dev/null || true)
+  if [ -n "$AMQP_IP" ]; then
+    (cd "$LOAD_DIR" && RAIJI_AMQP_URL="amqp://raiji:raiji123@${AMQP_IP}:5672/%2f" AMQP_USERS="${AMQP_USERS:-2}" AMQP_SPAWN=1 AMQP_HOLD="${AMQP_HOLD:-5}" ./run-messaging.sh smoke) > "$LOGS/04-locust-mensageria.log" 2>&1 || status=1
+  fi
+  (cd "$LOAD_DIR" && RAIJI_SCALE_URLS="http://127.0.0.1:8000" N_LIST=1 USERS="${SCALE_USERS:-2}" HOLD="${SCALE_HOLD:-3}" ./run-scale.sh) > "$LOGS/04-locust-escala.log" 2>&1 || status=1
+else
+  echo "Locust ignorado: stack não está em http://localhost:8000" > "$LOGS/04-locust.log"
+fi
+
 python3 "$ROOT/scripts/reporting/organize_reports.py" "$ROOT" "avxae-core-monolith"
 
 echo
