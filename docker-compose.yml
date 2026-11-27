@@ -32,6 +32,9 @@
       environment:
         KC_BOOTSTRAP_ADMIN_USERNAME: admin
         KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+        # Eventos de login/logout também aparecem no stdout (Loki/Grafana),
+        # além de ficarem persistidos na tabela de eventos do Keycloak.
+        KC_LOG_LEVEL: "INFO,org.keycloak.events:DEBUG"
         KC_DB: postgres
         KC_DB_URL: jdbc:postgresql://postgres:5432/raiji_keycloak
         KC_DB_USERNAME: raiji

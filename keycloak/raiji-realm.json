@@ -11,6 +11,18 @@
   "supportedLocales": ["pt-BR", "en"],
   "defaultLocale": "pt-BR",
   "eventsListeners": ["jboss-logging", "raiji-rabbitmq"],
+  "eventsEnabled": true,
+  "eventsExpiration": 2592000,
+  "adminEventsEnabled": true,
+  "adminEventsDetailsEnabled": true,
+  "enabledEventTypes": [
+    "LOGIN", "LOGIN_ERROR", "LOGOUT", "REGISTER", "REGISTER_ERROR",
+    "CODE_TO_TOKEN", "CODE_TO_TOKEN_ERROR", "REFRESH_TOKEN", "REFRESH_TOKEN_ERROR",
+    "UPDATE_PASSWORD", "UPDATE_PASSWORD_ERROR", "UPDATE_PROFILE", "UPDATE_PROFILE_ERROR",
+    "UPDATE_EMAIL", "UPDATE_EMAIL_ERROR", "DELETE_ACCOUNT", "DELETE_ACCOUNT_ERROR",
+    "SEND_RESET_PASSWORD", "SEND_RESET_PASSWORD_ERROR", "RESET_PASSWORD", "RESET_PASSWORD_ERROR",
+    "VERIFY_EMAIL", "VERIFY_EMAIL_ERROR", "IDENTITY_PROVIDER_LOGIN", "IDENTITY_PROVIDER_LOGIN_ERROR"
+  ],
   "roles": {
     "realm": [
       { "name": "PF" },

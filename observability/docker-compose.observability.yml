@@ -44,7 +44,28 @@ services:
       - grafana-data:/var/lib/grafana
     ports:
       - "3300:3000"
-    depends_on: [prometheus]
+    depends_on: [prometheus, loki]
+    networks: [raiji]
+
+  loki:
+    image: grafana/loki:3.3.2
+    container_name: raiji-loki
+    command: -config.file=/etc/loki/loki-config.yml
+    volumes:
+      - ./loki/loki-config.yml:/etc/loki/loki-config.yml:ro
+      - loki-data:/loki
+    ports:
+      - "3100:3100"
+    networks: [raiji]
+
+  promtail:
+    image: grafana/promtail:3.3.2
+    container_name: raiji-promtail
+    command: -config.file=/etc/promtail/promtail-config.yml
+    volumes:
+      - ./promtail/promtail-config.yml:/etc/promtail/promtail-config.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on: [loki]
     networks: [raiji]
 
   node-exporter:
@@ -91,6 +112,7 @@ services:
 volumes:
   prometheus-data:
   grafana-data:
+  loki-data:
 
 networks:
   raiji:

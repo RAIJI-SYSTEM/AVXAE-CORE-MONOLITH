@@ -261,6 +261,20 @@ jobs:
         working-directory: e2e
         run: npx playwright test --reporter=list,html
 
+      - name: Validar auditoria no Postgres
+        run: |
+          sleep 2
+          total=$(docker exec raiji-postgres psql -U raiji -d raiji_app -tAc "select count(*) from audit_log")
+          echo "audit_log=$total"
+          [ "$total" -gt 0 ]
+
+      - name: Validar eventos de login no Keycloak
+        run: |
+          TOKEN=$(curl -s -X POST http://localhost:8180/realms/master/protocol/openid-connect/token             -H 'Content-Type: application/x-www-form-urlencoded'             --data 'grant_type=password&client_id=admin-cli&username=admin&password=admin'             | jq -r .access_token)
+          total=$(curl -s -H "Authorization: Bearer $TOKEN"             'http://localhost:8180/admin/realms/raiji/events?max=1' | jq 'length')
+          echo "keycloak_events=$total"
+          [ "$total" -gt 0 ]
+
       - name: Logs da stack (em caso de falha)
         if: failure()
         env:

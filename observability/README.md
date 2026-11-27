@@ -39,6 +39,7 @@ docker compose -p raiji-observability -f docker-compose.observability.yml up -d 
 
 # Grafana:    http://localhost:3300  (admin/admin)
 # Prometheus: http://localhost:9090
+# Loki:       http://localhost:3100
 # Exporter:   http://localhost:9101/metrics
 ```
 
@@ -52,6 +53,13 @@ Há **um único dashboard**, usado como home do Grafana:
 **Raiji · Serviços (um por serviço)** — reúne tudo: serviços (UP/latência/HTTP/CPU/memória),
 status das sondas, CPU/memória de todos os containers, host, RabbitMQ, rede,
 PostgreSQL/MongoDB/Kong, containers (restarts/OOM/throttling) e o comparativo 1×N.
+
+## Auditoria (logs)
+
+O Promtail coleta o stdout dos containers `raiji-*` e envia para o Loki. No
+Grafana, o dashboard **Raiji · Auditoria (logs)** mostra as trilhas do monólito,
+chat, front e Keycloak. A documentação completa está em
+[`../docs/AUDITORIA.md`](../docs/AUDITORIA.md).
 
 ## Alertas
 
