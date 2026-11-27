@@ -191,6 +191,7 @@ senha: auditoria123
 
 Filtros no topo:
 
+- **Serviço**: Monólito, Chat e/ou Front. A busca principal usa todos por padrão.
 - **Usuário**: nome (`maria`) ou `sub` do Keycloak. O padrão `.+` mostra só ações autenticadas; use `.*` para incluir anônimos.
 - **Ação**: `RIDE_CREATED`, `MESSAGE_SENT`, `PAYMENT_WEBHOOK` etc.
 - **Status**: 2xx, 4xx, 5xx ou falhas.
@@ -198,13 +199,20 @@ Filtros no topo:
 
 Painéis:
 
-- totais de ações, falhas por serviço, ação e usuário mais ativos;
-- ações do usuário no monólito, chat e front com linha formatada;
+- totais de ações, falhas, ação e usuário mais ativos;
+- **todas as ações dos três serviços em um único painel**, com linha padronizada
+  (`usuário | ação | método rota | status | duração | request_id`);
 - erros e negações;
 - tabelas de ações por serviço, top ações e top usuários;
+- **Usuários — estatísticas** (total de ações por usuário);
+- **Falhas por usuário**;
+- **Usuários × ações** (o que cada usuário fez);
 - identidade do Keycloak (login/logout e admin events);
 - logs técnicos de Kong/Keycloak/Postgres/RabbitMQ;
 - busca livre em todos os containers `raiji-*`.
+
+As consultas normalizam `actor_sub`/`actorSub`, `http_status`/`status` e
+`action`/`event` para permitir filtrar os três serviços juntos.
 
 O painel de identidade é alimentado pelo container `raiji-keycloak-events`, que
 consulta a Admin API do Keycloak a cada 10s e publica os eventos em JSON no

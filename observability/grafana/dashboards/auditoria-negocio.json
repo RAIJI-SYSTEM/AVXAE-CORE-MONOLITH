@@ -34,7 +34,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "**Auditoria de negócio**\n\nUse os filtros acima: **Usuário** aceita nome (`maria`) ou `sub` do Keycloak; o padrão `.+` mostra apenas ações autenticadas (use `.*` para incluir anônimos). **Ação** aceita `RIDE_CREATED`, `MESSAGE_SENT` etc.; **Status** filtra 2xx/4xx/5xx; **Busca livre** aceita `request_id`, rota ou texto.\n\nMonólito, chat e front ficam no painel de ações; login/logout e ações administrativas ficam no painel de identidade do Keycloak."
+        "content": "**Auditoria de negócio — todas as ações dos 3 serviços**\n\nFiltros: **Serviço** (Monólito/Chat/Front), **Usuário** (nome ou `sub`), **Ação**, **Status** e **Busca** (`request_id`, rota ou texto).\n\nO padrão de usuário é `.+` (autenticados); use `.*` para incluir anônimos. As tabelas mostram estatísticas por usuário: ações, falhas e o que cada um fez."
       }
     },
     {
@@ -54,7 +54,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(count_over_time({container=~\"raiji-(app|chat|front)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" [$__range]))",
+          "expr": "sum(count_over_time({container=~\"raiji-($servico)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | user=~\"$usuario\" | acao=~\"$acao\" | code=~\"$status\" |~ \"$busca\" [$__range]))",
           "instant": true,
           "queryType": "instant"
         }
@@ -81,7 +81,7 @@
     {
       "id": 3,
       "type": "stat",
-      "title": "Falhas e erros por serviço",
+      "title": "Falhas e erros",
       "gridPos": {
         "h": 4,
         "w": 6,
@@ -95,24 +95,9 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(count_over_time({container=\"raiji-app\"} |= \"audit_http_request\" | json | http_status=~\"4..|5..\" [$__range]))",
+          "expr": "sum(count_over_time({container=~\"raiji-($servico)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | user=~\"$usuario\" | code=~\"4..|5..\" |~ \"$busca\" [$__range]))",
           "instant": true,
-          "queryType": "instant",
-          "legendFormat": "Monólito"
-        },
-        {
-          "refId": "B",
-          "expr": "sum(count_over_time({container=\"raiji-chat\"} |= \"audit_http_request\" | json | http_status=~\"4..|5..\" [$__range]))",
-          "instant": true,
-          "queryType": "instant",
-          "legendFormat": "Chat"
-        },
-        {
-          "refId": "C",
-          "expr": "sum(count_over_time({container=\"raiji-front\"} |= \"\\\"service\\\":\\\"front-pwa\\\"\" | json | status=~\"4..|5..\" [$__range]))",
-          "instant": true,
-          "queryType": "instant",
-          "legendFormat": "Front"
+          "queryType": "instant"
         }
       ],
       "options": {
@@ -123,7 +108,7 @@
           "fields": "",
           "values": false
         },
-        "textMode": "value_and_name",
+        "textMode": "value",
         "colorMode": "value",
         "graphMode": "none"
       },
@@ -144,44 +129,7 @@
             ]
           }
         },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Value #A"
-            },
-            "properties": [
-              {
-                "id": "displayName",
-                "value": "Monólito"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Value #B"
-            },
-            "properties": [
-              {
-                "id": "displayName",
-                "value": "Chat"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Value #C"
-            },
-            "properties": [
-              {
-                "id": "displayName",
-                "value": "Front"
-              }
-            ]
-          }
-        ]
+        "overrides": []
       }
     },
     {
@@ -201,10 +149,10 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "topk(1, sum by (action) (count_over_time({container=~\"raiji-(app|chat)\"} |= \"audit_http_request\" | json | action=~\"$acao\" [$__range])))",
+          "expr": "topk(1, sum by (acao) (count_over_time({container=~\"raiji-($servico)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | user=~\"$usuario\" | acao=~\"$acao\" | code=~\"$status\" |~ \"$busca\" [$__range])))",
           "instant": true,
           "queryType": "instant",
-          "legendFormat": "{{action}}"
+          "legendFormat": "{{acao}}"
         }
       ],
       "options": {
@@ -243,10 +191,10 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "topk(1, sum by (actor_username) (count_over_time({container=~\"raiji-(app|chat)\"} |= \"audit_http_request\" | json | actor_username=~\"$usuario\" [$__range])))",
+          "expr": "topk(1, sum by (user) (count_over_time({container=~\"raiji-($servico)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | user=~\".+\" | acao=~\"$acao\" | code=~\"$status\" |~ \"$busca\" [$__range])))",
           "instant": true,
           "queryType": "instant",
-          "legendFormat": "{{actor_username}}"
+          "legendFormat": "{{user}}"
         }
       ],
       "options": {
@@ -271,7 +219,7 @@
     {
       "id": 6,
       "type": "logs",
-      "title": "Ações do usuário — monólito, chat e front",
+      "title": "Todas as ações — monólito, chat e front",
       "gridPos": {
         "h": 12,
         "w": 24,
@@ -285,17 +233,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "{container=\"raiji-app\"} |= \"audit_http_request\" | json | event=\"http_request\" | actor_sub=~\"$usuario\" or actor_username=~\"$usuario\" | action=~\"$acao\" | http_status=~\"$status\" |~ \"$busca\" | line_format \"{{.actor_username}} | {{.action}} | {{.http_method}} {{.http_path}} | {{.http_status}} | {{.duration_ms}}ms | {{.request_id}}\"",
-          "queryType": "range"
-        },
-        {
-          "refId": "B",
-          "expr": "{container=\"raiji-chat\"} |= \"audit_http_request\" | json | audit=\"true\" | actor_sub=~\"$usuario\" or actor_username=~\"$usuario\" | action=~\"$acao\" | http_status=~\"$status\" |~ \"$busca\" | line_format \"{{.actor_username}} | {{.action}} | {{.http_method}} {{.http_path}} | {{.http_status}} | {{.duration_ms}}ms | {{.request_id}}\"",
-          "queryType": "range"
-        },
-        {
-          "refId": "C",
-          "expr": "{container=\"raiji-front\"} |= \"\\\"service\\\":\\\"front-pwa\\\"\" | json | event=~\"http_request|bff_request|page_view\" | actorSub=~\"$usuario\" or actorUsername=~\"$usuario\" |~ \"$busca\" | line_format \"{{.actorUsername}} | {{.event}} | {{.method}} {{.path}} | {{.status}} | {{.requestId}}\"",
+          "expr": "{container=~\"raiji-($servico)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | user=~\"$usuario\" | acao=~\"$acao\" | code=~\"$status\" |~ \"$busca\" | line_format \"{{.user}} | {{.acao}} | {{.http_method}}{{.method}} {{.http_path}}{{.path}} | {{.code}} | {{.duration_ms}}{{.durationMs}}ms | {{.request_id}}{{.requestId}}\"",
           "queryType": "range"
         }
       ],
@@ -324,22 +262,12 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "{container=\"raiji-app\"} |= \"audit_http_request\" | json | event=\"http_request\" | http_status=~\"4..|5..\" |~ \"$busca\" | line_format \"{{.actor_username}} | {{.action}} | {{.http_method}} {{.http_path}} | {{.http_status}} | {{.duration_ms}}ms | {{.request_id}}\"",
-          "queryType": "range"
-        },
-        {
-          "refId": "B",
-          "expr": "{container=\"raiji-chat\"} |= \"audit_http_request\" | json | audit=\"true\" | http_status=~\"4..|5..\" |~ \"$busca\" | line_format \"{{.actor_username}} | {{.action}} | {{.http_method}} {{.http_path}} | {{.http_status}} | {{.duration_ms}}ms | {{.request_id}}\"",
-          "queryType": "range"
-        },
-        {
-          "refId": "C",
-          "expr": "{container=\"raiji-front\"} |= \"\\\"service\\\":\\\"front-pwa\\\"\" | json | event=\"bff_request\" | status=~\"4..|5..\" |~ \"$busca\" | line_format \"{{.actorUsername}} | {{.event}} | {{.method}} {{.path}} | {{.status}} | {{.requestId}}\"",
+          "expr": "{container=~\"raiji-($servico)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | user=~\"$usuario\" | code=~\"4..|5..\" |~ \"$busca\" | line_format \"{{.user}} | {{.acao}} | {{.http_path}}{{.path}} | {{.code}} | {{.request_id}}{{.requestId}}\"",
           "queryType": "range"
         },
         {
           "refId": "D",
-          "expr": "{container=\"raiji-keycloak-events\"} |= \"keycloak_event\" | json | event=\"keycloak_event\" | error=~\".+\" |~ \"$busca\" | line_format \"{{.username}} | {{.type}} | {{.resourcePath}} | {{.actorUsername}} | {{.ipAddress}}\"",
+          "expr": "{container=\"raiji-keycloak-events\"} |= \"keycloak_event\" | json | error=~\".+\" |~ \"$busca\"",
           "queryType": "range"
         },
         {
@@ -373,10 +301,9 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (container) (count_over_time({container=~\"raiji-(app|chat|front)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" [$__range]))",
+          "expr": "sum by (container) (count_over_time({container=~\"raiji-($servico)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" [$__range]))",
           "instant": true,
           "queryType": "instant",
-          "legendFormat": "{{container}}",
           "format": "table"
         }
       ],
@@ -397,11 +324,14 @@
               "Time": true
             },
             "renameByName": {
-              "Value": "Ações",
               "container": "Serviço",
+              "Value": "Ações",
               "Value #A": "Ações"
             },
-            "indexByName": {}
+            "indexByName": {
+              "Serviço": 0,
+              "Ações": 1
+            }
           }
         }
       ]
@@ -423,10 +353,9 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "topk(10, sum by (action) (count_over_time({container=~\"raiji-(app|chat)\"} |= \"audit_http_request\" | json | action=~\"$acao\" [$__range])))",
+          "expr": "topk(10, sum by (acao) (count_over_time({container=~\"raiji-($servico)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | user=~\"$usuario\" | acao=~\".+\" | code=~\"$status\" |~ \"$busca\" [$__range])))",
           "instant": true,
           "queryType": "instant",
-          "legendFormat": "{{action}}",
           "format": "table"
         }
       ],
@@ -447,11 +376,14 @@
               "Time": true
             },
             "renameByName": {
+              "acao": "Ação",
               "Value": "Ações",
-              "action": "Ação",
               "Value #A": "Ações"
             },
-            "indexByName": {}
+            "indexByName": {
+              "Ação": 0,
+              "Ações": 1
+            }
           }
         }
       ]
@@ -459,7 +391,7 @@
     {
       "id": 10,
       "type": "table",
-      "title": "Top usuários (monólito/chat)",
+      "title": "Top usuários",
       "gridPos": {
         "h": 9,
         "w": 8,
@@ -473,10 +405,9 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "topk(10, sum by (actor_username) (count_over_time({container=~\"raiji-(app|chat)\"} |= \"audit_http_request\" | json | actor_username=~\"$usuario\" [$__range])))",
+          "expr": "topk(50, sum by (user) (count_over_time({container=~\"raiji-($servico)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | user=~\".+\" | acao=~\"$acao\" | code=~\"$status\" |~ \"$busca\" [$__range])))",
           "instant": true,
           "queryType": "instant",
-          "legendFormat": "{{actor_username}}",
           "format": "table"
         }
       ],
@@ -497,13 +428,14 @@
               "Time": true
             },
             "renameByName": {
+              "user": "Usuário",
               "Value": "Ações",
-              "actor_username": "Usuário",
-              "actorUsername": "Usuário",
-              "Value #A": "Ações",
-              "Value #B": "Ações (front)"
+              "Value #A": "Ações"
             },
-            "indexByName": {}
+            "indexByName": {
+              "Usuário": 0,
+              "Ações": 1
+            }
           }
         }
       ]
@@ -594,6 +526,164 @@
         "enableLogDetails": true,
         "dedupStrategy": "none"
       }
+    },
+    {
+      "id": 14,
+      "type": "table",
+      "title": "Usuários — estatísticas",
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 0,
+        "y": 68
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "topk(100, sum by (user) (count_over_time({container=~\"raiji-($servico)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | user=~\".+\" | acao=~\"$acao\" |~ \"$busca\" [$__range])))",
+          "instant": true,
+          "queryType": "instant",
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "user": "Usuário",
+              "Value": "Ações",
+              "Value #A": "Ações"
+            },
+            "indexByName": {
+              "Usuário": 0,
+              "Ações": 1
+            }
+          }
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "Ações",
+            "desc": true
+          }
+        ]
+      }
+    },
+    {
+      "id": 15,
+      "type": "table",
+      "title": "Falhas por usuário",
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 12,
+        "y": 68
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "topk(100, sum by (user) (count_over_time({container=~\"raiji-($servico)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | user=~\".+\" | code=~\"4..|5..\" |~ \"$busca\" [$__range])))",
+          "instant": true,
+          "queryType": "instant",
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "user": "Usuário",
+              "Value": "Falhas",
+              "Value #A": "Falhas"
+            },
+            "indexByName": {
+              "Usuário": 0,
+              "Falhas": 1
+            }
+          }
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "Falhas",
+            "desc": true
+          }
+        ]
+      }
+    },
+    {
+      "id": 16,
+      "type": "table",
+      "title": "Usuários × ações",
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 78
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "topk(100, sum by (user, acao) (count_over_time({container=~\"raiji-($servico)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | user=~\".+\" | acao=~\".+\" | code=~\"$status\" |~ \"$busca\" [$__range])))",
+          "instant": true,
+          "queryType": "instant",
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "user": "Usuário",
+              "acao": "Ação",
+              "Value": "Ações",
+              "Value #A": "Ações"
+            },
+            "indexByName": {
+              "user": 0,
+              "acao": 1,
+              "Value #A": 2
+            }
+          }
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "Ações",
+            "desc": true
+          }
+        ]
+      }
     }
   ],
   "refresh": "30s",
@@ -605,6 +695,20 @@
   ],
   "templating": {
     "list": [
+      {
+        "name": "servico",
+        "label": "Serviço",
+        "type": "custom",
+        "query": "Monólito : app, Chat : chat, Front : front",
+        "multi": true,
+        "includeAll": true,
+        "allValue": "app|chat|front",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "options": []
+      },
       {
         "name": "usuario",
         "label": "Usuário (nome ou sub)",
