@@ -56,6 +56,7 @@ else
 fi
 
 python3 "$ROOT/scripts/reporting/build_index.py" "$OUT" maven
+python3 "$ROOT/scripts/reporting/organize_reports.py" "$ROOT" "avxae-core-monolith"
 
 echo
 echo "Relatórios em: $OUT/index.html"
