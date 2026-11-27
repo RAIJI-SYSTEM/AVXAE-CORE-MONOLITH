@@ -91,7 +91,10 @@ def main(repo: Path, slug: str):
         ),
         "mutacao": ([("Relatório StrykerJS", "testes/mutacao/mutation.html")] if mutation else []) +
                    [(f"Relatório PIT — {p.parent.name}", f"testes/mutacao/{p.parent.name}/index.html") for p in pit],
-        "regressao-analise-falhas": [("Resultados e falhas", "testes/testes.html")] if tests.exists() else [],
+        "regressao-analise-falhas": (
+            ([("Resultados e falhas", "testes/testes.html")] if tests.exists() else []) +
+            ([("Quebra proposital controlada", f"drills/{slug}_quebra.html")] if (reports / "drills" / f"{slug}_quebra.html").exists() else [])
+        ),
     }
 
     for key, title, desc in CATEGORIES:
