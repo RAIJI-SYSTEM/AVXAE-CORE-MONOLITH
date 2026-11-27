@@ -16,7 +16,7 @@ from pathlib import Path
 
 CATEGORIES = [
     ("sistema-e2e", "Testes de Sistema / E2E",
-     "Jornadas completas de sistema e navegador executadas com Playwright."),
+     "Jornadas completas executadas localmente em ambiente de produção simulada: front com build de produção (next start), Docker Compose, Kong, Keycloak e RabbitMQ."),
     ("mensageria", "Testes de Mensageria",
      "Testes de eventos AMQP/RabbitMQ (Locust + pika) dos fluxos de mensageria."),
     ("carga-escalabilidade-monitoramento", "Testes de Carga, Escalabilidade e Monitoramento",
