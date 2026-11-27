@@ -57,9 +57,10 @@ PostgreSQL/MongoDB/Kong, containers (restarts/OOM/throttling) e o comparativo 1�
 ## Auditoria (logs)
 
 O Promtail coleta o stdout dos containers `raiji-*` e envia para o Loki. No
-Grafana, o dashboard **Raiji · Auditoria (logs)** mostra as trilhas do monólito,
-chat, front e Keycloak. A documentação completa está em
-[`../docs/AUDITORIA.md`](../docs/AUDITORIA.md).
+Grafana, o dashboard **Raiji · Auditoria (logs)** mostra o log técnico e o
+dashboard **Raiji · Auditoria (visão de negócio)** oferece filtros por usuário,
+ação e status, além de tabelas e painel de identidade do Keycloak. A
+documentação completa está em [`../docs/AUDITORIA.md`](../docs/AUDITORIA.md).
 
 ## Alertas
 

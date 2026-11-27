@@ -68,6 +68,21 @@ services:
     depends_on: [loki]
     networks: [raiji]
 
+  # Puxa eventos de login e admin events do Keycloak para o stdout; o Promtail
+  # coleta e envia ao Loki, permitindo consultar identidade junto com os serviços.
+  keycloak-events:
+    build: ./keycloak-events
+    container_name: raiji-keycloak-events
+    environment:
+      KEYCLOAK_URL: http://keycloak:8080
+      KEYCLOAK_REALM: raiji
+      KEYCLOAK_ADMIN_USER: ${KEYCLOAK_ADMIN_USER:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      POLL_SECONDS: "10"
+      MAX_EVENTS: "200"
+    restart: unless-stopped
+    networks: [raiji]
+
   node-exporter:
     image: prom/node-exporter:v1.8.2
     container_name: raiji-node-exporter

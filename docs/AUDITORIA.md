@@ -178,6 +178,41 @@ Consultas úteis no Grafana Explore:
 {container=~"raiji-(app|chat|front)"} |= "req-123"
 ```
 
+## Visão de negócio no Grafana (para não-devs)
+
+Dashboard: `http://localhost:3300/d/raiji-auditoria-negocio`
+
+Usuário viewer local:
+
+```text
+login: auditoria
+senha: auditoria123
+```
+
+Filtros no topo:
+
+- **Usuário**: nome (`maria`) ou `sub` do Keycloak. O padrão `.+` mostra só ações autenticadas; use `.*` para incluir anônimos.
+- **Ação**: `RIDE_CREATED`, `MESSAGE_SENT`, `PAYMENT_WEBHOOK` etc.
+- **Status**: 2xx, 4xx, 5xx ou falhas.
+- **Busca livre**: `request_id`, rota ou texto.
+
+Painéis:
+
+- totais de ações, falhas por serviço, ação e usuário mais ativos;
+- ações do usuário no monólito, chat e front com linha formatada;
+- erros e negações;
+- tabelas de ações por serviço, top ações e top usuários;
+- identidade do Keycloak (login/logout e admin events);
+- logs técnicos de Kong/Keycloak/Postgres/RabbitMQ;
+- busca livre em todos os containers `raiji-*`.
+
+O painel de identidade é alimentado pelo container `raiji-keycloak-events`, que
+consulta a Admin API do Keycloak a cada 10s e publica os eventos em JSON no
+stdout. O Promtail coleta e envia ao Loki.
+
+O dashboard técnico anterior continua disponível em
+`http://localhost:3300/d/raiji-auditoria`.
+
 ## Retenção e privacidade
 
 | Camada | Retenção |
