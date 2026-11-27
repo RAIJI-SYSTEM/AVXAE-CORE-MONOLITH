@@ -60,7 +60,8 @@ O Promtail coleta o stdout dos containers `raiji-*` e envia para o Loki. No
 Grafana, o dashboard **Raiji · Auditoria (logs)** mostra o log técnico e o
 dashboard **Raiji · Auditoria (visão de negócio)** oferece filtros por usuário,
 ação e status, além de tabelas e painel de identidade do Keycloak. O dashboard
-técnico **Raiji · Auditoria (logs)** também agrega os arquivos de
+técnico **Raiji · Auditoria (logs)** tem uma **busca global** com filtros de
+serviço, usuário, ação, status, `request_id` e busca SQL, e também agrega os arquivos de
 `reports/testes/logs/` dos três repositórios (Promtail lê o workspace montado em
 `/workspace`), a tabela `audit_log` do Postgres e os logs de infraestrutura. A
 documentação completa está em [`../docs/AUDITORIA.md`](../docs/AUDITORIA.md).

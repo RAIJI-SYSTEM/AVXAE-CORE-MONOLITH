@@ -219,6 +219,8 @@ Dashboard: `http://localhost:3300/d/raiji-auditoria`
 
 Ele reúne:
 
+- **Busca global** em todos os containers, com filtros de serviço, usuário, ação,
+  status e texto/`request_id`;
 - logs HTTP de monólito, chat, front e Keycloak (Loki);
 - **logs de execução dos testes** de `reports/testes/logs/` dos três repositórios
   (Promtail lê os arquivos via mount `/workspace`);
@@ -226,6 +228,18 @@ Ele reúne:
 - eventos de identidade do Keycloak (exportador);
 - logs de infraestrutura (Kong, Postgres, RabbitMQ);
 - painel de links e comandos úteis.
+
+Filtros do dashboard:
+
+| Filtro | Uso |
+|---|---|
+| **Serviço** | Monólito, Chat, Front, Keycloak ou Infra na busca global |
+| **Usuário** | nome ou `sub` do Keycloak |
+| **Ação** | `RIDE_CREATED`, `MESSAGE_SENT`, `PAYMENT_WEBHOOK` etc. |
+| **Status** | 2xx, 4xx, 5xx ou falhas |
+| **Busca** | texto, rota ou `request_id` em todos os logs |
+| **Serviço (testes)** | filtra os logs de execução dos testes |
+| **Busca SQL** | filtra `audit_log`; padrão `%`, use `%termo%` |
 
 O mount do workspace no Promtail usa `WORKSPACE_DIR` (padrão `../..`, relativo
 ao diretório `observability`). Para apontar para outro local:

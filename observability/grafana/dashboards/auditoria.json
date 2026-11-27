@@ -23,14 +23,29 @@
   ],
   "panels": [
     {
-      "id": 1,
+      "id": 20,
+      "type": "text",
+      "title": "Busca nos logs",
+      "gridPos": {
+        "h": 3,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "### Como encontrar um acontecimento\n\n- **Serviço**: filtra a busca global (Monólito, Chat, Front, Keycloak, Infra).\n- **Usuário**: nome (`maria`) ou `sub` do Keycloak.\n- **Ação**: `RIDE_CREATED`, `MESSAGE_SENT`, `PAYMENT_WEBHOOK` etc.\n- **Status**: `2..` sucesso, `4..` falha, `5..` erro, `4..|5..` ambos.\n- **Busca**: texto livre, rota ou `request_id` (ex.: `req-123`).\n- **Serviço (testes)**: filtra os logs de execução dos testes.\n- **Busca SQL**: filtra a tabela `audit_log` (padrão `%`; use `%termo%`)."
+      }
+    },
+    {
+      "id": 21,
       "type": "logs",
-      "title": "Monólito · auditoria HTTP (quem fez o quê)",
+      "title": "Busca global em todos os logs",
       "gridPos": {
         "h": 11,
         "w": 24,
         "x": 0,
-        "y": 0
+        "y": 3
       },
       "datasource": {
         "type": "loki",
@@ -39,7 +54,36 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "{container=\"raiji-app\"} | json | event=\"http_request\"",
+          "expr": "{container=~\"$servico\"} |~ \"$busca\"",
+          "queryType": "range"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "sortOrder": "Descending",
+        "wrapLogMessage": true,
+        "enableLogDetails": true,
+        "dedupStrategy": "none"
+      }
+    },
+    {
+      "id": 1,
+      "type": "logs",
+      "title": "Monólito · auditoria HTTP (quem fez o quê)",
+      "gridPos": {
+        "h": 11,
+        "w": 24,
+        "x": 0,
+        "y": 14
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{container=\"raiji-app\"} |= \"audit_http_request\" | json | event=\"http_request\" | actor_sub=~\"$usuario\" or actor_username=~\"$usuario\" | action=~\"$acao\" | http_status=~\"$status\" |~ \"$busca\" | line_format \"{{.actor_username}} | {{.action}} | {{.http_method}} {{.http_path}} | {{.http_status}} | {{.duration_ms}}ms | {{.request_id}}\"",
           "queryType": "range"
         }
       ],
@@ -59,7 +103,7 @@
         "h": 11,
         "w": 24,
         "x": 0,
-        "y": 11
+        "y": 25
       },
       "datasource": {
         "type": "loki",
@@ -68,7 +112,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "{container=\"raiji-chat\"} | json | audit=\"true\"",
+          "expr": "{container=\"raiji-chat\"} |= \"audit_http_request\" | json | audit=\"true\" | actor_sub=~\"$usuario\" or actor_username=~\"$usuario\" | action=~\"$acao\" | http_status=~\"$status\" |~ \"$busca\" | line_format \"{{.actor_username}} | {{.action}} | {{.http_method}} {{.http_path}} | {{.http_status}} | {{.duration_ms}}ms | {{.request_id}}\"",
           "queryType": "range"
         }
       ],
@@ -88,7 +132,7 @@
         "h": 11,
         "w": 24,
         "x": 0,
-        "y": 22
+        "y": 36
       },
       "datasource": {
         "type": "loki",
@@ -97,7 +141,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "{container=\"raiji-front\"} | json | event=~\"http_request|bff_request|page_view\"",
+          "expr": "{container=\"raiji-front\"} |= \"\\\"service\\\":\\\"front-pwa\\\"\" | json | event=~\"http_request|bff_request|page_view\" | actorSub=~\"$usuario\" or actorUsername=~\"$usuario\" |~ \"$busca\" | line_format \"{{.actorUsername}} | {{.event}} | {{.method}} {{.path}} | {{.status}} | {{.requestId}}\"",
           "queryType": "range"
         }
       ],
@@ -117,7 +161,7 @@
         "h": 11,
         "w": 24,
         "x": 0,
-        "y": 33
+        "y": 47
       },
       "datasource": {
         "type": "loki",
@@ -126,7 +170,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "{container=\"raiji-keycloak\"} |~ \"LOGIN|LOGOUT\"",
+          "expr": "{container=\"raiji-keycloak\"} |~ \"LOGIN|LOGOUT\" |~ \"$busca\"",
           "queryType": "range"
         }
       ],
@@ -146,7 +190,7 @@
         "h": 14,
         "w": 24,
         "x": 0,
-        "y": 44
+        "y": 58
       },
       "datasource": {
         "type": "loki",
@@ -155,17 +199,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "{job=\"test-logs\", service=\"avxae-core-monolith\"}",
-          "queryType": "range"
-        },
-        {
-          "refId": "B",
-          "expr": "{job=\"test-logs\", service=\"front-pwa\"}",
-          "queryType": "range"
-        },
-        {
-          "refId": "C",
-          "expr": "{job=\"test-logs\", service=\"message-service\"}",
+          "expr": "{job=\"test-logs\", service=~\"$teste_servico\"} |~ \"$busca\"",
           "queryType": "range"
         }
       ],
@@ -185,7 +219,7 @@
         "h": 10,
         "w": 24,
         "x": 0,
-        "y": 58
+        "y": 72
       },
       "datasource": {
         "type": "postgres",
@@ -194,7 +228,7 @@
       "targets": [
         {
           "refId": "A",
-          "rawSql": "SELECT created_at AS \"Quando\", actor_sub AS \"Ator\", action AS \"Ação\", entity_type AS \"Recurso\", entity_id AS \"ID\", details AS \"Detalhes\" FROM audit_log ORDER BY created_at DESC LIMIT 100",
+          "rawSql": "SELECT created_at AS \"Quando\", actor_sub AS \"Ator\", action AS \"Ação\", entity_type AS \"Recurso\", entity_id AS \"ID\", details AS \"Detalhes\" FROM audit_log WHERE (action ILIKE '%$busca_sql%' OR actor_sub ILIKE '%$busca_sql%' OR details ILIKE '%$busca_sql%') ORDER BY created_at DESC LIMIT 100",
           "format": "table",
           "editorMode": "code"
         }
@@ -211,7 +245,7 @@
         "h": 10,
         "w": 24,
         "x": 0,
-        "y": 68
+        "y": 82
       },
       "datasource": {
         "type": "loki",
@@ -220,7 +254,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "{container=\"raiji-keycloak-events\"} |= \"keycloak_event\" | json | line_format \"{{.username}}{{.actorUsername}} | {{.kind}} | {{.type}} | {{.resourcePath}} | {{.ipAddress}}{{.actorIp}}\"",
+          "expr": "{container=\"raiji-keycloak-events\"} |= \"keycloak_event\" | json | username=~\"$usuario\" or actorUsername=~\"$usuario\" or userId=~\"$usuario\" or actorId=~\"$usuario\" |~ \"$busca\" | line_format \"{{.username}}{{.actorUsername}} | {{.kind}} | {{.type}} | {{.resourcePath}} | {{.ipAddress}}{{.actorIp}}\"",
           "queryType": "range"
         }
       ],
@@ -240,7 +274,7 @@
         "h": 10,
         "w": 24,
         "x": 0,
-        "y": 78
+        "y": 92
       },
       "datasource": {
         "type": "loki",
@@ -249,7 +283,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "{container=~\"raiji-(kong|postgres|rabbitmq)\"}",
+          "expr": "{container=~\"raiji-(kong|postgres|rabbitmq)\"} |~ \"$busca\"",
           "queryType": "range"
         }
       ],
@@ -269,7 +303,7 @@
         "h": 10,
         "w": 24,
         "x": 0,
-        "y": 88
+        "y": 102
       },
       "options": {
         "mode": "markdown",
@@ -285,7 +319,87 @@
     "logs"
   ],
   "templating": {
-    "list": []
+    "list": [
+      {
+        "name": "servico",
+        "label": "Serviço",
+        "type": "custom",
+        "query": "Monólito : raiji-app, Chat : raiji-chat, Front : raiji-front, Keycloak : raiji-keycloak.*, Infra : raiji-(kong|postgres|rabbitmq)",
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".+",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "options": []
+      },
+      {
+        "name": "usuario",
+        "label": "Usuário (nome ou sub)",
+        "type": "textbox",
+        "query": ".*",
+        "current": {
+          "text": ".*",
+          "value": ".*"
+        }
+      },
+      {
+        "name": "acao",
+        "label": "Ação",
+        "type": "textbox",
+        "query": ".*",
+        "current": {
+          "text": ".*",
+          "value": ".*"
+        }
+      },
+      {
+        "name": "status",
+        "label": "Status",
+        "type": "custom",
+        "query": ".*,2..,4..,5..,4..|5..",
+        "current": {
+          "text": ".*",
+          "value": ".*"
+        },
+        "options": []
+      },
+      {
+        "name": "busca",
+        "label": "Busca (texto, rota, request_id)",
+        "type": "textbox",
+        "query": ".*",
+        "current": {
+          "text": ".*",
+          "value": ".*"
+        }
+      },
+      {
+        "name": "teste_servico",
+        "label": "Serviço (testes)",
+        "type": "custom",
+        "query": "Monólito : avxae-core-monolith, FRONT : front-pwa, MESSAGE : message-service",
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".+",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "options": []
+      },
+      {
+        "name": "busca_sql",
+        "label": "Busca SQL (use %termo%)",
+        "type": "textbox",
+        "query": "%",
+        "current": {
+          "text": "%",
+          "value": "%"
+        }
+      }
+    ]
   },
   "time": {
     "from": "now-1h",
