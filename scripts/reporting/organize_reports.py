@@ -70,8 +70,12 @@ def main(repo: Path, slug: str):
         shutil.copyfile(messaging_file, raw / f"{slug}_mensageria.html")
     if load_file:
         shutil.copyfile(load_file, raw / f"{slug}_carga.html")
-    if scale_file:
-        shutil.copyfile(scale_file, raw / f"{slug}_escalabilidade.html")
+    scale_summary = raw / f"{slug}_escalabilidade.html"
+    if scale_summary.exists():
+        scale_file = scale_summary
+    elif scale_file:
+        shutil.copyfile(scale_file, scale_summary)
+        scale_file = scale_summary
 
     e2e = detailed / "e2e" / "index.html"
     tests = detailed / "testes.html"
@@ -84,7 +88,10 @@ def main(repo: Path, slug: str):
 
     links = {
         "sistema-e2e": [("Relatório Playwright", "testes/e2e/index.html")] if e2e.exists() else [],
-        "mensageria": [("Relatório Locust — mensageria", f"raw/{slug}_mensageria.html")] if messaging_file else [],
+        "mensageria": (
+            ([("Relatório Locust — mensageria", f"raw/{slug}_mensageria.html")] if messaging_file else []) +
+            ([("Falha no consumidor, DLQ e reprocessamento", f"drills/{slug}_dlq.html")] if (reports / "drills" / f"{slug}_dlq.html").exists() else [])
+        ),
         "carga-escalabilidade-monitoramento": (
             ([("Relatório Locust — carga", f"raw/{slug}_carga.html")] if load_file else []) +
             ([("Relatório Locust — escalabilidade 1xN", f"raw/{slug}_escalabilidade.html")] if scale_file else [])
