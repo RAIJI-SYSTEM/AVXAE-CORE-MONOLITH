@@ -48,6 +48,25 @@ a{{color:#1d4ed8;font-weight:600}}li{{margin:.5rem 0}}.muted{{color:#6b7280}}
 </html>"""
 
 
+def video_banner(detailed: Path) -> str:
+    page = detailed / "e2e" / "videos.html"
+    videos = sorted((detailed / "e2e" / "videos").glob("*.webm"))
+    if not page.exists() or not videos:
+        return ""
+    featured = (
+        next((v for v in videos if "navegacao" in v.name.lower()), None)
+        or next((v for v in videos if "login" in v.name.lower()), videos[0])
+    )
+    label = f"Assistir aos {len(videos)} vídeos" if len(videos) > 1 else "Assistir ao vídeo"
+    return f"""<section class="videos">
+  <div><h2>Vídeos dos testes E2E</h2>
+  <p>Gravações das jornadas reais executadas no navegador e na API.
+  {len(videos)} vídeo(s) desta execução.</p>
+  <a class="btn" href="testes/e2e/videos.html">{label}</a></div>
+  <video controls preload="metadata" src="testes/e2e/videos/{html.escape(featured.name)}"></video>
+</section>"""
+
+
 def main(repo: Path, slug: str):
     reports = repo / "reports"
     detailed = reports / "testes"
@@ -87,7 +106,10 @@ def main(repo: Path, slug: str):
     pit = sorted((detailed / "mutacao").glob("*/index.html")) if (detailed / "mutacao").is_dir() else []
 
     links = {
-        "sistema-e2e": [("Relatório Playwright", "testes/e2e/index.html")] if e2e.exists() else [],
+        "sistema-e2e": (
+            ([("Relatório Playwright", "testes/e2e/index.html")] if e2e.exists() else []) +
+            ([("Vídeos E2E", "testes/e2e/videos.html")] if (detailed / "e2e" / "videos.html").exists() else [])
+        ),
         "mensageria": (
             ([("Relatório Locust — mensageria", f"raw/{slug}_mensageria.html")] if messaging_file else []) +
             ([("Falha no consumidor, DLQ e reprocessamento", f"drills/{slug}_dlq.html")] if (reports / "drills" / f"{slug}_dlq.html").exists() else [])
@@ -128,9 +150,15 @@ def main(repo: Path, slug: str):
 <style>body{{font-family:system-ui,Arial,sans-serif;margin:2rem;background:#f9fafb;color:#111827}}
 .grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1rem}}
 article{{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:1rem}}
-h2{{font-size:1.05rem}}a{{color:#1d4ed8;font-weight:600}}</style>
+h2{{font-size:1.05rem}}a{{color:#1d4ed8;font-weight:600}}
+.videos{{display:grid;grid-template-columns:1.2fr 1fr;gap:1.25rem;align-items:center;background:#111827;color:#e5e7eb;border-radius:14px;padding:1.25rem;margin-top:1.25rem}}
+.videos h2{{color:#fff;margin:.1rem 0 .4rem;font-size:1.1rem}} .videos p{{color:#cbd5e1;margin:.25rem 0 1rem}}
+.videos video{{width:100%;border-radius:10px;background:#000;max-height:240px}}
+.btn{{display:inline-block;background:#2563eb;color:#fff!important;text-decoration:none;padding:.65rem 1rem;border-radius:9px}}
+@media(max-width:760px){{.videos{{grid-template-columns:1fr}}}}</style>
 <h1>Relatórios de testes — {slug}</h1>
 <p>Relatórios por tipo de teste, todos no mesmo diretório.</p>
+{video_banner(detailed)}
 <div class="grid">{cards}</div></html>"""
     (reports / "index.html").write_text(index, encoding="utf-8")
 

@@ -49,7 +49,7 @@ if curl -fsS --max-time 3 http://localhost:8000/actuator/health >/dev/null 2>&1;
   e2e_rc=$?
   echo "  03-e2e-playwright: exit $e2e_rc"
   [ "$e2e_rc" -ne 0 ] && status=1
-  [ -d "$ROOT/e2e/playwright-report" ] && cp -r "$ROOT/e2e/playwright-report" "$OUT/e2e"
+  [ -d "$ROOT/e2e/playwright-report" ] && python3 "$ROOT/scripts/reporting/publish_e2e_videos.py" "$ROOT"
 else
   echo "  03-e2e-playwright: ignorado (stack não está em http://localhost:8000)" > "$LOGS/03-e2e-playwright.log"
   echo "E2E não executado: suba a stack do docker-compose primeiro." >> "$LOGS/03-e2e-playwright.log"

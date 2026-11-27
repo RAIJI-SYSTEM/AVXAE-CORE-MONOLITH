@@ -20,4 +20,20 @@ export default defineConfig({
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },
+  projects: [
+    {
+      name: "api",
+      testIgnore: /demo\.spec\.ts/,
+    },
+    {
+      name: "demo",
+      testMatch: /demo\.spec\.ts/,
+      use: {
+        video: "on",
+        trace: "retain-on-failure",
+        screenshot: "on",
+        viewport: { width: 1280, height: 720 },
+      },
+    },
+  ],
 });
