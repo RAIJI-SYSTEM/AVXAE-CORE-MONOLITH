@@ -34,7 +34,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "### Como encontrar um acontecimento\n\n- **Serviço**: filtra a busca global (Monólito, Chat, Front, Keycloak, Infra).\n- **Usuário**: nome (`maria`) ou `sub` do Keycloak.\n- **Ação**: `RIDE_CREATED`, `MESSAGE_SENT`, `PAYMENT_WEBHOOK` etc.\n- **Status**: `2..` sucesso, `4..` falha, `5..` erro, `4..|5..` ambos.\n- **Busca**: texto livre, rota ou `request_id` (ex.: `req-123`).\n- **Serviço (testes)**: filtra os logs de execução dos testes.\n- **Busca SQL**: filtra a tabela `audit_log` (padrão `%`; use `%termo%`)."
+        "content": "### Como encontrar um acontecimento\n\n- **Serviço**: filtra a busca global (Monólito, Chat, Front, Keycloak, Infra).\n- **Usuário**: nome (`maria`) ou `sub` do Keycloak. O padrão `.+` mostra só autenticados; use `.*` para incluir anônimos.\n- **Ação**: `RIDE_CREATED`, `MESSAGE_SENT`, `PAYMENT_WEBHOOK` etc.\n- **Status**: `2..` sucesso, `4..` falha, `5..` erro, `4..|5..` ambos.\n- **Busca**: texto livre, rota ou `request_id` (ex.: `req-123`).\n- **Serviço (testes)**: filtra os logs de execução dos testes.\n- **Busca SQL**: filtra a tabela `audit_log` (padrão `%`; use `%termo%`)."
       }
     },
     {
@@ -309,6 +309,227 @@
         "mode": "markdown",
         "content": "### Onde ver cada log\n\n- [Logs dos testes — monólito](http://127.0.0.1:8090/AVXAE-CORE-MONOLITH/reports/testes/logs/)\n- [Logs dos testes — FRONT](http://127.0.0.1:8090/FRONT-PWA/reports/testes/logs/)\n- [Logs dos testes — MESSAGE](http://127.0.0.1:8090/MESSAGE-SERVICE/reports/testes/logs/)\n- [Relatórios HTML — monólito](http://127.0.0.1:8090/AVXAE-CORE-MONOLITH/reports/)\n- [Keycloak Events](http://localhost:8180/admin/master/console/)\n- [Visão de negócio](http://localhost:3300/d/raiji-auditoria-negocio)\n\n### Comandos\n\n```bash\ndocker logs -f raiji-app\ndocker logs -f raiji-chat\ndocker logs -f raiji-front\ndocker logs -f raiji-keycloak\n```\n\n### APIs de auditoria\n\n```text\nGET /api/audit/me\nGET /api/admin/audit\nGET /chat/audit/me\nGET /chat/audit/events\n```"
       }
+    },
+    {
+      "id": 22,
+      "type": "stat",
+      "title": "Usuários ativos (24h)",
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 0,
+        "y": 108
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count(count by (actor_username) (count_over_time({container=~\"raiji-(app|chat)\"} |= \"audit_http_request\" | json | actor_username=~\".+\" [24h])))",
+          "instant": true,
+          "queryType": "instant",
+          "legendFormat": "Monólito/Chat"
+        },
+        {
+          "refId": "B",
+          "expr": "count(count by (actorUsername) (count_over_time({container=\"raiji-front\"} |= \"\\\"service\\\":\\\"front-pwa\\\"\" | json | actorUsername=~\".+\" [24h])))",
+          "instant": true,
+          "queryType": "instant",
+          "legendFormat": "Front"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name",
+        "colorMode": "value",
+        "graphMode": "none"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Value #A"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Monólito/Chat"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Value #B"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Front"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 23,
+      "type": "table",
+      "title": "Usuários — o que estão fazendo (monólito/chat)",
+      "gridPos": {
+        "h": 11,
+        "w": 12,
+        "x": 0,
+        "y": 112
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "topk(50, sum by (actor_username, action) (count_over_time({container=~\"raiji-(app|chat)\"} |= \"audit_http_request\" | json | actor_username=~\".+\" [24h])))",
+          "instant": true,
+          "queryType": "instant",
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "actor_username": "Usuário",
+              "action": "Ação",
+              "Value": "Ações",
+              "Value #A": "Ações"
+            },
+            "indexByName": {
+              "Usuário": 0,
+              "Ação": 1,
+              "Ações": 2
+            }
+          }
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "Ações",
+            "desc": true
+          }
+        ]
+      }
+    },
+    {
+      "id": 24,
+      "type": "table",
+      "title": "Usuários — o que estão fazendo (front)",
+      "gridPos": {
+        "h": 11,
+        "w": 12,
+        "x": 12,
+        "y": 112
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "topk(50, sum by (actorUsername, event) (count_over_time({container=\"raiji-front\"} |= \"\\\"service\\\":\\\"front-pwa\\\"\" | json | actorUsername=~\".+\" [24h])))",
+          "instant": true,
+          "queryType": "instant",
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "actorUsername": "Usuário",
+              "event": "Evento",
+              "Value": "Ações",
+              "Value #A": "Ações"
+            },
+            "indexByName": {
+              "Usuário": 0,
+              "Evento": 1,
+              "Ações": 2
+            }
+          }
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "Ações",
+            "desc": true
+          }
+        ]
+      }
+    },
+    {
+      "id": 25,
+      "type": "logs",
+      "title": "Últimas ações por usuário",
+      "gridPos": {
+        "h": 14,
+        "w": 24,
+        "x": 0,
+        "y": 123
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{container=\"raiji-app\"} |= \"audit_http_request\" | json | event=\"http_request\" | actor_username=~\"$usuario\" |~ \"$busca\" | line_format \"{{.actor_username}} | {{.action}} | {{.http_method}} {{.http_path}} | {{.http_status}} | {{.duration_ms}}ms | {{.request_id}}\"",
+          "queryType": "range"
+        },
+        {
+          "refId": "B",
+          "expr": "{container=\"raiji-chat\"} |= \"audit_http_request\" | json | audit=\"true\" | actor_username=~\"$usuario\" |~ \"$busca\" | line_format \"{{.actor_username}} | {{.action}} | {{.http_method}} {{.http_path}} | {{.http_status}} | {{.duration_ms}}ms | {{.request_id}}\"",
+          "queryType": "range"
+        },
+        {
+          "refId": "C",
+          "expr": "{container=\"raiji-front\"} |= \"\\\"service\\\":\\\"front-pwa\\\"\" | json | actorUsername=~\"$usuario\" |~ \"$busca\" | line_format \"{{.actorUsername}} | {{.event}} | {{.method}} {{.path}} | {{.status}} | {{.requestId}}\"",
+          "queryType": "range"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "sortOrder": "Descending",
+        "wrapLogMessage": true,
+        "enableLogDetails": true,
+        "dedupStrategy": "none"
+      }
     }
   ],
   "refresh": "10s",
@@ -338,10 +559,10 @@
         "name": "usuario",
         "label": "Usuário (nome ou sub)",
         "type": "textbox",
-        "query": ".*",
+        "query": ".+",
         "current": {
-          "text": ".*",
-          "value": ".*"
+          "text": ".+",
+          "value": ".+"
         }
       },
       {

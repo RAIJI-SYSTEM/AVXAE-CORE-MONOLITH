@@ -241,6 +241,16 @@ Filtros do dashboard:
 | **Serviço (testes)** | filtra os logs de execução dos testes |
 | **Busca SQL** | filtra `audit_log`; padrão `%`, use `%termo%` |
 
+O padrão de **Usuário** é `.+` (somente autenticados). Use `.*` para incluir
+navegações anônimas do front.
+
+Painéis de usuários no dashboard técnico:
+
+- **Usuários ativos (24h)** — quantidade de usuários distintos no monólito/chat e no front.
+- **Usuários — o que estão fazendo (monólito/chat)** — tabela Usuário × Ação × Ações.
+- **Usuários — o que estão fazendo (front)** — tabela Usuário × Evento × Ações.
+- **Últimas ações por usuário** — linha do tempo das ações com usuário, ação, rota, status, duração e `request_id`.
+
 O mount do workspace no Promtail usa `WORKSPACE_DIR` (padrão `../..`, relativo
 ao diretório `observability`). Para apontar para outro local:
 
