@@ -23,6 +23,2921 @@
   ],
   "panels": [
     {
+      "id": 900,
+      "type": "row",
+      "title": "Visão geral — métricas",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "panels": []
+    },
+    {
+      "id": 901,
+      "type": "stat",
+      "title": "Ações auditadas",
+      "description": "Total de ações registradas no monólito, chat e front no período. Não depende do filtro Serviço; usa os três serviços de auditoria.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 0,
+        "y": 1
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(count_over_time({container=~\"raiji-(app|chat|front)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | label_format dur=\"{{.duration_ms}}{{.durationMs}}\" | label_format path=\"{{.http_path}}{{.path}}\" | label_format method=\"{{.http_method}}{{.method}}\" | user=~\"$usuario\" | acao=~\"$acao\" | code=~\"$status\" |~ \"$busca\" [$__range]))",
+          "instant": true,
+          "queryType": "instant"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "wideLayout": true
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "locale",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 902,
+      "type": "stat",
+      "title": "Usuários únicos",
+      "description": "Pessoas diferentes que fizeram alguma ação no período.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 4,
+        "y": 1
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count(count by (user) (count_over_time({container=~\"raiji-(app|chat|front)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | label_format dur=\"{{.duration_ms}}{{.durationMs}}\" | label_format path=\"{{.http_path}}{{.path}}\" | label_format method=\"{{.http_method}}{{.method}}\" | user=~\"$usuario\" | acao=~\"$acao\" | code=~\"$status\" |~ \"$busca\" [$__range])))",
+          "instant": true,
+          "queryType": "instant"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "wideLayout": true
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "locale",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 903,
+      "type": "stat",
+      "title": "Falhas (4xx/5xx)",
+      "description": "Ações com erro do usuário (4xx) ou falha do sistema (5xx).",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 8,
+        "y": 1
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(sum(count_over_time({container=~\"raiji-(app|chat|front)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | label_format dur=\"{{.duration_ms}}{{.durationMs}}\" | label_format path=\"{{.http_path}}{{.path}}\" | label_format method=\"{{.http_method}}{{.method}}\" | user=~\"$usuario\" | acao=~\"$acao\" | code=~\"$status\" |~ \"$busca\" | code=~\"$status\" | code=~\"4..|5..\" [$__range])) or vector(0))",
+          "instant": true,
+          "queryType": "instant"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "wideLayout": true
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "locale",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 10
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 904,
+      "type": "stat",
+      "title": "Taxa de erro",
+      "description": "Percentual de ações que terminaram em 4xx ou 5xx.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 12,
+        "y": 1
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(100 * sum(count_over_time({container=~\"raiji-(app|chat|front)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | label_format dur=\"{{.duration_ms}}{{.durationMs}}\" | label_format path=\"{{.http_path}}{{.path}}\" | label_format method=\"{{.http_method}}{{.method}}\" | user=~\"$usuario\" | acao=~\"$acao\" | code=~\"$status\" |~ \"$busca\" | code=~\"$status\" | code=~\"4..|5..\" [$__range])) / sum(count_over_time({container=~\"raiji-(app|chat|front)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | label_format dur=\"{{.duration_ms}}{{.durationMs}}\" | label_format path=\"{{.http_path}}{{.path}}\" | label_format method=\"{{.http_method}}{{.method}}\" | user=~\"$usuario\" | acao=~\"$acao\" | code=~\"$status\" |~ \"$busca\" [$__range]))) or vector(0)",
+          "instant": true,
+          "queryType": "instant"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "wideLayout": true
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 5
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 905,
+      "type": "stat",
+      "title": "Tempo médio de resposta",
+      "description": "Tempo médio entre a requisição e a resposta, em milissegundos.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 16,
+        "y": 1
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(sum_over_time({container=~\"raiji-(app|chat|front)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | label_format dur=\"{{.duration_ms}}{{.durationMs}}\" | label_format path=\"{{.http_path}}{{.path}}\" | label_format method=\"{{.http_method}}{{.method}}\" | user=~\"$usuario\" | acao=~\"$acao\" | code=~\"$status\" |~ \"$busca\" | dur=~\".+\" | unwrap dur [$__range])) / sum(count_over_time({container=~\"raiji-(app|chat|front)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | label_format dur=\"{{.duration_ms}}{{.durationMs}}\" | label_format path=\"{{.http_path}}{{.path}}\" | label_format method=\"{{.http_method}}{{.method}}\" | user=~\"$usuario\" | acao=~\"$acao\" | code=~\"$status\" |~ \"$busca\" | dur=~\".+\" [$__range]))",
+          "instant": true,
+          "queryType": "instant"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "wideLayout": true
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "decimals": 1,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 500
+              },
+              {
+                "color": "red",
+                "value": 2000
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 906,
+      "type": "stat",
+      "title": "Serviços ativos",
+      "description": "Quantos dos três serviços de auditoria tiveram ações no período.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 20,
+        "y": 1
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count(count by (container) (count_over_time({container=~\"raiji-(app|chat|front)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | label_format dur=\"{{.duration_ms}}{{.durationMs}}\" | label_format path=\"{{.http_path}}{{.path}}\" | label_format method=\"{{.http_method}}{{.method}}\" | user=~\"$usuario\" | acao=~\"$acao\" | code=~\"$status\" |~ \"$busca\" [$__range])))",
+          "instant": true,
+          "queryType": "instant"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "wideLayout": true
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "locale",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "purple",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 910,
+      "type": "timeseries",
+      "title": "Ações e falhas ao longo do tempo",
+      "description": "Volume de ações e de falhas por intervalo. Ajuda a identificar picos de uso e momentos de erro.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(count_over_time({container=~\"raiji-(app|chat|front)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | label_format dur=\"{{.duration_ms}}{{.durationMs}}\" | label_format path=\"{{.http_path}}{{.path}}\" | label_format method=\"{{.http_method}}{{.method}}\" | user=~\"$usuario\" | acao=~\"$acao\" | code=~\"$status\" |~ \"$busca\" [$__interval]))",
+          "queryType": "range",
+          "legendFormat": "Ações"
+        },
+        {
+          "refId": "B",
+          "expr": "sum(count_over_time({container=~\"raiji-(app|chat|front)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | label_format dur=\"{{.duration_ms}}{{.durationMs}}\" | label_format path=\"{{.http_path}}{{.path}}\" | label_format method=\"{{.http_method}}{{.method}}\" | user=~\"$usuario\" | acao=~\"$acao\" | code=~\"$status\" |~ \"$busca\" | code=~\"$status\" | code=~\"4..|5..\" [$__interval]))",
+          "queryType": "range",
+          "legendFormat": "Falhas"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "sum"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "locale",
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "bars",
+            "lineInterpolation": "linear",
+            "barAlignment": 0,
+            "lineWidth": 1,
+            "fillOpacity": 80,
+            "gradientMode": "none",
+            "spanNulls": false,
+            "showPoints": "never",
+            "pointSize": 5,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "axisPlacement": "auto",
+            "axisLabel": "Ações",
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Ações"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#5794F2"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Falhas"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#E02F44"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 911,
+      "type": "timeseries",
+      "title": "Ações por serviço ao longo do tempo",
+      "description": "Distribuição do volume de ações entre monólito, chat e front.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (container) (count_over_time({container=~\"raiji-(app|chat|front)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | label_format dur=\"{{.duration_ms}}{{.durationMs}}\" | label_format path=\"{{.http_path}}{{.path}}\" | label_format method=\"{{.http_method}}{{.method}}\" | user=~\"$usuario\" | acao=~\"$acao\" | code=~\"$status\" |~ \"$busca\" [$__interval]))",
+          "queryType": "range",
+          "legendFormat": "{{container}}"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "sum"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "locale",
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "bars",
+            "lineInterpolation": "linear",
+            "barAlignment": 0,
+            "lineWidth": 1,
+            "fillOpacity": 80,
+            "gradientMode": "none",
+            "spanNulls": false,
+            "showPoints": "never",
+            "pointSize": 5,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            },
+            "axisPlacement": "auto",
+            "axisLabel": "Ações",
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "raiji-app"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Monólito"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#5794F2"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "raiji-chat"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Chat"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#73BF69"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "raiji-front"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Front"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#B877D9"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 920,
+      "type": "table",
+      "title": "Resumo por serviço",
+      "description": "Ações, falhas, taxa de erro e tempo médio de resposta de cada serviço.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 8,
+        "x": 0,
+        "y": 13
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (container) (count_over_time({container=~\"raiji-(app|chat|front)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | label_format dur=\"{{.duration_ms}}{{.durationMs}}\" | label_format path=\"{{.http_path}}{{.path}}\" | label_format method=\"{{.http_method}}{{.method}}\" | user=~\"$usuario\" | acao=~\"$acao\" | code=~\"$status\" |~ \"$busca\" [$__range]))",
+          "instant": true,
+          "queryType": "instant",
+          "format": "table"
+        },
+        {
+          "refId": "B",
+          "expr": "(sum by (container) (count_over_time({container=~\"raiji-(app|chat|front)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | label_format dur=\"{{.duration_ms}}{{.durationMs}}\" | label_format path=\"{{.http_path}}{{.path}}\" | label_format method=\"{{.http_method}}{{.method}}\" | user=~\"$usuario\" | acao=~\"$acao\" | code=~\"$status\" |~ \"$busca\" | code=~\"$status\" | code=~\"4..|5..\" [$__range])) or on(container) (sum by (container) (count_over_time({container=~\"raiji-(app|chat|front)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | label_format dur=\"{{.duration_ms}}{{.durationMs}}\" | label_format path=\"{{.http_path}}{{.path}}\" | label_format method=\"{{.http_method}}{{.method}}\" | user=~\"$usuario\" | acao=~\"$acao\" | code=~\"$status\" |~ \"$busca\" [$__range])) * 0))",
+          "instant": true,
+          "queryType": "instant",
+          "format": "table"
+        },
+        {
+          "refId": "C",
+          "expr": "(100 * (sum by (container) (count_over_time({container=~\"raiji-(app|chat|front)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | label_format dur=\"{{.duration_ms}}{{.durationMs}}\" | label_format path=\"{{.http_path}}{{.path}}\" | label_format method=\"{{.http_method}}{{.method}}\" | user=~\"$usuario\" | acao=~\"$acao\" | code=~\"$status\" |~ \"$busca\" | code=~\"$status\" | code=~\"4..|5..\" [$__range])) / sum by (container) (count_over_time({container=~\"raiji-(app|chat|front)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | label_format dur=\"{{.duration_ms}}{{.durationMs}}\" | label_format path=\"{{.http_path}}{{.path}}\" | label_format method=\"{{.http_method}}{{.method}}\" | user=~\"$usuario\" | acao=~\"$acao\" | code=~\"$status\" |~ \"$busca\" [$__range])))) or on(container) (sum by (container) (count_over_time({container=~\"raiji-(app|chat|front)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | label_format dur=\"{{.duration_ms}}{{.durationMs}}\" | label_format path=\"{{.http_path}}{{.path}}\" | label_format method=\"{{.http_method}}{{.method}}\" | user=~\"$usuario\" | acao=~\"$acao\" | code=~\"$status\" |~ \"$busca\" [$__range])) * 0)",
+          "instant": true,
+          "queryType": "instant",
+          "format": "table"
+        },
+        {
+          "refId": "D",
+          "expr": "sum by (container) (sum_over_time({container=~\"raiji-(app|chat|front)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | label_format dur=\"{{.duration_ms}}{{.durationMs}}\" | label_format path=\"{{.http_path}}{{.path}}\" | label_format method=\"{{.http_method}}{{.method}}\" | user=~\"$usuario\" | acao=~\"$acao\" | code=~\"$status\" |~ \"$busca\" | dur=~\".+\" | unwrap dur [$__range])) / sum by (container) (count_over_time({container=~\"raiji-(app|chat|front)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | label_format dur=\"{{.duration_ms}}{{.durationMs}}\" | label_format path=\"{{.http_path}}{{.path}}\" | label_format method=\"{{.http_method}}{{.method}}\" | user=~\"$usuario\" | acao=~\"$acao\" | code=~\"$status\" |~ \"$busca\" | dur=~\".+\" [$__range]))",
+          "instant": true,
+          "queryType": "instant",
+          "format": "table"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "Ações",
+            "desc": true
+          }
+        ],
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Ações"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "locale"
+              },
+              {
+                "id": "custom.align",
+                "value": "right"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "gradient"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "blue",
+                      "value": null
+                    },
+                    {
+                      "color": "purple",
+                      "value": 500
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Falhas"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "locale"
+              },
+              {
+                "id": "custom.align",
+                "value": "right"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "gradient"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 1
+                    },
+                    {
+                      "color": "red",
+                      "value": 10
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Erro %"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              },
+              {
+                "id": "custom.align",
+                "value": "right"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Tempo médio (ms)"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "ms"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              },
+              {
+                "id": "custom.align",
+                "value": "right"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Serviço"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "raiji-app": {
+                        "text": "Monólito",
+                        "index": 0
+                      },
+                      "raiji-chat": {
+                        "text": "Chat",
+                        "index": 1
+                      },
+                      "raiji-front": {
+                        "text": "Front",
+                        "index": 2
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "labelsToFields",
+          "options": {
+            "mode": "columns",
+            "keepLabels": [
+              "container"
+            ]
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            }
+          }
+        },
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "container",
+            "mode": "outer"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time 1": true,
+              "Time 2": true,
+              "Time 3": true,
+              "Time 4": true
+            },
+            "renameByName": {
+              "container": "Serviço",
+              "Value #A": "Ações",
+              "Value #B": "Falhas",
+              "Value #C": "Erro %",
+              "Value #D": "Tempo médio (ms)"
+            },
+            "indexByName": {
+              "Serviço": 0,
+              "Ações": 1,
+              "Falhas": 2,
+              "Erro %": 3,
+              "Tempo médio (ms)": 4
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 921,
+      "type": "table",
+      "title": "Top ações",
+      "description": "Tipos de ação mais frequentes no período.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 8,
+        "x": 8,
+        "y": 13
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "topk(15, sum by (acao) (count_over_time({container=~\"raiji-(app|chat|front)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | label_format dur=\"{{.duration_ms}}{{.durationMs}}\" | label_format path=\"{{.http_path}}{{.path}}\" | label_format method=\"{{.http_method}}{{.method}}\" | user=~\"$usuario\" | acao=~\"$acao\" | code=~\"$status\" |~ \"$busca\" | acao=~\".+\" [$__range])))",
+          "instant": true,
+          "queryType": "instant",
+          "format": "table"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "Ações",
+            "desc": true
+          }
+        ],
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Ações"
+            },
+            "properties": [
+              {
+                "id": "custom.align",
+                "value": "right"
+              },
+              {
+                "id": "unit",
+                "value": "locale"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "gradient"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "blue",
+                      "value": null
+                    },
+                    {
+                      "color": "purple",
+                      "value": 500
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "acao": "Ação",
+              "Value": "Ações",
+              "Value #A": "Ações"
+            },
+            "indexByName": {
+              "Ação": 0,
+              "Ações": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 922,
+      "type": "table",
+      "title": "Top usuários",
+      "description": "Pessoas com mais ações no período.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 8,
+        "x": 16,
+        "y": 13
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "topk(15, sum by (user) (count_over_time({container=~\"raiji-(app|chat|front)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | label_format dur=\"{{.duration_ms}}{{.durationMs}}\" | label_format path=\"{{.http_path}}{{.path}}\" | label_format method=\"{{.http_method}}{{.method}}\" | user=~\"$usuario\" | acao=~\"$acao\" | code=~\"$status\" |~ \"$busca\" | user=~\".+\" [$__range])))",
+          "instant": true,
+          "queryType": "instant",
+          "format": "table"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "Ações",
+            "desc": true
+          }
+        ],
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Ações"
+            },
+            "properties": [
+              {
+                "id": "custom.align",
+                "value": "right"
+              },
+              {
+                "id": "unit",
+                "value": "locale"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "gradient"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "blue",
+                      "value": null
+                    },
+                    {
+                      "color": "purple",
+                      "value": 500
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "user": "Usuário",
+              "Value": "Ações",
+              "Value #A": "Ações"
+            },
+            "indexByName": {
+              "Usuário": 0,
+              "Ações": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 923,
+      "type": "table",
+      "title": "Rotas mais acessadas",
+      "description": "Caminhos (rotas) que receberam mais requisições.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 22
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "topk(15, sum by (path) (count_over_time({container=~\"raiji-(app|chat|front)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | label_format dur=\"{{.duration_ms}}{{.durationMs}}\" | label_format path=\"{{.http_path}}{{.path}}\" | label_format method=\"{{.http_method}}{{.method}}\" | user=~\"$usuario\" | acao=~\"$acao\" | code=~\"$status\" |~ \"$busca\" | path=~\".+\" [$__range])))",
+          "instant": true,
+          "queryType": "instant",
+          "format": "table"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "Requisições",
+            "desc": true
+          }
+        ],
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Requisições"
+            },
+            "properties": [
+              {
+                "id": "custom.align",
+                "value": "right"
+              },
+              {
+                "id": "unit",
+                "value": "locale"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "gradient"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "blue",
+                      "value": null
+                    },
+                    {
+                      "color": "purple",
+                      "value": 500
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "path": "Rota",
+              "Value": "Requisições",
+              "Value #A": "Requisições"
+            },
+            "indexByName": {
+              "Rota": 0,
+              "Requisições": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 924,
+      "type": "table",
+      "title": "Distribuição por status",
+      "description": "Quantidade de ações por código HTTP de resposta.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 22
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (code) (count_over_time({container=~\"raiji-(app|chat|front)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | label_format dur=\"{{.duration_ms}}{{.durationMs}}\" | label_format path=\"{{.http_path}}{{.path}}\" | label_format method=\"{{.http_method}}{{.method}}\" | user=~\"$usuario\" | acao=~\"$acao\" | code=~\"$status\" |~ \"$busca\" | code=~\".+\" [$__range]))",
+          "instant": true,
+          "queryType": "instant",
+          "format": "table"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "Ações",
+            "desc": true
+          }
+        ],
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Ações"
+            },
+            "properties": [
+              {
+                "id": "custom.align",
+                "value": "right"
+              },
+              {
+                "id": "unit",
+                "value": "locale"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "gradient"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "blue",
+                      "value": null
+                    },
+                    {
+                      "color": "purple",
+                      "value": 500
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "code": "Status",
+              "Value": "Ações",
+              "Value #A": "Ações"
+            },
+            "indexByName": {
+              "Status": 0,
+              "Ações": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 925,
+      "type": "table",
+      "title": "Volume de logs por container",
+      "description": "Quantidade de linhas de log recebidas de cada container raiji-* no período.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 22
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "topk(15, sum by (container) (count_over_time({container=~\"raiji-.*\"} [$__range])))",
+          "instant": true,
+          "queryType": "instant",
+          "format": "table"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "Linhas",
+            "desc": true
+          }
+        ],
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Linhas"
+            },
+            "properties": [
+              {
+                "id": "custom.align",
+                "value": "right"
+              },
+              {
+                "id": "unit",
+                "value": "locale"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "gradient"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "blue",
+                      "value": null
+                    },
+                    {
+                      "color": "purple",
+                      "value": 500
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "container": "Container",
+              "Value": "Linhas",
+              "Value #A": "Linhas"
+            },
+            "indexByName": {
+              "Container": 0,
+              "Linhas": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 930,
+      "type": "row",
+      "title": "Métricas por fonte de dados",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 30
+      },
+      "panels": []
+    },
+    {
+      "id": 931,
+      "type": "stat",
+      "title": "Registros no audit_log",
+      "description": "Total de registros duráveis na tabela audit_log do Postgres.",
+      "datasource": {
+        "type": "postgres",
+        "uid": "postgres-auditoria"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 31
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawSql": "SELECT count(*) AS \"Registros\" FROM audit_log WHERE (action ILIKE '%$busca_sql%' OR actor_sub ILIKE '%$busca_sql%' OR details ILIKE '%$busca_sql%')",
+          "format": "table",
+          "editorMode": "code"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "wideLayout": true
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "locale",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 932,
+      "type": "stat",
+      "title": "Eventos Keycloak",
+      "description": "Total de eventos de identidade (login, logout, erros e admin) no período.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 31
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(count_over_time({container=\"raiji-keycloak-events\"} |= \"keycloak_event\" | json [$__range]))",
+          "instant": true,
+          "queryType": "instant"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "wideLayout": true
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "locale",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "purple",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 933,
+      "type": "stat",
+      "title": "Linhas de teste",
+      "description": "Linhas de log de execução dos testes dos três repositórios no período.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 31
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(count_over_time({job=\"test-logs\", service=~\"$teste_servico\"} [$__range]))",
+          "instant": true,
+          "queryType": "instant"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "wideLayout": true
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "locale",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 934,
+      "type": "stat",
+      "title": "Linhas de infraestrutura",
+      "description": "Logs de Kong, Keycloak, Postgres e RabbitMQ no período.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 31
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(count_over_time({container=~\"raiji-(kong|postgres|rabbitmq|keycloak)\"} [$__range]))",
+          "instant": true,
+          "queryType": "instant"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "wideLayout": true
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "locale",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 935,
+      "type": "table",
+      "title": "Postgres — top ações no audit_log",
+      "description": "Ações mais gravadas na tabela durável. Use o filtro Busca SQL para refinar.",
+      "datasource": {
+        "type": "postgres",
+        "uid": "postgres-auditoria"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 35
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawSql": "SELECT action AS \"Ação\", count(*) AS \"Registros\" FROM audit_log WHERE (action ILIKE '%$busca_sql%' OR actor_sub ILIKE '%$busca_sql%' OR details ILIKE '%$busca_sql%') GROUP BY action ORDER BY 2 DESC LIMIT 10",
+          "format": "table",
+          "editorMode": "code"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "Registros",
+            "desc": true
+          }
+        ],
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Registros"
+            },
+            "properties": [
+              {
+                "id": "custom.align",
+                "value": "right"
+              },
+              {
+                "id": "unit",
+                "value": "locale"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "gradient"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "blue",
+                      "value": null
+                    },
+                    {
+                      "color": "purple",
+                      "value": 50
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 936,
+      "type": "table",
+      "title": "Keycloak — eventos por tipo",
+      "description": "Eventos de identidade agrupados por origem e tipo.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 12,
+        "y": 35
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "topk(20, sum by (kind, type) (count_over_time({container=\"raiji-keycloak-events\"} |= \"keycloak_event\" | json [$__range])))",
+          "instant": true,
+          "queryType": "instant",
+          "format": "table"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "Total",
+            "desc": true
+          }
+        ],
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Total"
+            },
+            "properties": [
+              {
+                "id": "custom.align",
+                "value": "right"
+              },
+              {
+                "id": "unit",
+                "value": "locale"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "gradient"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "blue",
+                      "value": null
+                    },
+                    {
+                      "color": "purple",
+                      "value": 500
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Origem"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "user_event": {
+                        "text": "Pessoa",
+                        "index": 0
+                      },
+                      "admin_event": {
+                        "text": "Administrador",
+                        "index": 1
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "kind": "Origem",
+              "type": "Evento",
+              "Value": "Total",
+              "Value #A": "Total"
+            },
+            "indexByName": {
+              "Origem": 0,
+              "Evento": 1,
+              "Total": 2
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 937,
+      "type": "table",
+      "title": "Testes — linhas por serviço",
+      "description": "Volume de log de teste por repositório/serviço.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 18,
+        "y": 35
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (service) (count_over_time({job=\"test-logs\", service=~\"$teste_servico\"} [$__range]))",
+          "instant": true,
+          "queryType": "instant",
+          "format": "table"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "Linhas",
+            "desc": true
+          }
+        ],
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Linhas"
+            },
+            "properties": [
+              {
+                "id": "custom.align",
+                "value": "right"
+              },
+              {
+                "id": "unit",
+                "value": "locale"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "gradient"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "blue",
+                      "value": null
+                    },
+                    {
+                      "color": "purple",
+                      "value": 500
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Serviço"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "avxae-core-monolith": {
+                        "text": "Monólito",
+                        "index": 0
+                      },
+                      "front-pwa": {
+                        "text": "Front",
+                        "index": 1
+                      },
+                      "message-service": {
+                        "text": "Message",
+                        "index": 2
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "service": "Serviço",
+              "Value": "Linhas",
+              "Value #A": "Linhas"
+            },
+            "indexByName": {
+              "Serviço": 0,
+              "Linhas": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 950,
+      "type": "row",
+      "title": "Métricas de logs por serviço",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 43
+      },
+      "panels": []
+    },
+    {
+      "id": 951,
+      "type": "stat",
+      "title": "Linhas de log",
+      "description": "Total de linhas de log recebidas dos serviços monitorados no período.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 44
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(count_over_time({container=~\"raiji-(app|chat|front|keycloak|kong|postgres|rabbitmq|rustfs)\"} [$__range]))",
+          "instant": true,
+          "queryType": "instant"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "wideLayout": true
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "locale",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 952,
+      "type": "stat",
+      "title": "Linhas com erro",
+      "description": "Linhas que contêm error, fatal, panic, exception, failed ou failure (busca textual, pode incluir falsos positivos).",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 44
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(count_over_time({container=~\"raiji-(app|chat|front|keycloak|kong|postgres|rabbitmq|rustfs)\"} |~ \"(?i)error|fatal|panic|exception|failed|failure\" [$__range]))",
+          "instant": true,
+          "queryType": "instant"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "wideLayout": true
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "locale",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 50
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 953,
+      "type": "stat",
+      "title": "Linhas com aviso",
+      "description": "Linhas que contêm warn/warning (busca textual).",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 44
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(count_over_time({container=~\"raiji-(app|chat|front|keycloak|kong|postgres|rabbitmq|rustfs)\"} |~ \"(?i)warn\" [$__range]))",
+          "instant": true,
+          "queryType": "instant"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "wideLayout": true
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "locale",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 954,
+      "type": "stat",
+      "title": "Containers ativos",
+      "description": "Quantidade de containers de serviço que enviaram logs no período.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 44
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count(count by (container) (count_over_time({container=~\"raiji-(app|chat|front|keycloak|kong|postgres|rabbitmq|rustfs)\"} [$__range])))",
+          "instant": true,
+          "queryType": "instant"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "wideLayout": true
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "locale",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "purple",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 955,
+      "type": "timeseries",
+      "title": "Volume de logs por serviço",
+      "description": "Linhas de log recebidas de cada serviço ao longo do tempo.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 48
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (container) (count_over_time({container=~\"raiji-(app|chat|front|keycloak|kong|postgres|rabbitmq|rustfs)\"} [$__interval]))",
+          "queryType": "range",
+          "legendFormat": "{{container}}"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "sum"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "locale",
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "bars",
+            "lineInterpolation": "linear",
+            "barAlignment": 0,
+            "lineWidth": 1,
+            "fillOpacity": 80,
+            "gradientMode": "none",
+            "spanNulls": false,
+            "showPoints": "never",
+            "pointSize": 5,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            },
+            "axisPlacement": "auto",
+            "axisLabel": "Linhas",
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 956,
+      "type": "timeseries",
+      "title": "Erros de log por serviço",
+      "description": "Linhas com termos de erro em cada serviço ao longo do tempo. Ajuda a localizar picos de falha por container.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 48
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (container) (count_over_time({container=~\"raiji-(app|chat|front|keycloak|kong|postgres|rabbitmq|rustfs)\"} |~ \"(?i)error|fatal|panic|exception|failed|failure\" [$__interval]))",
+          "queryType": "range",
+          "legendFormat": "{{container}}"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "sum"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "locale",
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "bars",
+            "lineInterpolation": "linear",
+            "barAlignment": 0,
+            "lineWidth": 1,
+            "fillOpacity": 80,
+            "gradientMode": "none",
+            "spanNulls": false,
+            "showPoints": "never",
+            "pointSize": 5,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            },
+            "axisPlacement": "auto",
+            "axisLabel": "Erros",
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 957,
+      "type": "table",
+      "title": "Logs por serviço",
+      "description": "Total de linhas, erros, avisos e percentual de erro de cada serviço. Erros e avisos são identificados por busca textual. Considera os serviços monitorados independentemente do filtro Serviço.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 56
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (container) (count_over_time({container=~\"raiji-(app|chat|front|keycloak|kong|postgres|rabbitmq|rustfs)\"} [$__range]))",
+          "instant": true,
+          "queryType": "instant",
+          "format": "table"
+        },
+        {
+          "refId": "B",
+          "expr": "(sum by (container) (count_over_time({container=~\"raiji-(app|chat|front|keycloak|kong|postgres|rabbitmq|rustfs)\"} |~ \"(?i)error|fatal|panic|exception|failed|failure\" [$__range])) or on(container) (sum by (container) (count_over_time({container=~\"raiji-(app|chat|front|keycloak|kong|postgres|rabbitmq|rustfs)\"} [$__range])) * 0))",
+          "instant": true,
+          "queryType": "instant",
+          "format": "table"
+        },
+        {
+          "refId": "C",
+          "expr": "(sum by (container) (count_over_time({container=~\"raiji-(app|chat|front|keycloak|kong|postgres|rabbitmq|rustfs)\"} |~ \"(?i)warn\" [$__range])) or on(container) (sum by (container) (count_over_time({container=~\"raiji-(app|chat|front|keycloak|kong|postgres|rabbitmq|rustfs)\"} [$__range])) * 0))",
+          "instant": true,
+          "queryType": "instant",
+          "format": "table"
+        },
+        {
+          "refId": "D",
+          "expr": "(100 * (sum by (container) (count_over_time({container=~\"raiji-(app|chat|front|keycloak|kong|postgres|rabbitmq|rustfs)\"} |~ \"(?i)error|fatal|panic|exception|failed|failure\" [$__range])) / sum by (container) (count_over_time({container=~\"raiji-(app|chat|front|keycloak|kong|postgres|rabbitmq|rustfs)\"} [$__range])))) or on(container) (sum by (container) (count_over_time({container=~\"raiji-(app|chat|front|keycloak|kong|postgres|rabbitmq|rustfs)\"} [$__range])) * 0)",
+          "instant": true,
+          "queryType": "instant",
+          "format": "table"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "Total",
+            "desc": true
+          }
+        ],
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Total"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "locale"
+              },
+              {
+                "id": "custom.align",
+                "value": "right"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "gradient"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "blue",
+                      "value": null
+                    },
+                    {
+                      "color": "purple",
+                      "value": 5000
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Erros"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "locale"
+              },
+              {
+                "id": "custom.align",
+                "value": "right"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "gradient"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 1
+                    },
+                    {
+                      "color": "red",
+                      "value": 50
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Avisos"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "locale"
+              },
+              {
+                "id": "custom.align",
+                "value": "right"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Erro %"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              },
+              {
+                "id": "custom.align",
+                "value": "right"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Container"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "raiji-app": {
+                        "text": "Monólito",
+                        "index": 0
+                      },
+                      "raiji-chat": {
+                        "text": "Chat",
+                        "index": 1
+                      },
+                      "raiji-front": {
+                        "text": "Front",
+                        "index": 2
+                      },
+                      "raiji-keycloak": {
+                        "text": "Keycloak",
+                        "index": 3
+                      },
+                      "raiji-kong": {
+                        "text": "Kong",
+                        "index": 4
+                      },
+                      "raiji-postgres": {
+                        "text": "Postgres",
+                        "index": 5
+                      },
+                      "raiji-rabbitmq": {
+                        "text": "RabbitMQ",
+                        "index": 6
+                      },
+                      "raiji-rustfs": {
+                        "text": "RustFS",
+                        "index": 7
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "labelsToFields",
+          "options": {
+            "mode": "columns",
+            "keepLabels": [
+              "container"
+            ]
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            }
+          }
+        },
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "container",
+            "mode": "outer"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time 1": true,
+              "Time 2": true,
+              "Time 3": true,
+              "Time 4": true
+            },
+            "renameByName": {
+              "container": "Container",
+              "Value #A": "Total",
+              "Value #B": "Erros",
+              "Value #C": "Avisos",
+              "Value #D": "Erro %"
+            },
+            "indexByName": {
+              "Container": 0,
+              "Total": 1,
+              "Erros": 2,
+              "Avisos": 3,
+              "Erro %": 4
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 940,
+      "type": "row",
+      "title": "Logs e consultas",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 65
+      },
+      "panels": []
+    },
+    {
       "id": 20,
       "type": "text",
       "title": "Busca nos logs",
@@ -30,7 +2945,7 @@
         "h": 3,
         "w": 24,
         "x": 0,
-        "y": 0
+        "y": 66
       },
       "options": {
         "mode": "markdown",
@@ -45,7 +2960,7 @@
         "h": 11,
         "w": 24,
         "x": 0,
-        "y": 3
+        "y": 69
       },
       "datasource": {
         "type": "loki",
@@ -74,7 +2989,7 @@
         "h": 11,
         "w": 24,
         "x": 0,
-        "y": 14
+        "y": 80
       },
       "datasource": {
         "type": "loki",
@@ -103,7 +3018,7 @@
         "h": 11,
         "w": 24,
         "x": 0,
-        "y": 25
+        "y": 91
       },
       "datasource": {
         "type": "loki",
@@ -132,7 +3047,7 @@
         "h": 11,
         "w": 24,
         "x": 0,
-        "y": 36
+        "y": 102
       },
       "datasource": {
         "type": "loki",
@@ -161,7 +3076,7 @@
         "h": 11,
         "w": 24,
         "x": 0,
-        "y": 47
+        "y": 113
       },
       "datasource": {
         "type": "loki",
@@ -190,7 +3105,7 @@
         "h": 14,
         "w": 24,
         "x": 0,
-        "y": 58
+        "y": 124
       },
       "datasource": {
         "type": "loki",
@@ -219,7 +3134,7 @@
         "h": 10,
         "w": 24,
         "x": 0,
-        "y": 72
+        "y": 138
       },
       "datasource": {
         "type": "postgres",
@@ -245,7 +3160,7 @@
         "h": 10,
         "w": 24,
         "x": 0,
-        "y": 82
+        "y": 148
       },
       "datasource": {
         "type": "loki",
@@ -274,7 +3189,7 @@
         "h": 10,
         "w": 24,
         "x": 0,
-        "y": 92
+        "y": 158
       },
       "datasource": {
         "type": "loki",
@@ -303,7 +3218,7 @@
         "h": 10,
         "w": 24,
         "x": 0,
-        "y": 102
+        "y": 168
       },
       "options": {
         "mode": "markdown",
@@ -318,7 +3233,7 @@
         "h": 4,
         "w": 8,
         "x": 0,
-        "y": 108
+        "y": 180
       },
       "datasource": {
         "type": "loki",
@@ -392,7 +3307,7 @@
         "h": 11,
         "w": 12,
         "x": 0,
-        "y": 112
+        "y": 184
       },
       "datasource": {
         "type": "loki",
@@ -446,7 +3361,7 @@
         "h": 11,
         "w": 12,
         "x": 12,
-        "y": 112
+        "y": 184
       },
       "datasource": {
         "type": "loki",
@@ -500,7 +3415,7 @@
         "h": 14,
         "w": 24,
         "x": 0,
-        "y": 123
+        "y": 195
       },
       "datasource": {
         "type": "loki",
@@ -532,7 +3447,7 @@
       }
     }
   ],
-  "refresh": "10s",
+  "refresh": "30s",
   "schemaVersion": 39,
   "tags": [
     "raiji",
@@ -623,12 +3538,13 @@
     ]
   },
   "time": {
-    "from": "now-1h",
+    "from": "now-24h",
     "to": "now"
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "Raiji · Auditoria (logs)",
+  "title": "Métricas e Logs",
   "uid": "raiji-auditoria",
-  "version": 1
+  "version": 1,
+  "description": "Métricas e logs de todos os serviços: ações, erros, latência, rotas, status, Postgres, Keycloak, testes e infraestrutura."
 }

@@ -54,13 +54,14 @@ Há **um único dashboard**, usado como home do Grafana:
 status das sondas, CPU/memória de todos os containers, host, RabbitMQ, rede,
 PostgreSQL/MongoDB/Kong, containers (restarts/OOM/throttling) e o comparativo 1×N.
 
-## Auditoria (logs)
+## Métricas e Logs
 
 O Promtail coleta o stdout dos containers `raiji-*` e envia para o Loki. No
-Grafana, o dashboard **Raiji · Auditoria (logs)** mostra o log técnico e o
+Grafana, o dashboard **Métricas e Logs** mostra o log técnico e o
 dashboard **Raiji · Auditoria (visão de negócio)** oferece filtros por usuário,
 ação e status, além de tabelas e painel de identidade do Keycloak. O dashboard
-técnico **Raiji · Auditoria (logs)** tem uma **busca global** com filtros de
+**Métricas e Logs** tem métricas de ações, erros, latência, rotas, status, logs por
+serviço, Postgres, Keycloak, testes e infraestrutura, além de uma **busca global** com filtros de
 serviço, usuário, ação, status, `request_id` e busca SQL, e também agrega os arquivos de
 `reports/testes/logs/` dos três repositórios (Promtail lê o workspace montado em
 `/workspace`), a tabela `audit_log` do Postgres e os logs de infraestrutura. A

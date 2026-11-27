@@ -3,19 +3,12 @@
     "list": []
   },
   "editable": true,
-  "graphTooltip": 0,
+  "graphTooltip": 1,
   "id": null,
   "links": [
     {
-      "title": "Dashboard técnico (Loki)",
+      "title": "Métricas e Logs",
       "url": "/d/raiji-auditoria",
-      "type": "link",
-      "icon": "external link",
-      "targetBlank": false
-    },
-    {
-      "title": "Explore Loki",
-      "url": "/explore",
       "type": "link",
       "icon": "external link",
       "targetBlank": false
@@ -23,38 +16,45 @@
   ],
   "panels": [
     {
-      "id": 1,
+      "id": 100,
       "type": "text",
-      "title": "Como usar",
+      "title": "O que está acontecendo no sistema?",
+      "description": "Explicação rápida para qualquer pessoa da equipe.",
       "gridPos": {
-        "h": 3,
+        "h": 7,
         "w": 24,
         "x": 0,
         "y": 0
       },
       "options": {
         "mode": "markdown",
-        "content": "**Auditoria de negócio — todas as ações dos 3 serviços**\n\nFiltros: **Serviço** (Monólito/Chat/Front), **Usuário** (nome ou `sub`), **Ação**, **Status** e **Busca** (`request_id`, rota ou texto).\n\nO padrão de usuário é `.+` (autenticados); use `.*` para incluir anônimos. As tabelas mostram estatísticas por usuário: ações, falhas e o que cada um fez."
+        "code": {
+          "language": "plaintext",
+          "showLineNumbers": false,
+          "showMiniMap": false
+        },
+        "content": "Este painel mostra, em linguagem simples, **o que as pessoas fizeram** no aplicativo, no site e no chat, além de **quem entrou e saiu** do sistema.\n\n- **Cada ação** é um clique, cadastro, mensagem, corrida ou acesso registrado.\n- **Deu certo** (verde) · **Negado ou erro do usuário** (amarelo) · **Falha do sistema** (vermelho).\n- Use os filtros acima para ver **uma pessoa**, **um serviço**, **um tipo de ação** ou **um período**.\n- Picos de uso são normais em horários de movimento; períodos vazios significam que ninguém usou o sistema.\n\n> Precisa de detalhes técnicos (logs de infraestrutura, IDs e requisições)? Abra o **[Métricas e Logs](/d/raiji-auditoria)**."
       }
     },
     {
-      "id": 2,
+      "id": 101,
       "type": "stat",
-      "title": "Total de ações",
-      "gridPos": {
-        "h": 4,
-        "w": 6,
-        "x": 0,
-        "y": 3
-      },
+      "title": "Ações registradas",
+      "description": "Quantidade total de ações feitas pelas pessoas no período escolhido.",
       "datasource": {
         "type": "loki",
         "uid": "loki"
       },
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 0,
+        "y": 7
+      },
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(count_over_time({container=~\"raiji-($servico)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | user=~\"$usuario\" | acao=~\"$acao\" | code=~\"$status\" |~ \"$busca\" [$__range]))",
+          "expr": "sum(count_over_time({container=~\"raiji-($servico)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format acao_friendly=\"{{if eq .acao `HTTP_GET`}}Consultou informações{{else if eq .acao `HTTP_POST`}}Cadastrou ou alterou{{else if eq .acao `HTTP_PUT`}}Atualizou{{else if eq .acao `HTTP_PATCH`}}Ajustou{{else if eq .acao `HTTP_DELETE`}}Removeu{{else if eq .acao `page_view`}}Navegou no aplicativo{{else if eq .acao `http_request`}}Acessou o aplicativo{{else if eq .acao `bff_request`}}Usou o aplicativo{{else if eq .acao `MESSAGE_SENT`}}Enviou mensagem{{else if eq .acao `CONVERSATION_READ`}}Leu conversa{{else if eq .acao `CONVERSATION_OPENED`}}Abriu conversa{{else if eq .acao `RIDE_CREATED`}}Criou corrida{{else if eq .acao `RIDE_CANCELLED`}}Cancelou corrida{{else if eq .acao `RIDE_STARTED`}}Iniciou corrida{{else if eq .acao `RIDE_FINISHED`}}Finalizou corrida{{else if eq .acao `BOOKING_REQUESTED`}}Pediu uma vaga{{else if eq .acao `BOOKING_ACCEPTED`}}Aceitou passageiro{{else if eq .acao `BOOKING_REJECTED`}}Recusou passageiro{{else if eq .acao `BOOKINGS_ACCEPTED_ALL`}}Aceitou todos os pedidos{{else if eq .acao `PAYMENT_STARTED`}}Iniciou pagamento{{else if eq .acao `PAYMENT_WEBHOOK`}}Confirmou pagamento{{else if eq .acao `PAYOUT_REGISTERED`}}Registrou repasse{{else if eq .acao `PIX_KEY_UPDATED`}}Atualizou chave Pix{{else if eq .acao `USER_VIEWED`}}Consultou usuário{{else if eq .acao `USER_CREATED`}}Criou usuário{{else if eq .acao `USER_DELETED`}}Removeu usuário{{else if eq .acao `GROUP_CREATED`}}Criou grupo{{else if eq .acao `GROUP_UPDATED`}}Atualizou grupo{{else if eq .acao `GROUP_DELETED`}}Removeu grupo{{else}}{{.acao}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | label_format dur=\"{{.duration_ms}}{{.durationMs}}\" | label_format resultado=\"{{if eq .code `200`}}Deu certo{{else if eq .code `201`}}Deu certo{{else if eq .code `202`}}Deu certo{{else if eq .code `204`}}Deu certo{{else if eq .code `400`}}Dados inválidos{{else if eq .code `401`}}Não autorizado{{else if eq .code `403`}}Acesso negado{{else if eq .code `404`}}Não encontrado{{else if eq .code `409`}}Conflito{{else if eq .code `415`}}Formato não aceito{{else if eq .code `422`}}Dados inválidos{{else if eq .code `429`}}Muitas tentativas{{else if eq .code `500`}}Falha no sistema{{else if eq .code `502`}}Falha no sistema{{else if eq .code `503`}}Serviço indisponível{{else if eq .code `504`}}Tempo esgotado{{else}}{{.code}}{{end}}\" | user=~\"$usuario\" | acao=~\"$acao\" | code=~\"$status\" |~ \"$busca\" [$__range]))",
           "instant": true,
           "queryType": "instant"
         }
@@ -67,64 +67,26 @@
           "fields": "",
           "values": false
         },
+        "orientation": "auto",
         "textMode": "auto",
         "colorMode": "value",
-        "graphMode": "area"
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "wideLayout": true
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "short"
-        },
-        "overrides": []
-      }
-    },
-    {
-      "id": 3,
-      "type": "stat",
-      "title": "Falhas e erros",
-      "gridPos": {
-        "h": 4,
-        "w": 6,
-        "x": 6,
-        "y": 3
-      },
-      "datasource": {
-        "type": "loki",
-        "uid": "loki"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "sum(count_over_time({container=~\"raiji-($servico)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | user=~\"$usuario\" | acao=~\"$acao\" | code=~\"$status\" | code=~\"4..|5..\" |~ \"$busca\" [$__range]))",
-          "instant": true,
-          "queryType": "instant"
-        }
-      ],
-      "options": {
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "textMode": "value",
-        "colorMode": "value",
-        "graphMode": "none"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
+          "unit": "locale",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
+                "color": "blue",
                 "value": null
-              },
-              {
-                "color": "red",
-                "value": 1
               }
             ]
           }
@@ -133,175 +95,420 @@
       }
     },
     {
-      "id": 4,
+      "id": 102,
       "type": "stat",
-      "title": "Ação mais comum",
-      "gridPos": {
-        "h": 4,
-        "w": 6,
-        "x": 12,
-        "y": 3
-      },
+      "title": "Pessoas ativas",
+      "description": "Quantidade de pessoas diferentes que fizeram alguma ação no período. Visitantes sem login não entram nesta contagem; use Pessoa = .* para incluí-los.",
       "datasource": {
         "type": "loki",
         "uid": "loki"
       },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "topk(1, sum by (acao) (count_over_time({container=~\"raiji-($servico)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | user=~\"$usuario\" | acao=~\"$acao\" | code=~\"$status\" |~ \"$busca\" [$__range])))",
-          "instant": true,
-          "queryType": "instant",
-          "legendFormat": "{{acao}}"
-        }
-      ],
-      "options": {
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "textMode": "auto",
-        "colorMode": "value",
-        "graphMode": "none"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short"
-        },
-        "overrides": []
-      }
-    },
-    {
-      "id": 5,
-      "type": "stat",
-      "title": "Usuário mais ativo",
       "gridPos": {
         "h": 4,
-        "w": 6,
-        "x": 18,
-        "y": 3
-      },
-      "datasource": {
-        "type": "loki",
-        "uid": "loki"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "topk(1, sum by (user) (count_over_time({container=~\"raiji-($servico)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | user=~\"$usuario\" | acao=~\"$acao\" | code=~\"$status\" |~ \"$busca\" [$__range])))",
-          "instant": true,
-          "queryType": "instant",
-          "legendFormat": "{{user}}"
-        }
-      ],
-      "options": {
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "textMode": "auto",
-        "colorMode": "value",
-        "graphMode": "none"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short"
-        },
-        "overrides": []
-      }
-    },
-    {
-      "id": 6,
-      "type": "logs",
-      "title": "Todas as ações — monólito, chat e front",
-      "gridPos": {
-        "h": 12,
-        "w": 24,
-        "x": 0,
+        "w": 8,
+        "x": 8,
         "y": 7
       },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count(count by (user) (count_over_time({container=~\"raiji-($servico)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format acao_friendly=\"{{if eq .acao `HTTP_GET`}}Consultou informações{{else if eq .acao `HTTP_POST`}}Cadastrou ou alterou{{else if eq .acao `HTTP_PUT`}}Atualizou{{else if eq .acao `HTTP_PATCH`}}Ajustou{{else if eq .acao `HTTP_DELETE`}}Removeu{{else if eq .acao `page_view`}}Navegou no aplicativo{{else if eq .acao `http_request`}}Acessou o aplicativo{{else if eq .acao `bff_request`}}Usou o aplicativo{{else if eq .acao `MESSAGE_SENT`}}Enviou mensagem{{else if eq .acao `CONVERSATION_READ`}}Leu conversa{{else if eq .acao `CONVERSATION_OPENED`}}Abriu conversa{{else if eq .acao `RIDE_CREATED`}}Criou corrida{{else if eq .acao `RIDE_CANCELLED`}}Cancelou corrida{{else if eq .acao `RIDE_STARTED`}}Iniciou corrida{{else if eq .acao `RIDE_FINISHED`}}Finalizou corrida{{else if eq .acao `BOOKING_REQUESTED`}}Pediu uma vaga{{else if eq .acao `BOOKING_ACCEPTED`}}Aceitou passageiro{{else if eq .acao `BOOKING_REJECTED`}}Recusou passageiro{{else if eq .acao `BOOKINGS_ACCEPTED_ALL`}}Aceitou todos os pedidos{{else if eq .acao `PAYMENT_STARTED`}}Iniciou pagamento{{else if eq .acao `PAYMENT_WEBHOOK`}}Confirmou pagamento{{else if eq .acao `PAYOUT_REGISTERED`}}Registrou repasse{{else if eq .acao `PIX_KEY_UPDATED`}}Atualizou chave Pix{{else if eq .acao `USER_VIEWED`}}Consultou usuário{{else if eq .acao `USER_CREATED`}}Criou usuário{{else if eq .acao `USER_DELETED`}}Removeu usuário{{else if eq .acao `GROUP_CREATED`}}Criou grupo{{else if eq .acao `GROUP_UPDATED`}}Atualizou grupo{{else if eq .acao `GROUP_DELETED`}}Removeu grupo{{else}}{{.acao}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | label_format dur=\"{{.duration_ms}}{{.durationMs}}\" | label_format resultado=\"{{if eq .code `200`}}Deu certo{{else if eq .code `201`}}Deu certo{{else if eq .code `202`}}Deu certo{{else if eq .code `204`}}Deu certo{{else if eq .code `400`}}Dados inválidos{{else if eq .code `401`}}Não autorizado{{else if eq .code `403`}}Acesso negado{{else if eq .code `404`}}Não encontrado{{else if eq .code `409`}}Conflito{{else if eq .code `415`}}Formato não aceito{{else if eq .code `422`}}Dados inválidos{{else if eq .code `429`}}Muitas tentativas{{else if eq .code `500`}}Falha no sistema{{else if eq .code `502`}}Falha no sistema{{else if eq .code `503`}}Serviço indisponível{{else if eq .code `504`}}Tempo esgotado{{else}}{{.code}}{{end}}\" | user=~\"$usuario\" | acao=~\"$acao\" | code=~\"$status\" |~ \"$busca\" [$__range])))",
+          "instant": true,
+          "queryType": "instant"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "wideLayout": true
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "locale",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 103,
+      "type": "stat",
+      "title": "Falhas e acessos negados",
+      "description": "Ações que terminaram em erro (4xx ou 5xx). O ideal é ficar em zero. Se o número subir, veja o painel “O que deu errado” mais abaixo.",
       "datasource": {
         "type": "loki",
         "uid": "loki"
       },
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 16,
+        "y": 7
+      },
       "targets": [
         {
           "refId": "A",
-          "expr": "{container=~\"raiji-($servico)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | user=~\"$usuario\" | acao=~\"$acao\" | code=~\"$status\" |~ \"$busca\" | line_format \"{{.user}} | {{.acao}} | {{.http_method}}{{.method}} {{.http_path}}{{.path}} | {{.code}} | {{.duration_ms}}{{.durationMs}}ms | {{.request_id}}{{.requestId}}\"",
-          "queryType": "range"
+          "expr": "sum(count_over_time({container=~\"raiji-($servico)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format acao_friendly=\"{{if eq .acao `HTTP_GET`}}Consultou informações{{else if eq .acao `HTTP_POST`}}Cadastrou ou alterou{{else if eq .acao `HTTP_PUT`}}Atualizou{{else if eq .acao `HTTP_PATCH`}}Ajustou{{else if eq .acao `HTTP_DELETE`}}Removeu{{else if eq .acao `page_view`}}Navegou no aplicativo{{else if eq .acao `http_request`}}Acessou o aplicativo{{else if eq .acao `bff_request`}}Usou o aplicativo{{else if eq .acao `MESSAGE_SENT`}}Enviou mensagem{{else if eq .acao `CONVERSATION_READ`}}Leu conversa{{else if eq .acao `CONVERSATION_OPENED`}}Abriu conversa{{else if eq .acao `RIDE_CREATED`}}Criou corrida{{else if eq .acao `RIDE_CANCELLED`}}Cancelou corrida{{else if eq .acao `RIDE_STARTED`}}Iniciou corrida{{else if eq .acao `RIDE_FINISHED`}}Finalizou corrida{{else if eq .acao `BOOKING_REQUESTED`}}Pediu uma vaga{{else if eq .acao `BOOKING_ACCEPTED`}}Aceitou passageiro{{else if eq .acao `BOOKING_REJECTED`}}Recusou passageiro{{else if eq .acao `BOOKINGS_ACCEPTED_ALL`}}Aceitou todos os pedidos{{else if eq .acao `PAYMENT_STARTED`}}Iniciou pagamento{{else if eq .acao `PAYMENT_WEBHOOK`}}Confirmou pagamento{{else if eq .acao `PAYOUT_REGISTERED`}}Registrou repasse{{else if eq .acao `PIX_KEY_UPDATED`}}Atualizou chave Pix{{else if eq .acao `USER_VIEWED`}}Consultou usuário{{else if eq .acao `USER_CREATED`}}Criou usuário{{else if eq .acao `USER_DELETED`}}Removeu usuário{{else if eq .acao `GROUP_CREATED`}}Criou grupo{{else if eq .acao `GROUP_UPDATED`}}Atualizou grupo{{else if eq .acao `GROUP_DELETED`}}Removeu grupo{{else}}{{.acao}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | label_format dur=\"{{.duration_ms}}{{.durationMs}}\" | label_format resultado=\"{{if eq .code `200`}}Deu certo{{else if eq .code `201`}}Deu certo{{else if eq .code `202`}}Deu certo{{else if eq .code `204`}}Deu certo{{else if eq .code `400`}}Dados inválidos{{else if eq .code `401`}}Não autorizado{{else if eq .code `403`}}Acesso negado{{else if eq .code `404`}}Não encontrado{{else if eq .code `409`}}Conflito{{else if eq .code `415`}}Formato não aceito{{else if eq .code `422`}}Dados inválidos{{else if eq .code `429`}}Muitas tentativas{{else if eq .code `500`}}Falha no sistema{{else if eq .code `502`}}Falha no sistema{{else if eq .code `503`}}Serviço indisponível{{else if eq .code `504`}}Tempo esgotado{{else}}{{.code}}{{end}}\" | user=~\"$usuario\" | acao=~\"$acao\" | code=~\"$status\" |~ \"$busca\" | code=~\"$status\" | code=~\"4..|5..\" [$__range]))",
+          "instant": true,
+          "queryType": "instant"
         }
       ],
       "options": {
-        "showTime": true,
-        "sortOrder": "Descending",
-        "wrapLogMessage": true,
-        "enableLogDetails": true,
-        "dedupStrategy": "none"
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "wideLayout": true
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "locale",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 10
+              }
+            ]
+          }
+        },
+        "overrides": []
       }
     },
     {
-      "id": 7,
-      "type": "logs",
-      "title": "Erros e negações",
+      "id": 105,
+      "type": "stat",
+      "title": "Média de ações por pessoa",
+      "description": "Quantas ações, em média, cada pessoa fez no período. Ajuda a entender o nível de uso por pessoa.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
       "gridPos": {
-        "h": 10,
+        "h": 4,
+        "w": 12,
+        "x": 0,
+        "y": 11
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(count_over_time({container=~\"raiji-($servico)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format acao_friendly=\"{{if eq .acao `HTTP_GET`}}Consultou informações{{else if eq .acao `HTTP_POST`}}Cadastrou ou alterou{{else if eq .acao `HTTP_PUT`}}Atualizou{{else if eq .acao `HTTP_PATCH`}}Ajustou{{else if eq .acao `HTTP_DELETE`}}Removeu{{else if eq .acao `page_view`}}Navegou no aplicativo{{else if eq .acao `http_request`}}Acessou o aplicativo{{else if eq .acao `bff_request`}}Usou o aplicativo{{else if eq .acao `MESSAGE_SENT`}}Enviou mensagem{{else if eq .acao `CONVERSATION_READ`}}Leu conversa{{else if eq .acao `CONVERSATION_OPENED`}}Abriu conversa{{else if eq .acao `RIDE_CREATED`}}Criou corrida{{else if eq .acao `RIDE_CANCELLED`}}Cancelou corrida{{else if eq .acao `RIDE_STARTED`}}Iniciou corrida{{else if eq .acao `RIDE_FINISHED`}}Finalizou corrida{{else if eq .acao `BOOKING_REQUESTED`}}Pediu uma vaga{{else if eq .acao `BOOKING_ACCEPTED`}}Aceitou passageiro{{else if eq .acao `BOOKING_REJECTED`}}Recusou passageiro{{else if eq .acao `BOOKINGS_ACCEPTED_ALL`}}Aceitou todos os pedidos{{else if eq .acao `PAYMENT_STARTED`}}Iniciou pagamento{{else if eq .acao `PAYMENT_WEBHOOK`}}Confirmou pagamento{{else if eq .acao `PAYOUT_REGISTERED`}}Registrou repasse{{else if eq .acao `PIX_KEY_UPDATED`}}Atualizou chave Pix{{else if eq .acao `USER_VIEWED`}}Consultou usuário{{else if eq .acao `USER_CREATED`}}Criou usuário{{else if eq .acao `USER_DELETED`}}Removeu usuário{{else if eq .acao `GROUP_CREATED`}}Criou grupo{{else if eq .acao `GROUP_UPDATED`}}Atualizou grupo{{else if eq .acao `GROUP_DELETED`}}Removeu grupo{{else}}{{.acao}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | label_format dur=\"{{.duration_ms}}{{.durationMs}}\" | label_format resultado=\"{{if eq .code `200`}}Deu certo{{else if eq .code `201`}}Deu certo{{else if eq .code `202`}}Deu certo{{else if eq .code `204`}}Deu certo{{else if eq .code `400`}}Dados inválidos{{else if eq .code `401`}}Não autorizado{{else if eq .code `403`}}Acesso negado{{else if eq .code `404`}}Não encontrado{{else if eq .code `409`}}Conflito{{else if eq .code `415`}}Formato não aceito{{else if eq .code `422`}}Dados inválidos{{else if eq .code `429`}}Muitas tentativas{{else if eq .code `500`}}Falha no sistema{{else if eq .code `502`}}Falha no sistema{{else if eq .code `503`}}Serviço indisponível{{else if eq .code `504`}}Tempo esgotado{{else}}{{.code}}{{end}}\" | user=~\"$usuario\" | acao=~\"$acao\" | code=~\"$status\" |~ \"$busca\" [$__range])) / count(count by (user) (count_over_time({container=~\"raiji-($servico)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format acao_friendly=\"{{if eq .acao `HTTP_GET`}}Consultou informações{{else if eq .acao `HTTP_POST`}}Cadastrou ou alterou{{else if eq .acao `HTTP_PUT`}}Atualizou{{else if eq .acao `HTTP_PATCH`}}Ajustou{{else if eq .acao `HTTP_DELETE`}}Removeu{{else if eq .acao `page_view`}}Navegou no aplicativo{{else if eq .acao `http_request`}}Acessou o aplicativo{{else if eq .acao `bff_request`}}Usou o aplicativo{{else if eq .acao `MESSAGE_SENT`}}Enviou mensagem{{else if eq .acao `CONVERSATION_READ`}}Leu conversa{{else if eq .acao `CONVERSATION_OPENED`}}Abriu conversa{{else if eq .acao `RIDE_CREATED`}}Criou corrida{{else if eq .acao `RIDE_CANCELLED`}}Cancelou corrida{{else if eq .acao `RIDE_STARTED`}}Iniciou corrida{{else if eq .acao `RIDE_FINISHED`}}Finalizou corrida{{else if eq .acao `BOOKING_REQUESTED`}}Pediu uma vaga{{else if eq .acao `BOOKING_ACCEPTED`}}Aceitou passageiro{{else if eq .acao `BOOKING_REJECTED`}}Recusou passageiro{{else if eq .acao `BOOKINGS_ACCEPTED_ALL`}}Aceitou todos os pedidos{{else if eq .acao `PAYMENT_STARTED`}}Iniciou pagamento{{else if eq .acao `PAYMENT_WEBHOOK`}}Confirmou pagamento{{else if eq .acao `PAYOUT_REGISTERED`}}Registrou repasse{{else if eq .acao `PIX_KEY_UPDATED`}}Atualizou chave Pix{{else if eq .acao `USER_VIEWED`}}Consultou usuário{{else if eq .acao `USER_CREATED`}}Criou usuário{{else if eq .acao `USER_DELETED`}}Removeu usuário{{else if eq .acao `GROUP_CREATED`}}Criou grupo{{else if eq .acao `GROUP_UPDATED`}}Atualizou grupo{{else if eq .acao `GROUP_DELETED`}}Removeu grupo{{else}}{{.acao}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | label_format dur=\"{{.duration_ms}}{{.durationMs}}\" | label_format resultado=\"{{if eq .code `200`}}Deu certo{{else if eq .code `201`}}Deu certo{{else if eq .code `202`}}Deu certo{{else if eq .code `204`}}Deu certo{{else if eq .code `400`}}Dados inválidos{{else if eq .code `401`}}Não autorizado{{else if eq .code `403`}}Acesso negado{{else if eq .code `404`}}Não encontrado{{else if eq .code `409`}}Conflito{{else if eq .code `415`}}Formato não aceito{{else if eq .code `422`}}Dados inválidos{{else if eq .code `429`}}Muitas tentativas{{else if eq .code `500`}}Falha no sistema{{else if eq .code `502`}}Falha no sistema{{else if eq .code `503`}}Serviço indisponível{{else if eq .code `504`}}Tempo esgotado{{else}}{{.code}}{{end}}\" | user=~\"$usuario\" | acao=~\"$acao\" | code=~\"$status\" |~ \"$busca\" [$__range])))",
+          "instant": true,
+          "queryType": "instant"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "wideLayout": true
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "locale",
+          "decimals": 1,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 106,
+      "type": "stat",
+      "title": "Pessoas com falha",
+      "description": "Quantidade de pessoas que tiveram pelo menos uma ação com erro ou acesso negado. O ideal é que seja zero.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 12,
+        "x": 12,
+        "y": 11
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count(count by (user) (count_over_time({container=~\"raiji-($servico)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format acao_friendly=\"{{if eq .acao `HTTP_GET`}}Consultou informações{{else if eq .acao `HTTP_POST`}}Cadastrou ou alterou{{else if eq .acao `HTTP_PUT`}}Atualizou{{else if eq .acao `HTTP_PATCH`}}Ajustou{{else if eq .acao `HTTP_DELETE`}}Removeu{{else if eq .acao `page_view`}}Navegou no aplicativo{{else if eq .acao `http_request`}}Acessou o aplicativo{{else if eq .acao `bff_request`}}Usou o aplicativo{{else if eq .acao `MESSAGE_SENT`}}Enviou mensagem{{else if eq .acao `CONVERSATION_READ`}}Leu conversa{{else if eq .acao `CONVERSATION_OPENED`}}Abriu conversa{{else if eq .acao `RIDE_CREATED`}}Criou corrida{{else if eq .acao `RIDE_CANCELLED`}}Cancelou corrida{{else if eq .acao `RIDE_STARTED`}}Iniciou corrida{{else if eq .acao `RIDE_FINISHED`}}Finalizou corrida{{else if eq .acao `BOOKING_REQUESTED`}}Pediu uma vaga{{else if eq .acao `BOOKING_ACCEPTED`}}Aceitou passageiro{{else if eq .acao `BOOKING_REJECTED`}}Recusou passageiro{{else if eq .acao `BOOKINGS_ACCEPTED_ALL`}}Aceitou todos os pedidos{{else if eq .acao `PAYMENT_STARTED`}}Iniciou pagamento{{else if eq .acao `PAYMENT_WEBHOOK`}}Confirmou pagamento{{else if eq .acao `PAYOUT_REGISTERED`}}Registrou repasse{{else if eq .acao `PIX_KEY_UPDATED`}}Atualizou chave Pix{{else if eq .acao `USER_VIEWED`}}Consultou usuário{{else if eq .acao `USER_CREATED`}}Criou usuário{{else if eq .acao `USER_DELETED`}}Removeu usuário{{else if eq .acao `GROUP_CREATED`}}Criou grupo{{else if eq .acao `GROUP_UPDATED`}}Atualizou grupo{{else if eq .acao `GROUP_DELETED`}}Removeu grupo{{else}}{{.acao}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | label_format dur=\"{{.duration_ms}}{{.durationMs}}\" | label_format resultado=\"{{if eq .code `200`}}Deu certo{{else if eq .code `201`}}Deu certo{{else if eq .code `202`}}Deu certo{{else if eq .code `204`}}Deu certo{{else if eq .code `400`}}Dados inválidos{{else if eq .code `401`}}Não autorizado{{else if eq .code `403`}}Acesso negado{{else if eq .code `404`}}Não encontrado{{else if eq .code `409`}}Conflito{{else if eq .code `415`}}Formato não aceito{{else if eq .code `422`}}Dados inválidos{{else if eq .code `429`}}Muitas tentativas{{else if eq .code `500`}}Falha no sistema{{else if eq .code `502`}}Falha no sistema{{else if eq .code `503`}}Serviço indisponível{{else if eq .code `504`}}Tempo esgotado{{else}}{{.code}}{{end}}\" | user=~\"$usuario\" | acao=~\"$acao\" | code=~\"$status\" |~ \"$busca\" | code=~\"$status\" | code=~\"4..|5..\" [$__range])))",
+          "instant": true,
+          "queryType": "instant"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "wideLayout": true
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "locale",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 10
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 200,
+      "type": "row",
+      "title": "Movimento do sistema",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
         "w": 24,
         "x": 0,
-        "y": 19
+        "y": 15
       },
+      "panels": []
+    },
+    {
+      "id": 201,
+      "type": "timeseries",
+      "title": "Quando o sistema foi usado",
+      "description": "Cada barra mostra quantas ações aconteceram naquele intervalo de tempo, separadas por serviço. Barras mais altas = mais gente usando.",
       "datasource": {
         "type": "loki",
         "uid": "loki"
       },
+      "gridPos": {
+        "h": 8,
+        "w": 16,
+        "x": 0,
+        "y": 16
+      },
       "targets": [
         {
           "refId": "A",
-          "expr": "{container=~\"raiji-($servico)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | user=~\"$usuario\" | acao=~\"$acao\" | code=~\"$status\" | code=~\"4..|5..\" |~ \"$busca\" | line_format \"{{.user}} | {{.acao}} | {{.http_path}}{{.path}} | {{.code}} | {{.request_id}}{{.requestId}}\"",
-          "queryType": "range"
-        },
-        {
-          "refId": "D",
-          "expr": "{container=\"raiji-keycloak-events\"} |= \"keycloak_event\" | json | username=~\"$usuario\" or actorUsername=~\"$usuario\" or userId=~\"$usuario\" or actorId=~\"$usuario\" | error=~\".+\" |~ \"$busca\"",
-          "queryType": "range"
-        },
-        {
-          "refId": "E",
-          "expr": "{container=\"raiji-keycloak\"} |~ \"LOGIN_ERROR|LOGOUT_ERROR|ERROR\" |~ \"$busca\"",
-          "queryType": "range"
+          "expr": "sum by (container) (count_over_time({container=~\"raiji-($servico)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format acao_friendly=\"{{if eq .acao `HTTP_GET`}}Consultou informações{{else if eq .acao `HTTP_POST`}}Cadastrou ou alterou{{else if eq .acao `HTTP_PUT`}}Atualizou{{else if eq .acao `HTTP_PATCH`}}Ajustou{{else if eq .acao `HTTP_DELETE`}}Removeu{{else if eq .acao `page_view`}}Navegou no aplicativo{{else if eq .acao `http_request`}}Acessou o aplicativo{{else if eq .acao `bff_request`}}Usou o aplicativo{{else if eq .acao `MESSAGE_SENT`}}Enviou mensagem{{else if eq .acao `CONVERSATION_READ`}}Leu conversa{{else if eq .acao `CONVERSATION_OPENED`}}Abriu conversa{{else if eq .acao `RIDE_CREATED`}}Criou corrida{{else if eq .acao `RIDE_CANCELLED`}}Cancelou corrida{{else if eq .acao `RIDE_STARTED`}}Iniciou corrida{{else if eq .acao `RIDE_FINISHED`}}Finalizou corrida{{else if eq .acao `BOOKING_REQUESTED`}}Pediu uma vaga{{else if eq .acao `BOOKING_ACCEPTED`}}Aceitou passageiro{{else if eq .acao `BOOKING_REJECTED`}}Recusou passageiro{{else if eq .acao `BOOKINGS_ACCEPTED_ALL`}}Aceitou todos os pedidos{{else if eq .acao `PAYMENT_STARTED`}}Iniciou pagamento{{else if eq .acao `PAYMENT_WEBHOOK`}}Confirmou pagamento{{else if eq .acao `PAYOUT_REGISTERED`}}Registrou repasse{{else if eq .acao `PIX_KEY_UPDATED`}}Atualizou chave Pix{{else if eq .acao `USER_VIEWED`}}Consultou usuário{{else if eq .acao `USER_CREATED`}}Criou usuário{{else if eq .acao `USER_DELETED`}}Removeu usuário{{else if eq .acao `GROUP_CREATED`}}Criou grupo{{else if eq .acao `GROUP_UPDATED`}}Atualizou grupo{{else if eq .acao `GROUP_DELETED`}}Removeu grupo{{else}}{{.acao}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | label_format dur=\"{{.duration_ms}}{{.durationMs}}\" | label_format resultado=\"{{if eq .code `200`}}Deu certo{{else if eq .code `201`}}Deu certo{{else if eq .code `202`}}Deu certo{{else if eq .code `204`}}Deu certo{{else if eq .code `400`}}Dados inválidos{{else if eq .code `401`}}Não autorizado{{else if eq .code `403`}}Acesso negado{{else if eq .code `404`}}Não encontrado{{else if eq .code `409`}}Conflito{{else if eq .code `415`}}Formato não aceito{{else if eq .code `422`}}Dados inválidos{{else if eq .code `429`}}Muitas tentativas{{else if eq .code `500`}}Falha no sistema{{else if eq .code `502`}}Falha no sistema{{else if eq .code `503`}}Serviço indisponível{{else if eq .code `504`}}Tempo esgotado{{else}}{{.code}}{{end}}\" | user=~\"$usuario\" | acao=~\"$acao\" | code=~\"$status\" |~ \"$busca\" [$__interval]))",
+          "queryType": "range",
+          "legendFormat": "{{container}}"
         }
       ],
       "options": {
-        "showTime": true,
-        "sortOrder": "Descending",
-        "wrapLogMessage": true,
-        "enableLogDetails": true,
-        "dedupStrategy": "none"
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "sum"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "bars",
+            "lineInterpolation": "linear",
+            "barAlignment": 0,
+            "lineWidth": 1,
+            "fillOpacity": 85,
+            "gradientMode": "none",
+            "spanNulls": false,
+            "showPoints": "never",
+            "pointSize": 5,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            },
+            "axisPlacement": "auto",
+            "axisLabel": "Ações",
+            "axisColorMode": "text",
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "raiji-app"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Monólito"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#5794F2"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "raiji-chat"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Chat"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#73BF69"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "raiji-front"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Aplicativo"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#B877D9"
+                }
+              }
+            ]
+          }
+        ]
       }
     },
     {
-      "id": 8,
+      "id": 202,
       "type": "table",
-      "title": "Ações por serviço",
-      "gridPos": {
-        "h": 9,
-        "w": 8,
-        "x": 0,
-        "y": 29
-      },
+      "title": "De onde vêm as ações",
+      "description": "Mostra quantas ações vieram de cada parte do sistema. Ajuda a entender onde as pessoas estão usando mais.",
       "datasource": {
         "type": "loki",
         "uid": "loki"
       },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 16
+      },
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (container) (count_over_time({container=~\"raiji-($servico)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | user=~\"$usuario\" | acao=~\"$acao\" | code=~\"$status\" |~ \"$busca\" [$__range]))",
+          "expr": "sum by (container) (count_over_time({container=~\"raiji-($servico)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format acao_friendly=\"{{if eq .acao `HTTP_GET`}}Consultou informações{{else if eq .acao `HTTP_POST`}}Cadastrou ou alterou{{else if eq .acao `HTTP_PUT`}}Atualizou{{else if eq .acao `HTTP_PATCH`}}Ajustou{{else if eq .acao `HTTP_DELETE`}}Removeu{{else if eq .acao `page_view`}}Navegou no aplicativo{{else if eq .acao `http_request`}}Acessou o aplicativo{{else if eq .acao `bff_request`}}Usou o aplicativo{{else if eq .acao `MESSAGE_SENT`}}Enviou mensagem{{else if eq .acao `CONVERSATION_READ`}}Leu conversa{{else if eq .acao `CONVERSATION_OPENED`}}Abriu conversa{{else if eq .acao `RIDE_CREATED`}}Criou corrida{{else if eq .acao `RIDE_CANCELLED`}}Cancelou corrida{{else if eq .acao `RIDE_STARTED`}}Iniciou corrida{{else if eq .acao `RIDE_FINISHED`}}Finalizou corrida{{else if eq .acao `BOOKING_REQUESTED`}}Pediu uma vaga{{else if eq .acao `BOOKING_ACCEPTED`}}Aceitou passageiro{{else if eq .acao `BOOKING_REJECTED`}}Recusou passageiro{{else if eq .acao `BOOKINGS_ACCEPTED_ALL`}}Aceitou todos os pedidos{{else if eq .acao `PAYMENT_STARTED`}}Iniciou pagamento{{else if eq .acao `PAYMENT_WEBHOOK`}}Confirmou pagamento{{else if eq .acao `PAYOUT_REGISTERED`}}Registrou repasse{{else if eq .acao `PIX_KEY_UPDATED`}}Atualizou chave Pix{{else if eq .acao `USER_VIEWED`}}Consultou usuário{{else if eq .acao `USER_CREATED`}}Criou usuário{{else if eq .acao `USER_DELETED`}}Removeu usuário{{else if eq .acao `GROUP_CREATED`}}Criou grupo{{else if eq .acao `GROUP_UPDATED`}}Atualizou grupo{{else if eq .acao `GROUP_DELETED`}}Removeu grupo{{else}}{{.acao}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | label_format dur=\"{{.duration_ms}}{{.durationMs}}\" | label_format resultado=\"{{if eq .code `200`}}Deu certo{{else if eq .code `201`}}Deu certo{{else if eq .code `202`}}Deu certo{{else if eq .code `204`}}Deu certo{{else if eq .code `400`}}Dados inválidos{{else if eq .code `401`}}Não autorizado{{else if eq .code `403`}}Acesso negado{{else if eq .code `404`}}Não encontrado{{else if eq .code `409`}}Conflito{{else if eq .code `415`}}Formato não aceito{{else if eq .code `422`}}Dados inválidos{{else if eq .code `429`}}Muitas tentativas{{else if eq .code `500`}}Falha no sistema{{else if eq .code `502`}}Falha no sistema{{else if eq .code `503`}}Serviço indisponível{{else if eq .code `504`}}Tempo esgotado{{else}}{{.code}}{{end}}\" | user=~\"$usuario\" | acao=~\"$acao\" | code=~\"$status\" |~ \"$busca\" [$__range]))",
           "instant": true,
           "queryType": "instant",
           "format": "table"
@@ -313,6 +520,107 @@
           {
             "displayName": "Ações",
             "desc": true
+          }
+        ],
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": true
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Ações"
+            },
+            "properties": [
+              {
+                "id": "custom.align",
+                "value": "right"
+              },
+              {
+                "id": "unit",
+                "value": "locale"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "gradient"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "blue",
+                      "value": null
+                    },
+                    {
+                      "color": "purple",
+                      "value": 500
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Serviço"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "raiji-app": {
+                        "text": "Monólito",
+                        "index": 0
+                      },
+                      "raiji-chat": {
+                        "text": "Chat",
+                        "index": 1
+                      },
+                      "raiji-front": {
+                        "text": "Aplicativo",
+                        "index": 2
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
           }
         ]
       },
@@ -337,23 +645,161 @@
       ]
     },
     {
-      "id": 9,
-      "type": "table",
-      "title": "Top ações",
+      "id": 300,
+      "type": "row",
+      "title": "O que as pessoas estão fazendo",
+      "collapsed": false,
       "gridPos": {
-        "h": 9,
-        "w": 8,
-        "x": 8,
-        "y": 29
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 24
       },
+      "panels": []
+    },
+    {
+      "id": 301,
+      "type": "table",
+      "title": "Ações mais frequentes",
+      "description": "Os tipos de ação que mais aconteceram, em linguagem simples. Quanto maior o número, mais vezes aquilo foi feito.",
       "datasource": {
         "type": "loki",
         "uid": "loki"
       },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 25
+      },
       "targets": [
         {
           "refId": "A",
-          "expr": "topk(10, sum by (acao) (count_over_time({container=~\"raiji-($servico)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | user=~\"$usuario\" | acao=~\"$acao\" | code=~\"$status\" |~ \"$busca\" [$__range])))",
+          "expr": "topk(8, sum by (acao_friendly) (count_over_time({container=~\"raiji-($servico)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format acao_friendly=\"{{if eq .acao `HTTP_GET`}}Consultou informações{{else if eq .acao `HTTP_POST`}}Cadastrou ou alterou{{else if eq .acao `HTTP_PUT`}}Atualizou{{else if eq .acao `HTTP_PATCH`}}Ajustou{{else if eq .acao `HTTP_DELETE`}}Removeu{{else if eq .acao `page_view`}}Navegou no aplicativo{{else if eq .acao `http_request`}}Acessou o aplicativo{{else if eq .acao `bff_request`}}Usou o aplicativo{{else if eq .acao `MESSAGE_SENT`}}Enviou mensagem{{else if eq .acao `CONVERSATION_READ`}}Leu conversa{{else if eq .acao `CONVERSATION_OPENED`}}Abriu conversa{{else if eq .acao `RIDE_CREATED`}}Criou corrida{{else if eq .acao `RIDE_CANCELLED`}}Cancelou corrida{{else if eq .acao `RIDE_STARTED`}}Iniciou corrida{{else if eq .acao `RIDE_FINISHED`}}Finalizou corrida{{else if eq .acao `BOOKING_REQUESTED`}}Pediu uma vaga{{else if eq .acao `BOOKING_ACCEPTED`}}Aceitou passageiro{{else if eq .acao `BOOKING_REJECTED`}}Recusou passageiro{{else if eq .acao `BOOKINGS_ACCEPTED_ALL`}}Aceitou todos os pedidos{{else if eq .acao `PAYMENT_STARTED`}}Iniciou pagamento{{else if eq .acao `PAYMENT_WEBHOOK`}}Confirmou pagamento{{else if eq .acao `PAYOUT_REGISTERED`}}Registrou repasse{{else if eq .acao `PIX_KEY_UPDATED`}}Atualizou chave Pix{{else if eq .acao `USER_VIEWED`}}Consultou usuário{{else if eq .acao `USER_CREATED`}}Criou usuário{{else if eq .acao `USER_DELETED`}}Removeu usuário{{else if eq .acao `GROUP_CREATED`}}Criou grupo{{else if eq .acao `GROUP_UPDATED`}}Atualizou grupo{{else if eq .acao `GROUP_DELETED`}}Removeu grupo{{else}}{{.acao}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | label_format dur=\"{{.duration_ms}}{{.durationMs}}\" | label_format resultado=\"{{if eq .code `200`}}Deu certo{{else if eq .code `201`}}Deu certo{{else if eq .code `202`}}Deu certo{{else if eq .code `204`}}Deu certo{{else if eq .code `400`}}Dados inválidos{{else if eq .code `401`}}Não autorizado{{else if eq .code `403`}}Acesso negado{{else if eq .code `404`}}Não encontrado{{else if eq .code `409`}}Conflito{{else if eq .code `415`}}Formato não aceito{{else if eq .code `422`}}Dados inválidos{{else if eq .code `429`}}Muitas tentativas{{else if eq .code `500`}}Falha no sistema{{else if eq .code `502`}}Falha no sistema{{else if eq .code `503`}}Serviço indisponível{{else if eq .code `504`}}Tempo esgotado{{else}}{{.code}}{{end}}\" | user=~\"$usuario\" | acao=~\"$acao\" | code=~\"$status\" |~ \"$busca\" [$__range])))",
+          "instant": true,
+          "queryType": "instant",
+          "format": "table"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "Vezes",
+            "desc": true
+          }
+        ],
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": true
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Vezes"
+            },
+            "properties": [
+              {
+                "id": "custom.align",
+                "value": "right"
+              },
+              {
+                "id": "unit",
+                "value": "locale"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "gradient"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "blue",
+                      "value": null
+                    },
+                    {
+                      "color": "purple",
+                      "value": 500
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "acao_friendly": "O que fez",
+              "Value": "Vezes",
+              "Value #A": "Vezes"
+            },
+            "indexByName": {
+              "O que fez": 0,
+              "Vezes": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 302,
+      "type": "table",
+      "title": "Quem mais usou o sistema",
+      "description": "Pessoas com mais ações no período. Use o filtro Pessoa para ver uma pessoa específica. A mesma pessoa pode aparecer com o login e com o nome de exibição.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 25
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "topk(10, sum by (user) (count_over_time({container=~\"raiji-($servico)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format acao_friendly=\"{{if eq .acao `HTTP_GET`}}Consultou informações{{else if eq .acao `HTTP_POST`}}Cadastrou ou alterou{{else if eq .acao `HTTP_PUT`}}Atualizou{{else if eq .acao `HTTP_PATCH`}}Ajustou{{else if eq .acao `HTTP_DELETE`}}Removeu{{else if eq .acao `page_view`}}Navegou no aplicativo{{else if eq .acao `http_request`}}Acessou o aplicativo{{else if eq .acao `bff_request`}}Usou o aplicativo{{else if eq .acao `MESSAGE_SENT`}}Enviou mensagem{{else if eq .acao `CONVERSATION_READ`}}Leu conversa{{else if eq .acao `CONVERSATION_OPENED`}}Abriu conversa{{else if eq .acao `RIDE_CREATED`}}Criou corrida{{else if eq .acao `RIDE_CANCELLED`}}Cancelou corrida{{else if eq .acao `RIDE_STARTED`}}Iniciou corrida{{else if eq .acao `RIDE_FINISHED`}}Finalizou corrida{{else if eq .acao `BOOKING_REQUESTED`}}Pediu uma vaga{{else if eq .acao `BOOKING_ACCEPTED`}}Aceitou passageiro{{else if eq .acao `BOOKING_REJECTED`}}Recusou passageiro{{else if eq .acao `BOOKINGS_ACCEPTED_ALL`}}Aceitou todos os pedidos{{else if eq .acao `PAYMENT_STARTED`}}Iniciou pagamento{{else if eq .acao `PAYMENT_WEBHOOK`}}Confirmou pagamento{{else if eq .acao `PAYOUT_REGISTERED`}}Registrou repasse{{else if eq .acao `PIX_KEY_UPDATED`}}Atualizou chave Pix{{else if eq .acao `USER_VIEWED`}}Consultou usuário{{else if eq .acao `USER_CREATED`}}Criou usuário{{else if eq .acao `USER_DELETED`}}Removeu usuário{{else if eq .acao `GROUP_CREATED`}}Criou grupo{{else if eq .acao `GROUP_UPDATED`}}Atualizou grupo{{else if eq .acao `GROUP_DELETED`}}Removeu grupo{{else}}{{.acao}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | label_format dur=\"{{.duration_ms}}{{.durationMs}}\" | label_format resultado=\"{{if eq .code `200`}}Deu certo{{else if eq .code `201`}}Deu certo{{else if eq .code `202`}}Deu certo{{else if eq .code `204`}}Deu certo{{else if eq .code `400`}}Dados inválidos{{else if eq .code `401`}}Não autorizado{{else if eq .code `403`}}Acesso negado{{else if eq .code `404`}}Não encontrado{{else if eq .code `409`}}Conflito{{else if eq .code `415`}}Formato não aceito{{else if eq .code `422`}}Dados inválidos{{else if eq .code `429`}}Muitas tentativas{{else if eq .code `500`}}Falha no sistema{{else if eq .code `502`}}Falha no sistema{{else if eq .code `503`}}Serviço indisponível{{else if eq .code `504`}}Tempo esgotado{{else}}{{.code}}{{end}}\" | user=~\"$usuario\" | acao=~\"$acao\" | code=~\"$status\" |~ \"$busca\" [$__range])))",
           "instant": true,
           "queryType": "instant",
           "format": "table"
@@ -366,6 +812,77 @@
             "displayName": "Ações",
             "desc": true
           }
+        ],
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": true
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Ações"
+            },
+            "properties": [
+              {
+                "id": "custom.align",
+                "value": "right"
+              },
+              {
+                "id": "unit",
+                "value": "locale"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "gradient"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "blue",
+                      "value": null
+                    },
+                    {
+                      "color": "purple",
+                      "value": 500
+                    }
+                  ]
+                }
+              }
+            ]
+          }
         ]
       },
       "transformations": [
@@ -376,12 +893,12 @@
               "Time": true
             },
             "renameByName": {
-              "acao": "Ação",
+              "user": "Pessoa",
               "Value": "Ações",
               "Value #A": "Ações"
             },
             "indexByName": {
-              "Ação": 0,
+              "Pessoa": 0,
               "Ações": 1
             }
           }
@@ -389,236 +906,139 @@
       ]
     },
     {
-      "id": 10,
+      "id": 400,
+      "type": "row",
+      "title": "Últimas ações registradas",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 33
+      },
+      "panels": []
+    },
+    {
+      "id": 401,
+      "type": "logs",
+      "title": "Linha do tempo — quem fez o quê",
+      "description": "Cada linha é uma ação, da mais recente para a mais antiga. A linha mostra pessoa, ação, serviço, caminho, resultado e o ID da requisição.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 34
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{container=~\"raiji-($servico)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format acao_friendly=\"{{if eq .acao `HTTP_GET`}}Consultou informações{{else if eq .acao `HTTP_POST`}}Cadastrou ou alterou{{else if eq .acao `HTTP_PUT`}}Atualizou{{else if eq .acao `HTTP_PATCH`}}Ajustou{{else if eq .acao `HTTP_DELETE`}}Removeu{{else if eq .acao `page_view`}}Navegou no aplicativo{{else if eq .acao `http_request`}}Acessou o aplicativo{{else if eq .acao `bff_request`}}Usou o aplicativo{{else if eq .acao `MESSAGE_SENT`}}Enviou mensagem{{else if eq .acao `CONVERSATION_READ`}}Leu conversa{{else if eq .acao `CONVERSATION_OPENED`}}Abriu conversa{{else if eq .acao `RIDE_CREATED`}}Criou corrida{{else if eq .acao `RIDE_CANCELLED`}}Cancelou corrida{{else if eq .acao `RIDE_STARTED`}}Iniciou corrida{{else if eq .acao `RIDE_FINISHED`}}Finalizou corrida{{else if eq .acao `BOOKING_REQUESTED`}}Pediu uma vaga{{else if eq .acao `BOOKING_ACCEPTED`}}Aceitou passageiro{{else if eq .acao `BOOKING_REJECTED`}}Recusou passageiro{{else if eq .acao `BOOKINGS_ACCEPTED_ALL`}}Aceitou todos os pedidos{{else if eq .acao `PAYMENT_STARTED`}}Iniciou pagamento{{else if eq .acao `PAYMENT_WEBHOOK`}}Confirmou pagamento{{else if eq .acao `PAYOUT_REGISTERED`}}Registrou repasse{{else if eq .acao `PIX_KEY_UPDATED`}}Atualizou chave Pix{{else if eq .acao `USER_VIEWED`}}Consultou usuário{{else if eq .acao `USER_CREATED`}}Criou usuário{{else if eq .acao `USER_DELETED`}}Removeu usuário{{else if eq .acao `GROUP_CREATED`}}Criou grupo{{else if eq .acao `GROUP_UPDATED`}}Atualizou grupo{{else if eq .acao `GROUP_DELETED`}}Removeu grupo{{else}}{{.acao}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | label_format dur=\"{{.duration_ms}}{{.durationMs}}\" | label_format resultado=\"{{if eq .code `200`}}Deu certo{{else if eq .code `201`}}Deu certo{{else if eq .code `202`}}Deu certo{{else if eq .code `204`}}Deu certo{{else if eq .code `400`}}Dados inválidos{{else if eq .code `401`}}Não autorizado{{else if eq .code `403`}}Acesso negado{{else if eq .code `404`}}Não encontrado{{else if eq .code `409`}}Conflito{{else if eq .code `415`}}Formato não aceito{{else if eq .code `422`}}Dados inválidos{{else if eq .code `429`}}Muitas tentativas{{else if eq .code `500`}}Falha no sistema{{else if eq .code `502`}}Falha no sistema{{else if eq .code `503`}}Serviço indisponível{{else if eq .code `504`}}Tempo esgotado{{else}}{{.code}}{{end}}\" | user=~\"$usuario\" | acao=~\"$acao\" | code=~\"$status\" |~ \"$busca\" | line_format \"{{if .user}}{{.user}}{{else}}Visitante{{end}} • {{if .acao_friendly}}{{.acao_friendly}}{{else}}Ação{{end}} • {{if eq .container `raiji-app`}}Monólito{{else if eq .container `raiji-chat`}}Chat{{else if eq .container `raiji-front`}}Aplicativo{{else}}{{.container}}{{end}} • {{.http_method}}{{.method}} {{.http_path}}{{.path}} • {{if .resultado}}{{.resultado}}{{else}}sem status{{end}}{{if or .request_id .requestId}} • ID {{.request_id}}{{.requestId}}{{end}}\"",
+          "queryType": "range"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "sortOrder": "Descending",
+        "wrapLogMessage": true,
+        "enableLogDetails": true,
+        "dedupStrategy": "none",
+        "detailsMode": "inline",
+        "prettifyLogMessage": false,
+        "showLabels": false,
+        "showCommonLabels": false
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 500,
+      "type": "row",
+      "title": "Problemas e acessos negados",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 44
+      },
+      "panels": []
+    },
+    {
+      "id": 501,
+      "type": "logs",
+      "title": "O que deu errado",
+      "description": "Somente ações com erro ou acesso negado (4xx e 5xx). A coluna de resultado explica o que aconteceu em linguagem simples.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 16,
+        "x": 0,
+        "y": 45
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{container=~\"raiji-($servico)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format acao_friendly=\"{{if eq .acao `HTTP_GET`}}Consultou informações{{else if eq .acao `HTTP_POST`}}Cadastrou ou alterou{{else if eq .acao `HTTP_PUT`}}Atualizou{{else if eq .acao `HTTP_PATCH`}}Ajustou{{else if eq .acao `HTTP_DELETE`}}Removeu{{else if eq .acao `page_view`}}Navegou no aplicativo{{else if eq .acao `http_request`}}Acessou o aplicativo{{else if eq .acao `bff_request`}}Usou o aplicativo{{else if eq .acao `MESSAGE_SENT`}}Enviou mensagem{{else if eq .acao `CONVERSATION_READ`}}Leu conversa{{else if eq .acao `CONVERSATION_OPENED`}}Abriu conversa{{else if eq .acao `RIDE_CREATED`}}Criou corrida{{else if eq .acao `RIDE_CANCELLED`}}Cancelou corrida{{else if eq .acao `RIDE_STARTED`}}Iniciou corrida{{else if eq .acao `RIDE_FINISHED`}}Finalizou corrida{{else if eq .acao `BOOKING_REQUESTED`}}Pediu uma vaga{{else if eq .acao `BOOKING_ACCEPTED`}}Aceitou passageiro{{else if eq .acao `BOOKING_REJECTED`}}Recusou passageiro{{else if eq .acao `BOOKINGS_ACCEPTED_ALL`}}Aceitou todos os pedidos{{else if eq .acao `PAYMENT_STARTED`}}Iniciou pagamento{{else if eq .acao `PAYMENT_WEBHOOK`}}Confirmou pagamento{{else if eq .acao `PAYOUT_REGISTERED`}}Registrou repasse{{else if eq .acao `PIX_KEY_UPDATED`}}Atualizou chave Pix{{else if eq .acao `USER_VIEWED`}}Consultou usuário{{else if eq .acao `USER_CREATED`}}Criou usuário{{else if eq .acao `USER_DELETED`}}Removeu usuário{{else if eq .acao `GROUP_CREATED`}}Criou grupo{{else if eq .acao `GROUP_UPDATED`}}Atualizou grupo{{else if eq .acao `GROUP_DELETED`}}Removeu grupo{{else}}{{.acao}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | label_format dur=\"{{.duration_ms}}{{.durationMs}}\" | label_format resultado=\"{{if eq .code `200`}}Deu certo{{else if eq .code `201`}}Deu certo{{else if eq .code `202`}}Deu certo{{else if eq .code `204`}}Deu certo{{else if eq .code `400`}}Dados inválidos{{else if eq .code `401`}}Não autorizado{{else if eq .code `403`}}Acesso negado{{else if eq .code `404`}}Não encontrado{{else if eq .code `409`}}Conflito{{else if eq .code `415`}}Formato não aceito{{else if eq .code `422`}}Dados inválidos{{else if eq .code `429`}}Muitas tentativas{{else if eq .code `500`}}Falha no sistema{{else if eq .code `502`}}Falha no sistema{{else if eq .code `503`}}Serviço indisponível{{else if eq .code `504`}}Tempo esgotado{{else}}{{.code}}{{end}}\" | user=~\"$usuario\" | acao=~\"$acao\" | code=~\"$status\" |~ \"$busca\" | code=~\"$status\" | code=~\"4..|5..\" | line_format \"{{if .user}}{{.user}}{{else}}Visitante{{end}} • {{if .acao_friendly}}{{.acao_friendly}}{{else}}Ação{{end}} • {{if eq .container `raiji-app`}}Monólito{{else if eq .container `raiji-chat`}}Chat{{else if eq .container `raiji-front`}}Aplicativo{{else}}{{.container}}{{end}} • {{.http_method}}{{.method}} {{.http_path}}{{.path}} • {{if .resultado}}{{.resultado}}{{else}}sem status{{end}}{{if or .request_id .requestId}} • ID {{.request_id}}{{.requestId}}{{end}}\"",
+          "queryType": "range"
+        },
+        {
+          "refId": "B",
+          "expr": "{container=\"raiji-keycloak-events\"} |= \"keycloak_event\" | json | error=~\".+\" |~ \"$busca\"",
+          "queryType": "range"
+        },
+        {
+          "refId": "C",
+          "expr": "{container=\"raiji-keycloak\"} |~ \"LOGIN_ERROR|LOGOUT_ERROR|ERROR\" |~ \"$busca\"",
+          "queryType": "range"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "sortOrder": "Descending",
+        "wrapLogMessage": true,
+        "enableLogDetails": true,
+        "dedupStrategy": "none",
+        "detailsMode": "inline",
+        "prettifyLogMessage": false,
+        "showLabels": false,
+        "showCommonLabels": false
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 502,
       "type": "table",
-      "title": "Top usuários",
+      "title": "Quem teve mais problemas",
+      "description": "Pessoas cujas ações terminaram em erro ou acesso negado. Ajuda a identificar quem precisa de suporte ou treinamento.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
       "gridPos": {
         "h": 9,
         "w": 8,
         "x": 16,
-        "y": 29
-      },
-      "datasource": {
-        "type": "loki",
-        "uid": "loki"
+        "y": 45
       },
       "targets": [
         {
           "refId": "A",
-          "expr": "topk(50, sum by (user) (count_over_time({container=~\"raiji-($servico)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | user=~\"$usuario\" | acao=~\"$acao\" | code=~\"$status\" |~ \"$busca\" [$__range])))",
+          "expr": "topk(20, sum by (user) (count_over_time({container=~\"raiji-($servico)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format acao_friendly=\"{{if eq .acao `HTTP_GET`}}Consultou informações{{else if eq .acao `HTTP_POST`}}Cadastrou ou alterou{{else if eq .acao `HTTP_PUT`}}Atualizou{{else if eq .acao `HTTP_PATCH`}}Ajustou{{else if eq .acao `HTTP_DELETE`}}Removeu{{else if eq .acao `page_view`}}Navegou no aplicativo{{else if eq .acao `http_request`}}Acessou o aplicativo{{else if eq .acao `bff_request`}}Usou o aplicativo{{else if eq .acao `MESSAGE_SENT`}}Enviou mensagem{{else if eq .acao `CONVERSATION_READ`}}Leu conversa{{else if eq .acao `CONVERSATION_OPENED`}}Abriu conversa{{else if eq .acao `RIDE_CREATED`}}Criou corrida{{else if eq .acao `RIDE_CANCELLED`}}Cancelou corrida{{else if eq .acao `RIDE_STARTED`}}Iniciou corrida{{else if eq .acao `RIDE_FINISHED`}}Finalizou corrida{{else if eq .acao `BOOKING_REQUESTED`}}Pediu uma vaga{{else if eq .acao `BOOKING_ACCEPTED`}}Aceitou passageiro{{else if eq .acao `BOOKING_REJECTED`}}Recusou passageiro{{else if eq .acao `BOOKINGS_ACCEPTED_ALL`}}Aceitou todos os pedidos{{else if eq .acao `PAYMENT_STARTED`}}Iniciou pagamento{{else if eq .acao `PAYMENT_WEBHOOK`}}Confirmou pagamento{{else if eq .acao `PAYOUT_REGISTERED`}}Registrou repasse{{else if eq .acao `PIX_KEY_UPDATED`}}Atualizou chave Pix{{else if eq .acao `USER_VIEWED`}}Consultou usuário{{else if eq .acao `USER_CREATED`}}Criou usuário{{else if eq .acao `USER_DELETED`}}Removeu usuário{{else if eq .acao `GROUP_CREATED`}}Criou grupo{{else if eq .acao `GROUP_UPDATED`}}Atualizou grupo{{else if eq .acao `GROUP_DELETED`}}Removeu grupo{{else}}{{.acao}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | label_format dur=\"{{.duration_ms}}{{.durationMs}}\" | label_format resultado=\"{{if eq .code `200`}}Deu certo{{else if eq .code `201`}}Deu certo{{else if eq .code `202`}}Deu certo{{else if eq .code `204`}}Deu certo{{else if eq .code `400`}}Dados inválidos{{else if eq .code `401`}}Não autorizado{{else if eq .code `403`}}Acesso negado{{else if eq .code `404`}}Não encontrado{{else if eq .code `409`}}Conflito{{else if eq .code `415`}}Formato não aceito{{else if eq .code `422`}}Dados inválidos{{else if eq .code `429`}}Muitas tentativas{{else if eq .code `500`}}Falha no sistema{{else if eq .code `502`}}Falha no sistema{{else if eq .code `503`}}Serviço indisponível{{else if eq .code `504`}}Tempo esgotado{{else}}{{.code}}{{end}}\" | user=~\"$usuario\" | acao=~\"$acao\" | code=~\"$status\" |~ \"$busca\" | code=~\"$status\" | code=~\"4..|5..\" [$__range])))",
           "instant": true,
           "queryType": "instant",
           "format": "table"
-        }
-      ],
-      "options": {
-        "showHeader": true,
-        "sortBy": [
-          {
-            "displayName": "Ações",
-            "desc": true
-          }
-        ]
-      },
-      "transformations": [
-        {
-          "id": "organize",
-          "options": {
-            "excludeByName": {
-              "Time": true
-            },
-            "renameByName": {
-              "user": "Usuário",
-              "Value": "Ações",
-              "Value #A": "Ações"
-            },
-            "indexByName": {
-              "Usuário": 0,
-              "Ações": 1
-            }
-          }
-        }
-      ]
-    },
-    {
-      "id": 11,
-      "type": "logs",
-      "title": "Infra e logs técnicos (Kong, Keycloak, Postgres, RabbitMQ)",
-      "gridPos": {
-        "h": 10,
-        "w": 24,
-        "x": 0,
-        "y": 38
-      },
-      "datasource": {
-        "type": "loki",
-        "uid": "loki"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "{container=~\"raiji-(kong|keycloak|postgres|rabbitmq)\"} |~ \"$busca\"",
-          "queryType": "range"
-        }
-      ],
-      "options": {
-        "showTime": true,
-        "sortOrder": "Descending",
-        "wrapLogMessage": true,
-        "enableLogDetails": true,
-        "dedupStrategy": "none"
-      }
-    },
-    {
-      "id": 12,
-      "type": "logs",
-      "title": "Todos os logs (técnico, busca livre)",
-      "gridPos": {
-        "h": 10,
-        "w": 24,
-        "x": 0,
-        "y": 48
-      },
-      "datasource": {
-        "type": "loki",
-        "uid": "loki"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "{container=~\"raiji-.*\"} |~ \"$busca\"",
-          "queryType": "range"
-        }
-      ],
-      "options": {
-        "showTime": true,
-        "sortOrder": "Descending",
-        "wrapLogMessage": true,
-        "enableLogDetails": true,
-        "dedupStrategy": "none"
-      }
-    },
-    {
-      "id": 13,
-      "type": "logs",
-      "title": "Identidade — Keycloak (login/logout e ações administrativas)",
-      "gridPos": {
-        "h": 10,
-        "w": 24,
-        "x": 0,
-        "y": 58
-      },
-      "datasource": {
-        "type": "loki",
-        "uid": "loki"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "{container=\"raiji-keycloak-events\"} |= \"keycloak_event\" | json | username=~\"$usuario\" or actorUsername=~\"$usuario\" or userId=~\"$usuario\" or actorId=~\"$usuario\" |~ \"$busca\" | line_format \"{{.username}}{{.actorUsername}} | {{.kind}} | {{.type}} | {{.resourcePath}} | {{.actorUsername}} | {{.ipAddress}}{{.actorIp}}\"",
-          "queryType": "range"
-        }
-      ],
-      "options": {
-        "showTime": true,
-        "sortOrder": "Descending",
-        "wrapLogMessage": true,
-        "enableLogDetails": true,
-        "dedupStrategy": "none"
-      }
-    },
-    {
-      "id": 14,
-      "type": "table",
-      "title": "Usuários — estatísticas",
-      "gridPos": {
-        "h": 10,
-        "w": 12,
-        "x": 0,
-        "y": 68
-      },
-      "datasource": {
-        "type": "loki",
-        "uid": "loki"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "topk(100, sum by (user) (count_over_time({container=~\"raiji-($servico)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | user=~\"$usuario\" | acao=~\"$acao\" | code=~\"$status\" |~ \"$busca\" [$__range])))",
-          "instant": true,
-          "queryType": "instant",
-          "format": "table"
-        }
-      ],
-      "transformations": [
-        {
-          "id": "organize",
-          "options": {
-            "excludeByName": {
-              "Time": true
-            },
-            "renameByName": {
-              "user": "Usuário",
-              "Value": "Ações",
-              "Value #A": "Ações"
-            },
-            "indexByName": {
-              "Usuário": 0,
-              "Ações": 1
-            }
-          }
-        }
-      ],
-      "options": {
-        "showHeader": true,
-        "sortBy": [
-          {
-            "displayName": "Ações",
-            "desc": true
-          }
-        ]
-      }
-    },
-    {
-      "id": 15,
-      "type": "table",
-      "title": "Falhas por usuário",
-      "gridPos": {
-        "h": 10,
-        "w": 12,
-        "x": 12,
-        "y": 68
-      },
-      "datasource": {
-        "type": "loki",
-        "uid": "loki"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "topk(100, sum by (user) (count_over_time({container=~\"raiji-($servico)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | user=~\"$usuario\" | acao=~\"$acao\" | code=~\"$status\" | code=~\"4..|5..\" |~ \"$busca\" [$__range])))",
-          "instant": true,
-          "queryType": "instant",
-          "format": "table"
-        }
-      ],
-      "transformations": [
-        {
-          "id": "organize",
-          "options": {
-            "excludeByName": {
-              "Time": true
-            },
-            "renameByName": {
-              "user": "Usuário",
-              "Value": "Falhas",
-              "Value #A": "Falhas"
-            },
-            "indexByName": {
-              "Usuário": 0,
-              "Falhas": 1
-            }
-          }
         }
       ],
       "options": {
@@ -628,32 +1048,83 @@
             "displayName": "Falhas",
             "desc": true
           }
-        ]
-      }
-    },
-    {
-      "id": 16,
-      "type": "table",
-      "title": "Usuários × ações",
-      "gridPos": {
-        "h": 10,
-        "w": 24,
-        "x": 0,
-        "y": 78
-      },
-      "datasource": {
-        "type": "loki",
-        "uid": "loki"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "topk(100, sum by (user, acao) (count_over_time({container=~\"raiji-($servico)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | user=~\"$usuario\" | acao=~\"$acao\" | code=~\"$status\" |~ \"$busca\" [$__range])))",
-          "instant": true,
-          "queryType": "instant",
-          "format": "table"
+        ],
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
         }
-      ],
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": true
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Falhas"
+            },
+            "properties": [
+              {
+                "id": "custom.align",
+                "value": "right"
+              },
+              {
+                "id": "unit",
+                "value": "locale"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "gradient"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 1
+                    },
+                    {
+                      "color": "red",
+                      "value": 10
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
       "transformations": [
         {
           "id": "organize",
@@ -662,17 +1133,53 @@
               "Time": true
             },
             "renameByName": {
-              "user": "Usuário",
-              "acao": "Ação",
-              "Value": "Ações",
-              "Value #A": "Ações"
+              "user": "Pessoa",
+              "Value": "Falhas",
+              "Value #A": "Falhas"
             },
             "indexByName": {
-              "user": 0,
-              "acao": 1,
-              "Value #A": 2
+              "Pessoa": 0,
+              "Falhas": 1
             }
           }
+        }
+      ]
+    },
+    {
+      "id": 600,
+      "type": "row",
+      "title": "Resumo por pessoa",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 54
+      },
+      "panels": []
+    },
+    {
+      "id": 601,
+      "type": "table",
+      "title": "Quanto cada pessoa usou",
+      "description": "Total de ações por pessoa no período. Serve para ver quem mais usa o sistema. A mesma pessoa pode aparecer com o login e com o nome de exibição.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 10,
+        "x": 0,
+        "y": 55
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "topk(50, sum by (user) (count_over_time({container=~\"raiji-($servico)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format acao_friendly=\"{{if eq .acao `HTTP_GET`}}Consultou informações{{else if eq .acao `HTTP_POST`}}Cadastrou ou alterou{{else if eq .acao `HTTP_PUT`}}Atualizou{{else if eq .acao `HTTP_PATCH`}}Ajustou{{else if eq .acao `HTTP_DELETE`}}Removeu{{else if eq .acao `page_view`}}Navegou no aplicativo{{else if eq .acao `http_request`}}Acessou o aplicativo{{else if eq .acao `bff_request`}}Usou o aplicativo{{else if eq .acao `MESSAGE_SENT`}}Enviou mensagem{{else if eq .acao `CONVERSATION_READ`}}Leu conversa{{else if eq .acao `CONVERSATION_OPENED`}}Abriu conversa{{else if eq .acao `RIDE_CREATED`}}Criou corrida{{else if eq .acao `RIDE_CANCELLED`}}Cancelou corrida{{else if eq .acao `RIDE_STARTED`}}Iniciou corrida{{else if eq .acao `RIDE_FINISHED`}}Finalizou corrida{{else if eq .acao `BOOKING_REQUESTED`}}Pediu uma vaga{{else if eq .acao `BOOKING_ACCEPTED`}}Aceitou passageiro{{else if eq .acao `BOOKING_REJECTED`}}Recusou passageiro{{else if eq .acao `BOOKINGS_ACCEPTED_ALL`}}Aceitou todos os pedidos{{else if eq .acao `PAYMENT_STARTED`}}Iniciou pagamento{{else if eq .acao `PAYMENT_WEBHOOK`}}Confirmou pagamento{{else if eq .acao `PAYOUT_REGISTERED`}}Registrou repasse{{else if eq .acao `PIX_KEY_UPDATED`}}Atualizou chave Pix{{else if eq .acao `USER_VIEWED`}}Consultou usuário{{else if eq .acao `USER_CREATED`}}Criou usuário{{else if eq .acao `USER_DELETED`}}Removeu usuário{{else if eq .acao `GROUP_CREATED`}}Criou grupo{{else if eq .acao `GROUP_UPDATED`}}Atualizou grupo{{else if eq .acao `GROUP_DELETED`}}Removeu grupo{{else}}{{.acao}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | label_format dur=\"{{.duration_ms}}{{.durationMs}}\" | label_format resultado=\"{{if eq .code `200`}}Deu certo{{else if eq .code `201`}}Deu certo{{else if eq .code `202`}}Deu certo{{else if eq .code `204`}}Deu certo{{else if eq .code `400`}}Dados inválidos{{else if eq .code `401`}}Não autorizado{{else if eq .code `403`}}Acesso negado{{else if eq .code `404`}}Não encontrado{{else if eq .code `409`}}Conflito{{else if eq .code `415`}}Formato não aceito{{else if eq .code `422`}}Dados inválidos{{else if eq .code `429`}}Muitas tentativas{{else if eq .code `500`}}Falha no sistema{{else if eq .code `502`}}Falha no sistema{{else if eq .code `503`}}Serviço indisponível{{else if eq .code `504`}}Tempo esgotado{{else}}{{.code}}{{end}}\" | user=~\"$usuario\" | acao=~\"$acao\" | code=~\"$status\" |~ \"$busca\" [$__range])))",
+          "instant": true,
+          "queryType": "instant",
+          "format": "table"
         }
       ],
       "options": {
@@ -682,36 +1189,1150 @@
             "displayName": "Ações",
             "desc": true
           }
+        ],
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": true
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Ações"
+            },
+            "properties": [
+              {
+                "id": "custom.align",
+                "value": "right"
+              },
+              {
+                "id": "unit",
+                "value": "locale"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "gradient"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "blue",
+                      "value": null
+                    },
+                    {
+                      "color": "purple",
+                      "value": 500
+                    }
+                  ]
+                }
+              }
+            ]
+          }
         ]
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "user": "Pessoa",
+              "Value": "Ações",
+              "Value #A": "Ações"
+            },
+            "indexByName": {
+              "Pessoa": 0,
+              "Ações": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 602,
+      "type": "table",
+      "title": "O que cada pessoa fez",
+      "description": "Detalhamento por pessoa e tipo de ação. É aqui que você vê, por exemplo, que uma pessoa criou corridas, enviou mensagens e consultou informações.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 14,
+        "x": 10,
+        "y": 55
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "topk(100, sum by (user, acao_friendly) (count_over_time({container=~\"raiji-($servico)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format acao_friendly=\"{{if eq .acao `HTTP_GET`}}Consultou informações{{else if eq .acao `HTTP_POST`}}Cadastrou ou alterou{{else if eq .acao `HTTP_PUT`}}Atualizou{{else if eq .acao `HTTP_PATCH`}}Ajustou{{else if eq .acao `HTTP_DELETE`}}Removeu{{else if eq .acao `page_view`}}Navegou no aplicativo{{else if eq .acao `http_request`}}Acessou o aplicativo{{else if eq .acao `bff_request`}}Usou o aplicativo{{else if eq .acao `MESSAGE_SENT`}}Enviou mensagem{{else if eq .acao `CONVERSATION_READ`}}Leu conversa{{else if eq .acao `CONVERSATION_OPENED`}}Abriu conversa{{else if eq .acao `RIDE_CREATED`}}Criou corrida{{else if eq .acao `RIDE_CANCELLED`}}Cancelou corrida{{else if eq .acao `RIDE_STARTED`}}Iniciou corrida{{else if eq .acao `RIDE_FINISHED`}}Finalizou corrida{{else if eq .acao `BOOKING_REQUESTED`}}Pediu uma vaga{{else if eq .acao `BOOKING_ACCEPTED`}}Aceitou passageiro{{else if eq .acao `BOOKING_REJECTED`}}Recusou passageiro{{else if eq .acao `BOOKINGS_ACCEPTED_ALL`}}Aceitou todos os pedidos{{else if eq .acao `PAYMENT_STARTED`}}Iniciou pagamento{{else if eq .acao `PAYMENT_WEBHOOK`}}Confirmou pagamento{{else if eq .acao `PAYOUT_REGISTERED`}}Registrou repasse{{else if eq .acao `PIX_KEY_UPDATED`}}Atualizou chave Pix{{else if eq .acao `USER_VIEWED`}}Consultou usuário{{else if eq .acao `USER_CREATED`}}Criou usuário{{else if eq .acao `USER_DELETED`}}Removeu usuário{{else if eq .acao `GROUP_CREATED`}}Criou grupo{{else if eq .acao `GROUP_UPDATED`}}Atualizou grupo{{else if eq .acao `GROUP_DELETED`}}Removeu grupo{{else}}{{.acao}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | label_format dur=\"{{.duration_ms}}{{.durationMs}}\" | label_format resultado=\"{{if eq .code `200`}}Deu certo{{else if eq .code `201`}}Deu certo{{else if eq .code `202`}}Deu certo{{else if eq .code `204`}}Deu certo{{else if eq .code `400`}}Dados inválidos{{else if eq .code `401`}}Não autorizado{{else if eq .code `403`}}Acesso negado{{else if eq .code `404`}}Não encontrado{{else if eq .code `409`}}Conflito{{else if eq .code `415`}}Formato não aceito{{else if eq .code `422`}}Dados inválidos{{else if eq .code `429`}}Muitas tentativas{{else if eq .code `500`}}Falha no sistema{{else if eq .code `502`}}Falha no sistema{{else if eq .code `503`}}Serviço indisponível{{else if eq .code `504`}}Tempo esgotado{{else}}{{.code}}{{end}}\" | user=~\"$usuario\" | acao=~\"$acao\" | code=~\"$status\" |~ \"$busca\" [$__range])))",
+          "instant": true,
+          "queryType": "instant",
+          "format": "table"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "Ações",
+            "desc": true
+          }
+        ],
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": true
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Ações"
+            },
+            "properties": [
+              {
+                "id": "custom.align",
+                "value": "right"
+              },
+              {
+                "id": "unit",
+                "value": "locale"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "gradient"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "blue",
+                      "value": null
+                    },
+                    {
+                      "color": "purple",
+                      "value": 500
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "user": "Pessoa",
+              "acao_friendly": "O que fez",
+              "Value": "Ações",
+              "Value #A": "Ações"
+            },
+            "indexByName": {
+              "Pessoa": 0,
+              "O que fez": 1,
+              "Ações": 2
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 603,
+      "type": "timeseries",
+      "title": "Quantas pessoas usaram o sistema",
+      "description": "Número de pessoas diferentes que fizeram alguma ação em cada intervalo. Ajuda a ver os horários e dias de maior movimento.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 24,
+        "x": 0,
+        "y": 63
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count(count by (user) (count_over_time({container=~\"raiji-($servico)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format acao_friendly=\"{{if eq .acao `HTTP_GET`}}Consultou informações{{else if eq .acao `HTTP_POST`}}Cadastrou ou alterou{{else if eq .acao `HTTP_PUT`}}Atualizou{{else if eq .acao `HTTP_PATCH`}}Ajustou{{else if eq .acao `HTTP_DELETE`}}Removeu{{else if eq .acao `page_view`}}Navegou no aplicativo{{else if eq .acao `http_request`}}Acessou o aplicativo{{else if eq .acao `bff_request`}}Usou o aplicativo{{else if eq .acao `MESSAGE_SENT`}}Enviou mensagem{{else if eq .acao `CONVERSATION_READ`}}Leu conversa{{else if eq .acao `CONVERSATION_OPENED`}}Abriu conversa{{else if eq .acao `RIDE_CREATED`}}Criou corrida{{else if eq .acao `RIDE_CANCELLED`}}Cancelou corrida{{else if eq .acao `RIDE_STARTED`}}Iniciou corrida{{else if eq .acao `RIDE_FINISHED`}}Finalizou corrida{{else if eq .acao `BOOKING_REQUESTED`}}Pediu uma vaga{{else if eq .acao `BOOKING_ACCEPTED`}}Aceitou passageiro{{else if eq .acao `BOOKING_REJECTED`}}Recusou passageiro{{else if eq .acao `BOOKINGS_ACCEPTED_ALL`}}Aceitou todos os pedidos{{else if eq .acao `PAYMENT_STARTED`}}Iniciou pagamento{{else if eq .acao `PAYMENT_WEBHOOK`}}Confirmou pagamento{{else if eq .acao `PAYOUT_REGISTERED`}}Registrou repasse{{else if eq .acao `PIX_KEY_UPDATED`}}Atualizou chave Pix{{else if eq .acao `USER_VIEWED`}}Consultou usuário{{else if eq .acao `USER_CREATED`}}Criou usuário{{else if eq .acao `USER_DELETED`}}Removeu usuário{{else if eq .acao `GROUP_CREATED`}}Criou grupo{{else if eq .acao `GROUP_UPDATED`}}Atualizou grupo{{else if eq .acao `GROUP_DELETED`}}Removeu grupo{{else}}{{.acao}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | label_format dur=\"{{.duration_ms}}{{.durationMs}}\" | label_format resultado=\"{{if eq .code `200`}}Deu certo{{else if eq .code `201`}}Deu certo{{else if eq .code `202`}}Deu certo{{else if eq .code `204`}}Deu certo{{else if eq .code `400`}}Dados inválidos{{else if eq .code `401`}}Não autorizado{{else if eq .code `403`}}Acesso negado{{else if eq .code `404`}}Não encontrado{{else if eq .code `409`}}Conflito{{else if eq .code `415`}}Formato não aceito{{else if eq .code `422`}}Dados inválidos{{else if eq .code `429`}}Muitas tentativas{{else if eq .code `500`}}Falha no sistema{{else if eq .code `502`}}Falha no sistema{{else if eq .code `503`}}Serviço indisponível{{else if eq .code `504`}}Tempo esgotado{{else}}{{.code}}{{end}}\" | user=~\"$usuario\" | acao=~\"$acao\" | code=~\"$status\" |~ \"$busca\" [$__interval])))",
+          "queryType": "range",
+          "legendFormat": "Pessoas ativas"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "locale",
+          "min": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#73BF69"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "fillOpacity": 20,
+            "gradientMode": "opacity",
+            "spanNulls": true,
+            "showPoints": "never",
+            "pointSize": 5,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "axisPlacement": "auto",
+            "axisLabel": "Pessoas",
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 604,
+      "type": "table",
+      "title": "Ficha da pessoa — todas as métricas",
+      "description": "Um resumo por pessoa: total de ações, falhas, taxa de sucesso, quantos serviços usou e tempo médio de resposta. Use o filtro Pessoa para ver uma pessoa específica.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 70
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "topk(100, sum by (user) (count_over_time({container=~\"raiji-($servico)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format acao_friendly=\"{{if eq .acao `HTTP_GET`}}Consultou informações{{else if eq .acao `HTTP_POST`}}Cadastrou ou alterou{{else if eq .acao `HTTP_PUT`}}Atualizou{{else if eq .acao `HTTP_PATCH`}}Ajustou{{else if eq .acao `HTTP_DELETE`}}Removeu{{else if eq .acao `page_view`}}Navegou no aplicativo{{else if eq .acao `http_request`}}Acessou o aplicativo{{else if eq .acao `bff_request`}}Usou o aplicativo{{else if eq .acao `MESSAGE_SENT`}}Enviou mensagem{{else if eq .acao `CONVERSATION_READ`}}Leu conversa{{else if eq .acao `CONVERSATION_OPENED`}}Abriu conversa{{else if eq .acao `RIDE_CREATED`}}Criou corrida{{else if eq .acao `RIDE_CANCELLED`}}Cancelou corrida{{else if eq .acao `RIDE_STARTED`}}Iniciou corrida{{else if eq .acao `RIDE_FINISHED`}}Finalizou corrida{{else if eq .acao `BOOKING_REQUESTED`}}Pediu uma vaga{{else if eq .acao `BOOKING_ACCEPTED`}}Aceitou passageiro{{else if eq .acao `BOOKING_REJECTED`}}Recusou passageiro{{else if eq .acao `BOOKINGS_ACCEPTED_ALL`}}Aceitou todos os pedidos{{else if eq .acao `PAYMENT_STARTED`}}Iniciou pagamento{{else if eq .acao `PAYMENT_WEBHOOK`}}Confirmou pagamento{{else if eq .acao `PAYOUT_REGISTERED`}}Registrou repasse{{else if eq .acao `PIX_KEY_UPDATED`}}Atualizou chave Pix{{else if eq .acao `USER_VIEWED`}}Consultou usuário{{else if eq .acao `USER_CREATED`}}Criou usuário{{else if eq .acao `USER_DELETED`}}Removeu usuário{{else if eq .acao `GROUP_CREATED`}}Criou grupo{{else if eq .acao `GROUP_UPDATED`}}Atualizou grupo{{else if eq .acao `GROUP_DELETED`}}Removeu grupo{{else}}{{.acao}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | label_format dur=\"{{.duration_ms}}{{.durationMs}}\" | label_format resultado=\"{{if eq .code `200`}}Deu certo{{else if eq .code `201`}}Deu certo{{else if eq .code `202`}}Deu certo{{else if eq .code `204`}}Deu certo{{else if eq .code `400`}}Dados inválidos{{else if eq .code `401`}}Não autorizado{{else if eq .code `403`}}Acesso negado{{else if eq .code `404`}}Não encontrado{{else if eq .code `409`}}Conflito{{else if eq .code `415`}}Formato não aceito{{else if eq .code `422`}}Dados inválidos{{else if eq .code `429`}}Muitas tentativas{{else if eq .code `500`}}Falha no sistema{{else if eq .code `502`}}Falha no sistema{{else if eq .code `503`}}Serviço indisponível{{else if eq .code `504`}}Tempo esgotado{{else}}{{.code}}{{end}}\" | user=~\"$usuario\" | acao=~\"$acao\" | code=~\"$status\" |~ \"$busca\" [$__range])))",
+          "instant": true,
+          "queryType": "instant",
+          "format": "table"
+        },
+        {
+          "refId": "B",
+          "expr": "(sum by (user) (count_over_time({container=~\"raiji-($servico)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format acao_friendly=\"{{if eq .acao `HTTP_GET`}}Consultou informações{{else if eq .acao `HTTP_POST`}}Cadastrou ou alterou{{else if eq .acao `HTTP_PUT`}}Atualizou{{else if eq .acao `HTTP_PATCH`}}Ajustou{{else if eq .acao `HTTP_DELETE`}}Removeu{{else if eq .acao `page_view`}}Navegou no aplicativo{{else if eq .acao `http_request`}}Acessou o aplicativo{{else if eq .acao `bff_request`}}Usou o aplicativo{{else if eq .acao `MESSAGE_SENT`}}Enviou mensagem{{else if eq .acao `CONVERSATION_READ`}}Leu conversa{{else if eq .acao `CONVERSATION_OPENED`}}Abriu conversa{{else if eq .acao `RIDE_CREATED`}}Criou corrida{{else if eq .acao `RIDE_CANCELLED`}}Cancelou corrida{{else if eq .acao `RIDE_STARTED`}}Iniciou corrida{{else if eq .acao `RIDE_FINISHED`}}Finalizou corrida{{else if eq .acao `BOOKING_REQUESTED`}}Pediu uma vaga{{else if eq .acao `BOOKING_ACCEPTED`}}Aceitou passageiro{{else if eq .acao `BOOKING_REJECTED`}}Recusou passageiro{{else if eq .acao `BOOKINGS_ACCEPTED_ALL`}}Aceitou todos os pedidos{{else if eq .acao `PAYMENT_STARTED`}}Iniciou pagamento{{else if eq .acao `PAYMENT_WEBHOOK`}}Confirmou pagamento{{else if eq .acao `PAYOUT_REGISTERED`}}Registrou repasse{{else if eq .acao `PIX_KEY_UPDATED`}}Atualizou chave Pix{{else if eq .acao `USER_VIEWED`}}Consultou usuário{{else if eq .acao `USER_CREATED`}}Criou usuário{{else if eq .acao `USER_DELETED`}}Removeu usuário{{else if eq .acao `GROUP_CREATED`}}Criou grupo{{else if eq .acao `GROUP_UPDATED`}}Atualizou grupo{{else if eq .acao `GROUP_DELETED`}}Removeu grupo{{else}}{{.acao}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | label_format dur=\"{{.duration_ms}}{{.durationMs}}\" | label_format resultado=\"{{if eq .code `200`}}Deu certo{{else if eq .code `201`}}Deu certo{{else if eq .code `202`}}Deu certo{{else if eq .code `204`}}Deu certo{{else if eq .code `400`}}Dados inválidos{{else if eq .code `401`}}Não autorizado{{else if eq .code `403`}}Acesso negado{{else if eq .code `404`}}Não encontrado{{else if eq .code `409`}}Conflito{{else if eq .code `415`}}Formato não aceito{{else if eq .code `422`}}Dados inválidos{{else if eq .code `429`}}Muitas tentativas{{else if eq .code `500`}}Falha no sistema{{else if eq .code `502`}}Falha no sistema{{else if eq .code `503`}}Serviço indisponível{{else if eq .code `504`}}Tempo esgotado{{else}}{{.code}}{{end}}\" | user=~\"$usuario\" | acao=~\"$acao\" | code=~\"$status\" |~ \"$busca\" | code=~\"$status\" | code=~\"4..|5..\" [$__range])) or on(user) (sum by (user) (count_over_time({container=~\"raiji-($servico)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format acao_friendly=\"{{if eq .acao `HTTP_GET`}}Consultou informações{{else if eq .acao `HTTP_POST`}}Cadastrou ou alterou{{else if eq .acao `HTTP_PUT`}}Atualizou{{else if eq .acao `HTTP_PATCH`}}Ajustou{{else if eq .acao `HTTP_DELETE`}}Removeu{{else if eq .acao `page_view`}}Navegou no aplicativo{{else if eq .acao `http_request`}}Acessou o aplicativo{{else if eq .acao `bff_request`}}Usou o aplicativo{{else if eq .acao `MESSAGE_SENT`}}Enviou mensagem{{else if eq .acao `CONVERSATION_READ`}}Leu conversa{{else if eq .acao `CONVERSATION_OPENED`}}Abriu conversa{{else if eq .acao `RIDE_CREATED`}}Criou corrida{{else if eq .acao `RIDE_CANCELLED`}}Cancelou corrida{{else if eq .acao `RIDE_STARTED`}}Iniciou corrida{{else if eq .acao `RIDE_FINISHED`}}Finalizou corrida{{else if eq .acao `BOOKING_REQUESTED`}}Pediu uma vaga{{else if eq .acao `BOOKING_ACCEPTED`}}Aceitou passageiro{{else if eq .acao `BOOKING_REJECTED`}}Recusou passageiro{{else if eq .acao `BOOKINGS_ACCEPTED_ALL`}}Aceitou todos os pedidos{{else if eq .acao `PAYMENT_STARTED`}}Iniciou pagamento{{else if eq .acao `PAYMENT_WEBHOOK`}}Confirmou pagamento{{else if eq .acao `PAYOUT_REGISTERED`}}Registrou repasse{{else if eq .acao `PIX_KEY_UPDATED`}}Atualizou chave Pix{{else if eq .acao `USER_VIEWED`}}Consultou usuário{{else if eq .acao `USER_CREATED`}}Criou usuário{{else if eq .acao `USER_DELETED`}}Removeu usuário{{else if eq .acao `GROUP_CREATED`}}Criou grupo{{else if eq .acao `GROUP_UPDATED`}}Atualizou grupo{{else if eq .acao `GROUP_DELETED`}}Removeu grupo{{else}}{{.acao}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | label_format dur=\"{{.duration_ms}}{{.durationMs}}\" | label_format resultado=\"{{if eq .code `200`}}Deu certo{{else if eq .code `201`}}Deu certo{{else if eq .code `202`}}Deu certo{{else if eq .code `204`}}Deu certo{{else if eq .code `400`}}Dados inválidos{{else if eq .code `401`}}Não autorizado{{else if eq .code `403`}}Acesso negado{{else if eq .code `404`}}Não encontrado{{else if eq .code `409`}}Conflito{{else if eq .code `415`}}Formato não aceito{{else if eq .code `422`}}Dados inválidos{{else if eq .code `429`}}Muitas tentativas{{else if eq .code `500`}}Falha no sistema{{else if eq .code `502`}}Falha no sistema{{else if eq .code `503`}}Serviço indisponível{{else if eq .code `504`}}Tempo esgotado{{else}}{{.code}}{{end}}\" | user=~\"$usuario\" | acao=~\"$acao\" | code=~\"$status\" |~ \"$busca\" [$__range])) * 0))",
+          "instant": true,
+          "queryType": "instant",
+          "format": "table"
+        },
+        {
+          "refId": "C",
+          "expr": "topk(100, count by (user) (count by (user, container) (count_over_time({container=~\"raiji-($servico)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format acao_friendly=\"{{if eq .acao `HTTP_GET`}}Consultou informações{{else if eq .acao `HTTP_POST`}}Cadastrou ou alterou{{else if eq .acao `HTTP_PUT`}}Atualizou{{else if eq .acao `HTTP_PATCH`}}Ajustou{{else if eq .acao `HTTP_DELETE`}}Removeu{{else if eq .acao `page_view`}}Navegou no aplicativo{{else if eq .acao `http_request`}}Acessou o aplicativo{{else if eq .acao `bff_request`}}Usou o aplicativo{{else if eq .acao `MESSAGE_SENT`}}Enviou mensagem{{else if eq .acao `CONVERSATION_READ`}}Leu conversa{{else if eq .acao `CONVERSATION_OPENED`}}Abriu conversa{{else if eq .acao `RIDE_CREATED`}}Criou corrida{{else if eq .acao `RIDE_CANCELLED`}}Cancelou corrida{{else if eq .acao `RIDE_STARTED`}}Iniciou corrida{{else if eq .acao `RIDE_FINISHED`}}Finalizou corrida{{else if eq .acao `BOOKING_REQUESTED`}}Pediu uma vaga{{else if eq .acao `BOOKING_ACCEPTED`}}Aceitou passageiro{{else if eq .acao `BOOKING_REJECTED`}}Recusou passageiro{{else if eq .acao `BOOKINGS_ACCEPTED_ALL`}}Aceitou todos os pedidos{{else if eq .acao `PAYMENT_STARTED`}}Iniciou pagamento{{else if eq .acao `PAYMENT_WEBHOOK`}}Confirmou pagamento{{else if eq .acao `PAYOUT_REGISTERED`}}Registrou repasse{{else if eq .acao `PIX_KEY_UPDATED`}}Atualizou chave Pix{{else if eq .acao `USER_VIEWED`}}Consultou usuário{{else if eq .acao `USER_CREATED`}}Criou usuário{{else if eq .acao `USER_DELETED`}}Removeu usuário{{else if eq .acao `GROUP_CREATED`}}Criou grupo{{else if eq .acao `GROUP_UPDATED`}}Atualizou grupo{{else if eq .acao `GROUP_DELETED`}}Removeu grupo{{else}}{{.acao}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | label_format dur=\"{{.duration_ms}}{{.durationMs}}\" | label_format resultado=\"{{if eq .code `200`}}Deu certo{{else if eq .code `201`}}Deu certo{{else if eq .code `202`}}Deu certo{{else if eq .code `204`}}Deu certo{{else if eq .code `400`}}Dados inválidos{{else if eq .code `401`}}Não autorizado{{else if eq .code `403`}}Acesso negado{{else if eq .code `404`}}Não encontrado{{else if eq .code `409`}}Conflito{{else if eq .code `415`}}Formato não aceito{{else if eq .code `422`}}Dados inválidos{{else if eq .code `429`}}Muitas tentativas{{else if eq .code `500`}}Falha no sistema{{else if eq .code `502`}}Falha no sistema{{else if eq .code `503`}}Serviço indisponível{{else if eq .code `504`}}Tempo esgotado{{else}}{{.code}}{{end}}\" | user=~\"$usuario\" | acao=~\"$acao\" | code=~\"$status\" |~ \"$busca\" [$__range]))))",
+          "instant": true,
+          "queryType": "instant",
+          "format": "table"
+        },
+        {
+          "refId": "D",
+          "expr": "(100 * (sum by (user) (count_over_time({container=~\"raiji-($servico)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format acao_friendly=\"{{if eq .acao `HTTP_GET`}}Consultou informações{{else if eq .acao `HTTP_POST`}}Cadastrou ou alterou{{else if eq .acao `HTTP_PUT`}}Atualizou{{else if eq .acao `HTTP_PATCH`}}Ajustou{{else if eq .acao `HTTP_DELETE`}}Removeu{{else if eq .acao `page_view`}}Navegou no aplicativo{{else if eq .acao `http_request`}}Acessou o aplicativo{{else if eq .acao `bff_request`}}Usou o aplicativo{{else if eq .acao `MESSAGE_SENT`}}Enviou mensagem{{else if eq .acao `CONVERSATION_READ`}}Leu conversa{{else if eq .acao `CONVERSATION_OPENED`}}Abriu conversa{{else if eq .acao `RIDE_CREATED`}}Criou corrida{{else if eq .acao `RIDE_CANCELLED`}}Cancelou corrida{{else if eq .acao `RIDE_STARTED`}}Iniciou corrida{{else if eq .acao `RIDE_FINISHED`}}Finalizou corrida{{else if eq .acao `BOOKING_REQUESTED`}}Pediu uma vaga{{else if eq .acao `BOOKING_ACCEPTED`}}Aceitou passageiro{{else if eq .acao `BOOKING_REJECTED`}}Recusou passageiro{{else if eq .acao `BOOKINGS_ACCEPTED_ALL`}}Aceitou todos os pedidos{{else if eq .acao `PAYMENT_STARTED`}}Iniciou pagamento{{else if eq .acao `PAYMENT_WEBHOOK`}}Confirmou pagamento{{else if eq .acao `PAYOUT_REGISTERED`}}Registrou repasse{{else if eq .acao `PIX_KEY_UPDATED`}}Atualizou chave Pix{{else if eq .acao `USER_VIEWED`}}Consultou usuário{{else if eq .acao `USER_CREATED`}}Criou usuário{{else if eq .acao `USER_DELETED`}}Removeu usuário{{else if eq .acao `GROUP_CREATED`}}Criou grupo{{else if eq .acao `GROUP_UPDATED`}}Atualizou grupo{{else if eq .acao `GROUP_DELETED`}}Removeu grupo{{else}}{{.acao}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | label_format dur=\"{{.duration_ms}}{{.durationMs}}\" | label_format resultado=\"{{if eq .code `200`}}Deu certo{{else if eq .code `201`}}Deu certo{{else if eq .code `202`}}Deu certo{{else if eq .code `204`}}Deu certo{{else if eq .code `400`}}Dados inválidos{{else if eq .code `401`}}Não autorizado{{else if eq .code `403`}}Acesso negado{{else if eq .code `404`}}Não encontrado{{else if eq .code `409`}}Conflito{{else if eq .code `415`}}Formato não aceito{{else if eq .code `422`}}Dados inválidos{{else if eq .code `429`}}Muitas tentativas{{else if eq .code `500`}}Falha no sistema{{else if eq .code `502`}}Falha no sistema{{else if eq .code `503`}}Serviço indisponível{{else if eq .code `504`}}Tempo esgotado{{else}}{{.code}}{{end}}\" | user=~\"$usuario\" | acao=~\"$acao\" | code=~\"$status\" |~ \"$busca\" | code=~\"$status\" | code!~\"4..|5..\" [$__range])) / sum by (user) (count_over_time({container=~\"raiji-($servico)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format acao_friendly=\"{{if eq .acao `HTTP_GET`}}Consultou informações{{else if eq .acao `HTTP_POST`}}Cadastrou ou alterou{{else if eq .acao `HTTP_PUT`}}Atualizou{{else if eq .acao `HTTP_PATCH`}}Ajustou{{else if eq .acao `HTTP_DELETE`}}Removeu{{else if eq .acao `page_view`}}Navegou no aplicativo{{else if eq .acao `http_request`}}Acessou o aplicativo{{else if eq .acao `bff_request`}}Usou o aplicativo{{else if eq .acao `MESSAGE_SENT`}}Enviou mensagem{{else if eq .acao `CONVERSATION_READ`}}Leu conversa{{else if eq .acao `CONVERSATION_OPENED`}}Abriu conversa{{else if eq .acao `RIDE_CREATED`}}Criou corrida{{else if eq .acao `RIDE_CANCELLED`}}Cancelou corrida{{else if eq .acao `RIDE_STARTED`}}Iniciou corrida{{else if eq .acao `RIDE_FINISHED`}}Finalizou corrida{{else if eq .acao `BOOKING_REQUESTED`}}Pediu uma vaga{{else if eq .acao `BOOKING_ACCEPTED`}}Aceitou passageiro{{else if eq .acao `BOOKING_REJECTED`}}Recusou passageiro{{else if eq .acao `BOOKINGS_ACCEPTED_ALL`}}Aceitou todos os pedidos{{else if eq .acao `PAYMENT_STARTED`}}Iniciou pagamento{{else if eq .acao `PAYMENT_WEBHOOK`}}Confirmou pagamento{{else if eq .acao `PAYOUT_REGISTERED`}}Registrou repasse{{else if eq .acao `PIX_KEY_UPDATED`}}Atualizou chave Pix{{else if eq .acao `USER_VIEWED`}}Consultou usuário{{else if eq .acao `USER_CREATED`}}Criou usuário{{else if eq .acao `USER_DELETED`}}Removeu usuário{{else if eq .acao `GROUP_CREATED`}}Criou grupo{{else if eq .acao `GROUP_UPDATED`}}Atualizou grupo{{else if eq .acao `GROUP_DELETED`}}Removeu grupo{{else}}{{.acao}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | label_format dur=\"{{.duration_ms}}{{.durationMs}}\" | label_format resultado=\"{{if eq .code `200`}}Deu certo{{else if eq .code `201`}}Deu certo{{else if eq .code `202`}}Deu certo{{else if eq .code `204`}}Deu certo{{else if eq .code `400`}}Dados inválidos{{else if eq .code `401`}}Não autorizado{{else if eq .code `403`}}Acesso negado{{else if eq .code `404`}}Não encontrado{{else if eq .code `409`}}Conflito{{else if eq .code `415`}}Formato não aceito{{else if eq .code `422`}}Dados inválidos{{else if eq .code `429`}}Muitas tentativas{{else if eq .code `500`}}Falha no sistema{{else if eq .code `502`}}Falha no sistema{{else if eq .code `503`}}Serviço indisponível{{else if eq .code `504`}}Tempo esgotado{{else}}{{.code}}{{end}}\" | user=~\"$usuario\" | acao=~\"$acao\" | code=~\"$status\" |~ \"$busca\" [$__range])))) or on(user) (sum by (user) (count_over_time({container=~\"raiji-($servico)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format acao_friendly=\"{{if eq .acao `HTTP_GET`}}Consultou informações{{else if eq .acao `HTTP_POST`}}Cadastrou ou alterou{{else if eq .acao `HTTP_PUT`}}Atualizou{{else if eq .acao `HTTP_PATCH`}}Ajustou{{else if eq .acao `HTTP_DELETE`}}Removeu{{else if eq .acao `page_view`}}Navegou no aplicativo{{else if eq .acao `http_request`}}Acessou o aplicativo{{else if eq .acao `bff_request`}}Usou o aplicativo{{else if eq .acao `MESSAGE_SENT`}}Enviou mensagem{{else if eq .acao `CONVERSATION_READ`}}Leu conversa{{else if eq .acao `CONVERSATION_OPENED`}}Abriu conversa{{else if eq .acao `RIDE_CREATED`}}Criou corrida{{else if eq .acao `RIDE_CANCELLED`}}Cancelou corrida{{else if eq .acao `RIDE_STARTED`}}Iniciou corrida{{else if eq .acao `RIDE_FINISHED`}}Finalizou corrida{{else if eq .acao `BOOKING_REQUESTED`}}Pediu uma vaga{{else if eq .acao `BOOKING_ACCEPTED`}}Aceitou passageiro{{else if eq .acao `BOOKING_REJECTED`}}Recusou passageiro{{else if eq .acao `BOOKINGS_ACCEPTED_ALL`}}Aceitou todos os pedidos{{else if eq .acao `PAYMENT_STARTED`}}Iniciou pagamento{{else if eq .acao `PAYMENT_WEBHOOK`}}Confirmou pagamento{{else if eq .acao `PAYOUT_REGISTERED`}}Registrou repasse{{else if eq .acao `PIX_KEY_UPDATED`}}Atualizou chave Pix{{else if eq .acao `USER_VIEWED`}}Consultou usuário{{else if eq .acao `USER_CREATED`}}Criou usuário{{else if eq .acao `USER_DELETED`}}Removeu usuário{{else if eq .acao `GROUP_CREATED`}}Criou grupo{{else if eq .acao `GROUP_UPDATED`}}Atualizou grupo{{else if eq .acao `GROUP_DELETED`}}Removeu grupo{{else}}{{.acao}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | label_format dur=\"{{.duration_ms}}{{.durationMs}}\" | label_format resultado=\"{{if eq .code `200`}}Deu certo{{else if eq .code `201`}}Deu certo{{else if eq .code `202`}}Deu certo{{else if eq .code `204`}}Deu certo{{else if eq .code `400`}}Dados inválidos{{else if eq .code `401`}}Não autorizado{{else if eq .code `403`}}Acesso negado{{else if eq .code `404`}}Não encontrado{{else if eq .code `409`}}Conflito{{else if eq .code `415`}}Formato não aceito{{else if eq .code `422`}}Dados inválidos{{else if eq .code `429`}}Muitas tentativas{{else if eq .code `500`}}Falha no sistema{{else if eq .code `502`}}Falha no sistema{{else if eq .code `503`}}Serviço indisponível{{else if eq .code `504`}}Tempo esgotado{{else}}{{.code}}{{end}}\" | user=~\"$usuario\" | acao=~\"$acao\" | code=~\"$status\" |~ \"$busca\" [$__range])) * 0)",
+          "instant": true,
+          "queryType": "instant",
+          "format": "table"
+        },
+        {
+          "refId": "E",
+          "expr": "avg by (user) (avg_over_time({container=~\"raiji-($servico)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format acao_friendly=\"{{if eq .acao `HTTP_GET`}}Consultou informações{{else if eq .acao `HTTP_POST`}}Cadastrou ou alterou{{else if eq .acao `HTTP_PUT`}}Atualizou{{else if eq .acao `HTTP_PATCH`}}Ajustou{{else if eq .acao `HTTP_DELETE`}}Removeu{{else if eq .acao `page_view`}}Navegou no aplicativo{{else if eq .acao `http_request`}}Acessou o aplicativo{{else if eq .acao `bff_request`}}Usou o aplicativo{{else if eq .acao `MESSAGE_SENT`}}Enviou mensagem{{else if eq .acao `CONVERSATION_READ`}}Leu conversa{{else if eq .acao `CONVERSATION_OPENED`}}Abriu conversa{{else if eq .acao `RIDE_CREATED`}}Criou corrida{{else if eq .acao `RIDE_CANCELLED`}}Cancelou corrida{{else if eq .acao `RIDE_STARTED`}}Iniciou corrida{{else if eq .acao `RIDE_FINISHED`}}Finalizou corrida{{else if eq .acao `BOOKING_REQUESTED`}}Pediu uma vaga{{else if eq .acao `BOOKING_ACCEPTED`}}Aceitou passageiro{{else if eq .acao `BOOKING_REJECTED`}}Recusou passageiro{{else if eq .acao `BOOKINGS_ACCEPTED_ALL`}}Aceitou todos os pedidos{{else if eq .acao `PAYMENT_STARTED`}}Iniciou pagamento{{else if eq .acao `PAYMENT_WEBHOOK`}}Confirmou pagamento{{else if eq .acao `PAYOUT_REGISTERED`}}Registrou repasse{{else if eq .acao `PIX_KEY_UPDATED`}}Atualizou chave Pix{{else if eq .acao `USER_VIEWED`}}Consultou usuário{{else if eq .acao `USER_CREATED`}}Criou usuário{{else if eq .acao `USER_DELETED`}}Removeu usuário{{else if eq .acao `GROUP_CREATED`}}Criou grupo{{else if eq .acao `GROUP_UPDATED`}}Atualizou grupo{{else if eq .acao `GROUP_DELETED`}}Removeu grupo{{else}}{{.acao}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | label_format dur=\"{{.duration_ms}}{{.durationMs}}\" | label_format resultado=\"{{if eq .code `200`}}Deu certo{{else if eq .code `201`}}Deu certo{{else if eq .code `202`}}Deu certo{{else if eq .code `204`}}Deu certo{{else if eq .code `400`}}Dados inválidos{{else if eq .code `401`}}Não autorizado{{else if eq .code `403`}}Acesso negado{{else if eq .code `404`}}Não encontrado{{else if eq .code `409`}}Conflito{{else if eq .code `415`}}Formato não aceito{{else if eq .code `422`}}Dados inválidos{{else if eq .code `429`}}Muitas tentativas{{else if eq .code `500`}}Falha no sistema{{else if eq .code `502`}}Falha no sistema{{else if eq .code `503`}}Serviço indisponível{{else if eq .code `504`}}Tempo esgotado{{else}}{{.code}}{{end}}\" | user=~\"$usuario\" | acao=~\"$acao\" | code=~\"$status\" |~ \"$busca\" | dur=~\".+\" | unwrap dur [$__range]))",
+          "instant": true,
+          "queryType": "instant",
+          "format": "table"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "Ações",
+            "desc": true
+          }
+        ],
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Ações"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "locale"
+              },
+              {
+                "id": "custom.align",
+                "value": "right"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "gradient"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "blue",
+                      "value": null
+                    },
+                    {
+                      "color": "purple",
+                      "value": 500
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Falhas"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "locale"
+              },
+              {
+                "id": "custom.align",
+                "value": "right"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "gradient"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 1
+                    },
+                    {
+                      "color": "red",
+                      "value": 10
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Sucesso %"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              },
+              {
+                "id": "custom.align",
+                "value": "right"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "gradient"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "red",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 80
+                    },
+                    {
+                      "color": "green",
+                      "value": 95
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Serviços"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "locale"
+              },
+              {
+                "id": "custom.align",
+                "value": "right"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Tempo médio (ms)"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "ms"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              },
+              {
+                "id": "custom.align",
+                "value": "right"
+              }
+            ]
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "labelsToFields",
+          "options": {
+            "mode": "columns",
+            "keepLabels": [
+              "user"
+            ]
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            }
+          }
+        },
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "user",
+            "mode": "outer"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time 1": true,
+              "Time 2": true,
+              "Time 3": true,
+              "Time 4": true,
+              "Time 5": true
+            },
+            "renameByName": {
+              "user": "Pessoa",
+              "Value #A": "Ações",
+              "Value #B": "Falhas",
+              "Value #C": "Serviços",
+              "Value #D": "Sucesso %",
+              "Value #E": "Tempo médio (ms)"
+            },
+            "indexByName": {
+              "Pessoa": 0,
+              "Ações": 1,
+              "Falhas": 2,
+              "Sucesso %": 3,
+              "Serviços": 4,
+              "Tempo médio (ms)": 5
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 605,
+      "type": "table",
+      "title": "Quanto cada pessoa usou cada serviço",
+      "description": "Ações por pessoa separadas por serviço. Mostra quem usa o aplicativo, quem usa o chat e quem usa os dois.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 8,
+        "x": 0,
+        "y": 78
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "topk(100, sum by (user, container) (count_over_time({container=~\"raiji-($servico)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format acao_friendly=\"{{if eq .acao `HTTP_GET`}}Consultou informações{{else if eq .acao `HTTP_POST`}}Cadastrou ou alterou{{else if eq .acao `HTTP_PUT`}}Atualizou{{else if eq .acao `HTTP_PATCH`}}Ajustou{{else if eq .acao `HTTP_DELETE`}}Removeu{{else if eq .acao `page_view`}}Navegou no aplicativo{{else if eq .acao `http_request`}}Acessou o aplicativo{{else if eq .acao `bff_request`}}Usou o aplicativo{{else if eq .acao `MESSAGE_SENT`}}Enviou mensagem{{else if eq .acao `CONVERSATION_READ`}}Leu conversa{{else if eq .acao `CONVERSATION_OPENED`}}Abriu conversa{{else if eq .acao `RIDE_CREATED`}}Criou corrida{{else if eq .acao `RIDE_CANCELLED`}}Cancelou corrida{{else if eq .acao `RIDE_STARTED`}}Iniciou corrida{{else if eq .acao `RIDE_FINISHED`}}Finalizou corrida{{else if eq .acao `BOOKING_REQUESTED`}}Pediu uma vaga{{else if eq .acao `BOOKING_ACCEPTED`}}Aceitou passageiro{{else if eq .acao `BOOKING_REJECTED`}}Recusou passageiro{{else if eq .acao `BOOKINGS_ACCEPTED_ALL`}}Aceitou todos os pedidos{{else if eq .acao `PAYMENT_STARTED`}}Iniciou pagamento{{else if eq .acao `PAYMENT_WEBHOOK`}}Confirmou pagamento{{else if eq .acao `PAYOUT_REGISTERED`}}Registrou repasse{{else if eq .acao `PIX_KEY_UPDATED`}}Atualizou chave Pix{{else if eq .acao `USER_VIEWED`}}Consultou usuário{{else if eq .acao `USER_CREATED`}}Criou usuário{{else if eq .acao `USER_DELETED`}}Removeu usuário{{else if eq .acao `GROUP_CREATED`}}Criou grupo{{else if eq .acao `GROUP_UPDATED`}}Atualizou grupo{{else if eq .acao `GROUP_DELETED`}}Removeu grupo{{else}}{{.acao}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | label_format dur=\"{{.duration_ms}}{{.durationMs}}\" | label_format resultado=\"{{if eq .code `200`}}Deu certo{{else if eq .code `201`}}Deu certo{{else if eq .code `202`}}Deu certo{{else if eq .code `204`}}Deu certo{{else if eq .code `400`}}Dados inválidos{{else if eq .code `401`}}Não autorizado{{else if eq .code `403`}}Acesso negado{{else if eq .code `404`}}Não encontrado{{else if eq .code `409`}}Conflito{{else if eq .code `415`}}Formato não aceito{{else if eq .code `422`}}Dados inválidos{{else if eq .code `429`}}Muitas tentativas{{else if eq .code `500`}}Falha no sistema{{else if eq .code `502`}}Falha no sistema{{else if eq .code `503`}}Serviço indisponível{{else if eq .code `504`}}Tempo esgotado{{else}}{{.code}}{{end}}\" | user=~\"$usuario\" | acao=~\"$acao\" | code=~\"$status\" |~ \"$busca\" [$__range])))",
+          "instant": true,
+          "queryType": "instant",
+          "format": "table"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "Ações",
+            "desc": true
+          }
+        ],
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": true
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Ações"
+            },
+            "properties": [
+              {
+                "id": "custom.align",
+                "value": "right"
+              },
+              {
+                "id": "unit",
+                "value": "locale"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "gradient"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "blue",
+                      "value": null
+                    },
+                    {
+                      "color": "purple",
+                      "value": 500
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Serviço"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "raiji-app": {
+                        "text": "Monólito",
+                        "index": 0
+                      },
+                      "raiji-chat": {
+                        "text": "Chat",
+                        "index": 1
+                      },
+                      "raiji-front": {
+                        "text": "Aplicativo",
+                        "index": 2
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "user": "Pessoa",
+              "container": "Serviço",
+              "Value": "Ações",
+              "Value #A": "Ações"
+            },
+            "indexByName": {
+              "Pessoa": 0,
+              "Serviço": 1,
+              "Ações": 2
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 606,
+      "type": "table",
+      "title": "Ações de negócio por pessoa",
+      "description": "Somente as ações de negócio (corridas, reservas, mensagens, pagamentos, grupos etc.), sem contar acessos e consultas genéricas. Mostra o que cada pessoa realmente fez.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 8,
+        "x": 8,
+        "y": 78
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "topk(100, sum by (user, acao_friendly) (count_over_time({container=~\"raiji-($servico)\"} |~ \"audit_http_request|\\\"service\\\":\\\"front-pwa\\\"\" | json | label_format user=\"{{.actor_username}}{{.actorUsername}}\" | label_format acao=\"{{if .action}}{{.action}}{{else}}{{.event}}{{end}}\" | label_format acao_friendly=\"{{if eq .acao `HTTP_GET`}}Consultou informações{{else if eq .acao `HTTP_POST`}}Cadastrou ou alterou{{else if eq .acao `HTTP_PUT`}}Atualizou{{else if eq .acao `HTTP_PATCH`}}Ajustou{{else if eq .acao `HTTP_DELETE`}}Removeu{{else if eq .acao `page_view`}}Navegou no aplicativo{{else if eq .acao `http_request`}}Acessou o aplicativo{{else if eq .acao `bff_request`}}Usou o aplicativo{{else if eq .acao `MESSAGE_SENT`}}Enviou mensagem{{else if eq .acao `CONVERSATION_READ`}}Leu conversa{{else if eq .acao `CONVERSATION_OPENED`}}Abriu conversa{{else if eq .acao `RIDE_CREATED`}}Criou corrida{{else if eq .acao `RIDE_CANCELLED`}}Cancelou corrida{{else if eq .acao `RIDE_STARTED`}}Iniciou corrida{{else if eq .acao `RIDE_FINISHED`}}Finalizou corrida{{else if eq .acao `BOOKING_REQUESTED`}}Pediu uma vaga{{else if eq .acao `BOOKING_ACCEPTED`}}Aceitou passageiro{{else if eq .acao `BOOKING_REJECTED`}}Recusou passageiro{{else if eq .acao `BOOKINGS_ACCEPTED_ALL`}}Aceitou todos os pedidos{{else if eq .acao `PAYMENT_STARTED`}}Iniciou pagamento{{else if eq .acao `PAYMENT_WEBHOOK`}}Confirmou pagamento{{else if eq .acao `PAYOUT_REGISTERED`}}Registrou repasse{{else if eq .acao `PIX_KEY_UPDATED`}}Atualizou chave Pix{{else if eq .acao `USER_VIEWED`}}Consultou usuário{{else if eq .acao `USER_CREATED`}}Criou usuário{{else if eq .acao `USER_DELETED`}}Removeu usuário{{else if eq .acao `GROUP_CREATED`}}Criou grupo{{else if eq .acao `GROUP_UPDATED`}}Atualizou grupo{{else if eq .acao `GROUP_DELETED`}}Removeu grupo{{else}}{{.acao}}{{end}}\" | label_format code=\"{{.http_status}}{{.status}}\" | label_format dur=\"{{.duration_ms}}{{.durationMs}}\" | label_format resultado=\"{{if eq .code `200`}}Deu certo{{else if eq .code `201`}}Deu certo{{else if eq .code `202`}}Deu certo{{else if eq .code `204`}}Deu certo{{else if eq .code `400`}}Dados inválidos{{else if eq .code `401`}}Não autorizado{{else if eq .code `403`}}Acesso negado{{else if eq .code `404`}}Não encontrado{{else if eq .code `409`}}Conflito{{else if eq .code `415`}}Formato não aceito{{else if eq .code `422`}}Dados inválidos{{else if eq .code `429`}}Muitas tentativas{{else if eq .code `500`}}Falha no sistema{{else if eq .code `502`}}Falha no sistema{{else if eq .code `503`}}Serviço indisponível{{else if eq .code `504`}}Tempo esgotado{{else}}{{.code}}{{end}}\" | user=~\"$usuario\" | acao=~\"$acao\" | code=~\"$status\" |~ \"$busca\" | acao=~\"RIDE_.*|BOOKING_.*|PAYMENT_.*|PAYOUT_.*|PIX_.*|MESSAGE_SENT|CONVERSATION_.*|GROUP_.*|USER_.*|DELIVERY_.*|FREIGHT_.*|BAGGAGE_.*|ATTACHMENT_.*\" [$__range])))",
+          "instant": true,
+          "queryType": "instant",
+          "format": "table"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "Ações",
+            "desc": true
+          }
+        ],
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": true
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Ações"
+            },
+            "properties": [
+              {
+                "id": "custom.align",
+                "value": "right"
+              },
+              {
+                "id": "unit",
+                "value": "locale"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "gradient"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "blue",
+                      "value": null
+                    },
+                    {
+                      "color": "purple",
+                      "value": 500
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "user": "Pessoa",
+              "acao_friendly": "O que fez",
+              "Value": "Ações",
+              "Value #A": "Ações"
+            },
+            "indexByName": {
+              "Pessoa": 0,
+              "O que fez": 1,
+              "Ações": 2
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 607,
+      "type": "table",
+      "title": "Entradas e saídas por pessoa",
+      "description": "Quantas vezes cada pessoa entrou, saiu ou tentou entrar no sistema. Vem dos eventos de identidade do Keycloak.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 8,
+        "x": 16,
+        "y": 78
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "topk(100, sum by (username, type) (count_over_time({container=\"raiji-keycloak-events\"} |= \"keycloak_event\" | json | kind=\"user_event\" | type=~\"LOGIN|LOGOUT|LOGIN_ERROR\" | username=~\"$usuario\" |~ \"$busca\" [$__range])))",
+          "instant": true,
+          "queryType": "instant",
+          "format": "table"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "Vezes",
+            "desc": true
+          }
+        ],
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": true
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Vezes"
+            },
+            "properties": [
+              {
+                "id": "custom.align",
+                "value": "right"
+              },
+              {
+                "id": "unit",
+                "value": "locale"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "gradient"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "blue",
+                      "value": null
+                    },
+                    {
+                      "color": "purple",
+                      "value": 500
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Acesso"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "LOGIN": {
+                        "text": "Entrou",
+                        "index": 0,
+                        "color": "green"
+                      },
+                      "LOGOUT": {
+                        "text": "Saiu",
+                        "index": 1,
+                        "color": "blue"
+                      },
+                      "LOGIN_ERROR": {
+                        "text": "Falhou ao entrar",
+                        "index": 2,
+                        "color": "red"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "username": "Pessoa",
+              "type": "Acesso",
+              "Value": "Vezes",
+              "Value #A": "Vezes"
+            },
+            "indexByName": {
+              "Pessoa": 0,
+              "Acesso": 1,
+              "Vezes": 2
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 700,
+      "type": "row",
+      "title": "Entradas e saídas do sistema",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 87
+      },
+      "panels": []
+    },
+    {
+      "id": 701,
+      "type": "logs",
+      "title": "Quem entrou e saiu do sistema",
+      "description": "Login, logout e tentativas de acesso das pessoas. Ações de administradores ficam no Métricas e Logs. Este painel não depende do filtro Serviço, porque a identidade é única para todo o sistema.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 88
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{container=\"raiji-keycloak-events\"} |= \"keycloak_event\" | json | kind=\"user_event\" | type=~\"LOGIN|LOGOUT|LOGIN_ERROR|REGISTER|REGISTER_ERROR|UPDATE_PASSWORD|UPDATE_PROFILE|UPDATE_EMAIL|DELETE_ACCOUNT|RESET_PASSWORD\" | username=~\"$usuario\" or actorUsername=~\"$usuario\" or userId=~\"$usuario\" or actorId=~\"$usuario\" |~ \"$busca\" | line_format \"{{if eq .kind `admin_event`}}Administrador {{.actorUsername}} fez {{.type}} em {{.resourcePath}}{{else}}{{if .username}}{{.username}}{{else}}{{.actorUsername}}{{end}}{{if eq .type `LOGIN`}} entrou no sistema{{else if eq .type `LOGOUT`}} saiu do sistema{{else if eq .type `LOGIN_ERROR`}} tentou entrar (falhou){{else if eq .type `REGISTER`}} criou uma conta{{else if eq .type `UPDATE_PASSWORD`}} trocou a senha{{else if eq .type `UPDATE_PROFILE`}} atualizou o perfil{{else}} {{.type}}{{end}}{{end}} • {{.ipAddress}}{{.actorIp}}\"",
+          "queryType": "range"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "sortOrder": "Descending",
+        "wrapLogMessage": true,
+        "enableLogDetails": true,
+        "dedupStrategy": "none",
+        "detailsMode": "inline",
+        "prettifyLogMessage": false,
+        "showLabels": false,
+        "showCommonLabels": false
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 800,
+      "type": "text",
+      "title": "Precisa de mais detalhes?",
+      "gridPos": {
+        "h": 4,
+        "w": 24,
+        "x": 0,
+        "y": 96
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "Este painel foi feito para **qualquer pessoa da equipe** entender o uso do sistema. Para investigar uma requisição específica, ver logs de infraestrutura (Kong, Postgres, RabbitMQ), logs de testes ou o `audit_log` do banco, use o **[Métricas e Logs](/d/raiji-auditoria)**.\n\nDica: o **ID** que aparece nas ações pode ser usado no filtro **Buscar** do Métricas e Logs para seguir a mesma requisição entre os serviços."
       }
     }
   ],
-  "refresh": "30s",
+  "refresh": "1m",
   "schemaVersion": 39,
   "tags": [
     "raiji",
     "auditoria",
-    "negocio"
+    "negocio",
+    "simples"
   ],
   "templating": {
     "list": [
       {
         "name": "servico",
         "label": "Serviço",
+        "description": "Escolha quais partes do sistema observar. O padrão é todas.",
         "type": "custom",
-        "query": "Monólito : app, Chat : chat, Front : front",
+        "query": "Monólito : app, Chat : chat, Aplicativo : front",
         "multi": true,
         "includeAll": true,
         "allValue": "app|chat|front",
         "current": {
-          "text": "All",
+          "text": "Todos",
           "value": "$__all"
         },
         "options": []
       },
       {
         "name": "usuario",
-        "label": "Usuário (nome ou sub)",
+        "label": "Pessoa",
+        "description": "Digite o nome da pessoa. Use .+ para pessoas logadas (padrão) ou .* para incluir também visitantes sem login.",
         "type": "textbox",
         "query": ".+",
         "current": {
@@ -722,7 +2343,8 @@
       },
       {
         "name": "acao",
-        "label": "Ação",
+        "label": "Tipo de ação",
+        "description": "Filtre por um tipo de ação, por exemplo RIDE_CREATED (corrida criada) ou MESSAGE_SENT (mensagem enviada). Use .* para todas.",
         "type": "textbox",
         "query": ".*",
         "current": {
@@ -733,23 +2355,27 @@
       },
       {
         "name": "status",
-        "label": "Status",
+        "label": "Resultado",
+        "description": "Mostre somente o que deu certo, o que foi negado ou o que falhou.",
         "type": "custom",
-        "query": ".*,2..,4..,5..,4..|5..",
+        "query": "Todos : .*, Deu certo : 2.., Negado : 4.., Falhou : 5.., Qualquer problema : 4..|5..",
         "current": {
-          "text": ".*",
+          "text": "Todos",
           "value": ".*"
         },
-        "hide": 0
+        "options": [],
+        "includeAll": false,
+        "multi": false
       },
       {
         "name": "busca",
-        "label": "Busca livre (request_id, rota, texto)",
+        "label": "Buscar",
+        "description": "Procure por um ID de requisição, caminho (rota) ou palavra. Deixe em branco para ver tudo.",
         "type": "textbox",
-        "query": ".*",
+        "query": "",
         "current": {
-          "text": ".*",
-          "value": ".*"
+          "text": "",
+          "value": ""
         },
         "hide": 0
       }
@@ -759,9 +2385,32 @@
     "from": "now-24h",
     "to": "now"
   },
-  "timepicker": {},
+  "timepicker": {
+    "refresh_intervals": [
+      "5s",
+      "10s",
+      "30s",
+      "1m",
+      "5m",
+      "15m",
+      "30m",
+      "1h"
+    ],
+    "time_options": [
+      "5m",
+      "15m",
+      "1h",
+      "6h",
+      "12h",
+      "24h",
+      "2d",
+      "7d",
+      "30d"
+    ]
+  },
   "timezone": "browser",
   "title": "Raiji · Auditoria (visão de negócio)",
   "uid": "raiji-auditoria-negocio",
-  "version": 1
+  "version": 1,
+  "description": "Visão simples da auditoria: quem usou o sistema, o que fez, quando e com qual resultado."
 }

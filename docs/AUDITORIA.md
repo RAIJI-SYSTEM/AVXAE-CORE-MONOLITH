@@ -22,7 +22,7 @@ O objetivo é responder, com dados reais:
 |---|---|---|---|
 | Monólito | logger `AUDIT`, uma linha JSON por requisição `/api/**` | Postgres `audit_log` para requisições autenticadas que mudam estado | `GET /api/audit/me`, `GET /api/admin/audit` |
 | Chat | logger Pino com `audit: true` | MongoDB `audit_events` para escrita autenticada | `GET /audit/me`, `GET /audit/events` |
-| FRONT | JSON no stdout | não persiste (não tem banco); centralizado no Loki | Grafana → **Raiji · Auditoria (logs)** |
+| FRONT | JSON no stdout | não persiste (não tem banco); centralizado no Loki | Grafana → **Métricas e Logs** |
 | Keycloak | evento do servidor | tabela de eventos do Keycloak | console admin / Admin API |
 
 Todas as linhas carregam `request_id`; o FRONT gera/propaga `X-Request-Id`, o
@@ -159,7 +159,7 @@ A stack `observability/docker-compose.observability.yml` sobe **Loki** e
 **Promtail**, que coleta o stdout de todos os containers `raiji-*`.
 
 - Loki: `http://localhost:3100`
-- Grafana: `http://localhost:3300` → dashboard **Raiji · Auditoria (logs)**
+- Grafana: `http://localhost:3300` → dashboard **Métricas e Logs**
 - Datasource provisionado: `Loki` (`uid: loki`)
 
 Consultas úteis no Grafana Explore:
@@ -191,50 +191,85 @@ senha: auditoria123
 
 Filtros no topo:
 
-- **Serviço**: Monólito, Chat e/ou Front. A busca principal usa todos por padrão.
-- **Usuário**: nome (`maria`) ou `sub` do Keycloak. O padrão `.+` mostra só ações autenticadas; use `.*` para incluir anônimos.
-- **Ação**: `RIDE_CREATED`, `MESSAGE_SENT`, `PAYMENT_WEBHOOK` etc.
-- **Status**: 2xx, 4xx, 5xx ou falhas.
-- **Busca livre**: `request_id`, rota ou texto.
+- **Serviço**: Monólito, Chat e/ou Aplicativo. O padrão é todos.
+- **Pessoa**: nome (`maria`) ou `sub` do Keycloak. O padrão `.+` mostra só ações
+  autenticadas; use `.*` para incluir visitantes sem login.
+- **Tipo de ação**: `RIDE_CREATED`, `MESSAGE_SENT`, `PAYMENT_WEBHOOK` etc.
+- **Resultado**: Todos, Deu certo (2xx), Negado (4xx), Falhou (5xx) ou
+  Qualquer problema (4xx/5xx).
+- **Buscar**: `request_id`, rota ou texto. Deixe em branco para ver tudo.
 
-Painéis:
+O dashboard foi organizado para leitura por qualquer pessoa da equipe:
 
-- totais de ações, falhas, ação e usuário mais ativos;
-- **todas as ações dos três serviços em um único painel**, com linha padronizada
-  (`usuário | ação | método rota | status | duração | request_id`);
-- erros e negações;
-- tabelas de ações por serviço, top ações e top usuários;
-- **Usuários — estatísticas** (total de ações por usuário);
-- **Falhas por usuário**;
-- **Usuários × ações** (o que cada usuário fez);
-- identidade do Keycloak (login/logout e admin events);
-- logs técnicos de Kong/Keycloak/Postgres/RabbitMQ;
-- busca livre em todos os containers `raiji-*`.
+- **O que está acontecendo no sistema?** — explicação rápida e legenda de cores;
+- **Resumo**: ações registradas, pessoas ativas e falhas/acessos negados;
+- **Movimento do sistema**: gráfico de ações ao longo do tempo e participação de
+  cada serviço;
+- **O que as pessoas estão fazendo**: ações mais frequentes e quem mais usou;
+- **Linha do tempo**: cada ação em linguagem simples
+  (`pessoa • ação • serviço • rota • resultado • ID`);
+- **Problemas e acessos negados**: o que deu errado e quem teve mais problemas;
+- **Resumo por pessoa**: quanto cada pessoa usou e o que ela fez;
+- **Métricas por pessoa**:
+  - média de ações por pessoa e pessoas com falha;
+  - gráfico de **quantas pessoas usaram o sistema** ao longo do tempo;
+  - **Ficha da pessoa**: ações, falhas, taxa de sucesso, serviços usados e tempo
+    médio de resposta;
+  - **quanto cada pessoa usou cada serviço**;
+  - **ações de negócio por pessoa** (corridas, reservas, mensagens, pagamentos,
+    grupos etc.);
+  - **entradas e saídas por pessoa** (login, logout e falhas de login);
+- **Entradas e saídas**: detalhe cronológico de login, logout e tentativas de
+  acesso das pessoas (ações administrativas ficam no dashboard técnico).
+
+As ações e os resultados são traduzidos: `HTTP_GET` vira “Consultou informações”,
+`RIDE_CREATED` vira “Criou corrida”, `200` vira “Deu certo”, `403` vira “Acesso
+negado”, entre outros. Códigos não mapeados continuam aparecendo como estão.
 
 As consultas normalizam `actor_sub`/`actorSub`, `http_status`/`status` e
 `action`/`event` para permitir filtrar os três serviços juntos.
 
-Todos os painéis de ações e de resumo (totais, top usuários, usuários —
-estatísticas, falhas por usuário, usuários × ações e ações por serviço)
-respeitam os cinco filtros. Se o filtro **Usuário** não corresponder a ninguém,
-todos eles ficam vazios (`No data`) — inclusive Top usuários. O painel de
-identidade do Keycloak respeita **Usuário** e **Busca livre**. Já os painéis de
-infraestrutura (Kong/Keycloak/Postgres/RabbitMQ) e a busca livre em todos os
-containers respeitam apenas a **Busca livre**.
+Todos os painéis de ações e de resumo respeitam os cinco filtros. Se o filtro
+**Pessoa** não corresponder a ninguém, todos eles ficam vazios (`No data`). Os
+painéis de identidade do Keycloak (entradas/saídas e a tabela por pessoa)
+respeitam **Pessoa** e **Buscar**; eles não usam o filtro **Serviço** porque a
+identidade é única para todo o sistema.
+
+> Uma mesma pessoa pode aparecer com dois nomes (login e nome de exibição)
+> porque o monólito e o chat registram o nome de formas diferentes. O `sub` do
+> Keycloak é o identificador único.
+
+Logs de infraestrutura (Kong/Postgres/RabbitMQ), logs de testes, `audit_log` do
+banco e busca livre em todos os containers ficam no dashboard técnico:
+`http://localhost:3300/d/raiji-auditoria`.
 
 O painel de identidade é alimentado pelo container `raiji-keycloak-events`, que
 consulta a Admin API do Keycloak a cada 10s e publica os eventos em JSON no
 stdout. O Promtail coleta e envia ao Loki.
 
-O dashboard técnico anterior continua disponível em
-`http://localhost:3300/d/raiji-auditoria`.
-
-## Dashboard técnico — todos os logs
+## Dashboard Métricas e Logs
 
 Dashboard: `http://localhost:3300/d/raiji-auditoria`
 
 Ele reúne:
 
+- **Visão geral — métricas**:
+  - ações auditadas, usuários únicos, falhas, taxa de erro, tempo médio de
+    resposta e serviços ativos;
+  - gráficos de ações/falhas e de ações por serviço ao longo do tempo;
+  - tabelas de resumo por serviço (ações, falhas, erro %, tempo médio), top
+    ações, top usuários, rotas mais acessadas, distribuição por status e volume
+    de logs por container;
+- **Métricas por fonte de dados**:
+  - registros no `audit_log` do Postgres e top ações gravadas;
+  - eventos do Keycloak por tipo;
+  - linhas de log de teste por serviço;
+  - volume de logs de infraestrutura;
+- **Métricas de logs por serviço**:
+  - total de linhas, linhas com erro, linhas com aviso e containers ativos;
+  - volume de logs e erros por serviço ao longo do tempo;
+  - tabela por container (Monólito, Chat, Front, Keycloak, Kong, Postgres,
+    RabbitMQ e RustFS) com total, erros, avisos e percentual de erro;
 - **Busca global** em todos os containers, com filtros de serviço, usuário, ação,
   status e texto/`request_id`;
 - logs HTTP de monólito, chat, front e Keycloak (Loki);
@@ -259,6 +294,13 @@ Filtros do dashboard:
 
 O padrão de **Usuário** é `.+` (somente autenticados). Use `.*` para incluir
 navegações anônimas do front.
+
+As métricas de auditoria (ações, erros, latência, top ações/usuários/rotas)
+consideram sempre **monólito + chat + front**. As métricas de logs por serviço
+consideram todos os serviços monitorados (Monólito, Chat, Front, Keycloak, Kong,
+Postgres, RabbitMQ e RustFS). Ambas ignoram o filtro **Serviço**; os demais
+filtros (Usuário, Ação, Status, Busca) continuam valendo. O filtro **Serviço**
+vale para a busca global e para os painéis de logs por container.
 
 Painéis de usuários no dashboard técnico:
 
